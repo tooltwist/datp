@@ -1,0 +1,16 @@
+/**
+ * This class implements a handler for scheduler gates.
+ */
+
+export default class GateHandler {
+
+  /**
+   * This function shouls be overridden by the implementing class.
+   * @param {string} gateId
+   * @param {*} payload
+   */
+  async triggered(gateId, payload) {
+    console.log(`GateHandler.triggered(${gateId})`, payload)
+    console.log(`- not implemented yet`)
+  }
+}

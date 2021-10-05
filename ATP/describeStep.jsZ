@@ -1,0 +1,13 @@
+import stepDefinition from './stepDefinition'
+import Step from './Step'
+
+export default async function describeStep(def) {
+  const definition = await Step.getDefinition(def)
+  console.log(`definition=`, definition)
+
+  const stepType = definition.stepType
+  const module = StepTypeRegister.getStepType(stepType)
+
+  const record = module.factory(definition)
+  return record.describeStep(definition)
+}

@@ -1,0 +1,19 @@
+{
+  "name": "uxba-pipeline",
+  "version": "1.0.0",
+  "description": "Pipeline processor for UBX Aggregator",
+  "main": "main.js",
+  "license": "MIT",
+  "private": true,
+  "dependencies": {
+    "@tooltwist/juice-client": "^1.0.20",
+    "colors": "^1.4.0",
+    "easymidi": "^2.0.5",
+    "esm": "^3.2.25",
+    "figlet": "^1.5.2",
+    "mysql2": "^2.3.0",
+    "restify": "^8.5.1",
+    "restify-cors-middleware": "^1.1.1",
+    "semver": "^7.3.5"
+  }
+}

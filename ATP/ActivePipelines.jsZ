@@ -1,0 +1,23 @@
+import StepType_Pipeline from './hardcoded/Pipeline'
+
+class ActivePipelines {
+  constructor() {
+    this.pipelines = [ ]
+  }
+
+  addPipeline(pipeline) {
+    if (!(pipeline instanceof StepType_Pipeline)) {
+      throw new Error(`pipeline not an instance of StepType_Pipeline`)
+    }
+    console.log(`addPipeline(${pipeline.pipelineId})`)
+    this.pipelines[pipeline.pipelineId] = pipeline
+  }
+
+  removePipeline(pipelineId) {
+    console.log(`removePipeline(${pipelineId})`)
+    delete this.pipelines[pipelineId]
+  }
+}
+
+const defaultList = new ActivePipelines()
+export default defaultList

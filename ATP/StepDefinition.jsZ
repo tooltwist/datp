@@ -1,0 +1,160 @@
+
+import Logbook from "./Logbook"
+import GenerateHash from './GenerateHash'
+
+const LOCATION_HARD_CODED = 'hardcoded'
+const LOCATION_LOCAL_SERVICE = 'local'
+const LOCATION_REMOTE_SERVICE = 'remote'
+
+const STATUS_DOWN = 'down'
+const STATUS_STANDBY = 'standby'
+const STATUS_UP = 'up'
+const STATUS_ERROR = 'error'
+const STATUS_DISABLED = 'disabled'
+
+const RETURN_TYPE_SYNCHRONOUS = 'sync' // Wait for the step to finish (super fast only)
+const RETURN_TYPE_CALLBACK = 'callback' // Only for HARD_CODED
+const RETURN_TYPE_WEBHOOK = 'webhook'
+const RETURN_TYPE_POLL = 'poll'
+
+const VERBOSE = false
+
+class StepDefinition {
+
+  // LOCATION_CODE = 'code'
+  // LOCATION_LOCAL_SERVICE = 'local'
+  // LOCATION_REMOTE_SERVICE = 'remote'
+
+  constructor(definition) {
+    if (VERBOSE) {
+      console.log(`--------- --------- --------- --------- --------- `)
+      console.log(`StepDefinition.constructor()`)
+      console.log(`definition=`, definition)
+    }
+    if (definition) {
+      this.definition = definition
+
+      this.stepId = GenerateHash('step')
+
+      if (definition.name) {
+        this.name = definition.name
+      } else {
+        throw new Error(`Definition of step is missing definition.name`)
+      }
+      if (definition.location) {
+        this.location = definition.location
+      } else {
+        throw new Error(`Definition of step ${this.name}: missing definition.location`)
+      }
+
+      if (definition.location === LOCATION_HARD_CODED) {
+        if (definition.stepHandler) {
+          this.stepHandler = definition.stepHandler
+        } else {
+          throw new Error(`Definition of step ${this.name}: Hard coded step must define 'stepHandler'.`)
+        }
+      }
+      // if (definition.type) {
+      //   this.type = definition.type
+      // } else {
+      //   throw new Error(`Missing definition.type`)
+      // }
+    } else {
+      throw new Error('StepDefinition.constructor(): missing definition parameter')
+    }
+    if (VERBOSE) {
+      console.log(`New StepDefinition ${this.name}:`)
+      console.log(`location: ${this.location}`)
+      console.log(`type: ${this.type}`)
+    }
+
+    // Allocate a logbook
+    this.logbook = new Logbook.cls({ description: `Step definition ${this.name}`})
+    this.logbook.log(0, `Registered`)
+  }
+
+  async invokeStep(context, tx) {
+    console.log(`StepDefinition.invoke(${this.stepId}) - ${this.name}`)
+    // console.log(`YARP YARP ZZZZZ IS THIS EVER CALLED????? ZZZZ`)
+    // console.log(`  tx:`, tx)
+    // console.log(`  txn:`, txn)
+    // console.log(`  stepId:`, stepId)
+    // console.log(`  data:`, data)
+    // console.log(`  logbook:`, logbook)
+    console.log(``)
+
+    context.log(0, `Invoked by step ${this.stepId}`)
+    switch (this.location) {
+      case LOCATION_HARD_CODED:
+        this.logbook.log(this.stepId, `Invoking hardcoded step handler`)
+        // this.logbook.log(0, `Step ${id} invoke...`)
+        context.console(`v----- ${this.stepId}: Invoking hardcoded step handler.`)
+        await this.stepHandler.invoke(context, tx, this)
+        context.console(`^----- step ${this.stepId}: Back from hardcoded step handler.`)
+        context.log(`Back from hardcoded step handler`)
+        this.logbook.log(0, `Step ${this.stepId} normal return`)
+        break
+      default:
+        throw new Error(`Location ${this.location} not supported yet`)
+    }
+  }
+
+  async rollback(data, logbook) {
+    console.log(`Rolling back ${this.name}`)
+    // ZZZZ
+  }
+
+  async healthcheck() {
+    console.log(`${this.name} healthcheck.`)
+    // ZZZZ
+    this.lastHeathcheck = new Date()//ZZZZ
+  }
+
+  async getStatus() {
+    console.log(`${this.name}.getStatus()`)
+    // ZZZZ
+    return this.status
+  }
+
+  async setStatus(status) {
+    console.log(`${this.name}.setStatus(${status})`)
+    this.logbook.log(0, `Set status to ${status}`)
+    // ZZZZ
+    this.status = status
+  }
+
+  async getLogbook() {
+    return this.logbook
+  }
+
+  async resetLogbook() {
+    // Persist the existing logbook? ZZZZ
+    this.logbook.persist()
+
+    // Create a new logbook
+    this.logbook = new Logbook.cls({ description: `Step definition ${this.name}`})
+  }
+}
+
+
+export default {
+  cls: StepDefinition,
+
+  // Where does this step run?
+  LOCATION_HARD_CODED,
+  LOCATION_LOCAL_SERVICE,
+  LOCATION_REMOTE_SERVICE,
+
+  //
+  // STATUS_DOWN,
+  // STATUS_STANDBY,
+  // STATUS_UP,
+  // STATUS_ERROR,
+  // STATUS_DISABLED,
+
+  //
+  RETURN_TYPE_POLL,
+  RETURN_TYPE_SYNCHRONOUS,
+  RETURN_TYPE_CALLBACK,
+  RETURN_TYPE_WEBHOOK,
+}
