@@ -22,17 +22,24 @@ import StepTypes from '../StepTypeRegister'
  * tell the Scheduler that the step has completed. See ZZZZ for more information.
  */
 class ExampleStep extends Step {
-  #msg = null
-  #delta = 0.0
+  #delta
 
   constructor(definition) {
-    // console.log(`ExampleStep.constructor()`, definition)
+    console.log(`ExampleStep.constructor()`, definition)
     super(definition)
-    if (typeof(definition.msg) === 'string') {
-      this.#delta = definition.amt
-    }
-    if (typeof(definition.amt) === 'number') {
-      this.#delta = definition.amt
+    console.log(`zzzzz=`, typeof(definition.delta))
+    switch (typeof(definition.delta)) {
+      case 'string':
+        this.#delta = parseFloat(definition.delta)
+        break
+
+      case 'number':
+        this.#delta = definition.delta
+        break
+
+      default:
+        console.log(`Invalid or missing 'definition.delta'.`)
+        this.#delta = 0.0
     }
     // console.log(`this.#delta=`, this.#delta)
   }
@@ -44,7 +51,6 @@ class ExampleStep extends Step {
    */
   async invoke(instance) {
     instance.console(`ExampleStep(hardcoded) (${instance.getStepId()})`)
-    instance.console(`this.#msg is ${this.#msg} (${typeof(this.#msg)})`)
     instance.console(`this.#delta is ${this.#delta} (${typeof(this.#delta)})`)
 
     const meta = await instance.getMetadata()
@@ -52,11 +58,10 @@ class ExampleStep extends Step {
 
     // Do something here
     //...
-    if (this.#msg) {
-      console.log(`${this.#msg}`)
-    }
-    const data = instance.getData()
+    const data = instance.getDataAsObject()
     instance.console(`data before =`, data)
+    instance.console(`data before =`, typeof data)
+    instance.console(`data before =`, data.toString())
     if (typeof(data.amt) !== 'number') {
       instance.console('Initializing data.amt')
       data.amt = 0.0
@@ -87,7 +92,6 @@ async function register() {
  */
  async function defaultDefinition() {
   return {
-    msg: 'Running example step!!!!!',
     delta: 1.5
   }
 }

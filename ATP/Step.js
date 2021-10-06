@@ -11,9 +11,27 @@ export default class Step {
   static RUNNING = 'running'
   static WAITING = 'waiting'
   // static ERROR = 'error'
+
+  /**
+   * The step ran for more than the permitted amount of time.
+   */
   static TIMEOUT = 'timeout'
 
+  /**
+   * Step completed without error.
+   */
   static COMPLETED = 'completed'
+
+  /**
+   * Pipeline step failed - attempt rollback.
+   */
+  static FAIL = 'fail'
+
+  /**
+   * Do not try to rollback.
+   */
+  static ABORT = 'abort'
+
   // static TERMINATED,
   // static ERROR,
   // static OFFLINE,
@@ -28,10 +46,30 @@ export default class Step {
   }//- constructor
 
   async invoke_internal(instance) {
-    let reply = this.invoke(instance) // Provided by the step implementation
-    // if (reply) {
-    //   return reply
-    // }
+
+    // Start the step in the background, immediately
+    setTimeout(async () => {
+      try {
+        await this.invoke(instance) // Provided by the step implementation
+      } catch (e) {
+        instance.console(``)
+        // console.log(`Exception occurred while running step ${instance.getStepId()}:`)
+        instance.console(`Exception occurred while running step ${instance.getStepId()}:`)
+        instance.console(``)
+        //ZZZZZ
+        // handle the error better
+        console.log(e)
+        instance.console(``)
+        instance.console(``)
+        const note = `Exception in step.invoke()`
+        const data = { }
+        instance.finish(Step.FAIL, note, data)
+      }
+    }, 0)
+      // let reply = this.invoke(instance) // Provided by the step implementation
+      // if (reply) {
+      //   return reply
+      // }
 
     return {
       stepId: instance.getStepId(),

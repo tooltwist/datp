@@ -16,7 +16,7 @@ export default class StepInstance {
   #definition
   #completionToken
   #logbook
-  #data
+  #txdata
   #metadata
 
   constructor() {
@@ -25,7 +25,7 @@ export default class StepInstance {
     this.#stepId = null
     this.#definition = { stepType: null}
     // Transaction data
-    this.#data = null
+    this.#txdata = null
     // Private data for use within step
     this.privateData = { }
     // Debug stuff
@@ -58,7 +58,7 @@ export default class StepInstance {
     this.#parentId = options.parentId
     this.#stepId = GenerateHash('step')
     //this.#definition set below
-    this.#data = options.data
+    this.#txdata = new TxData(options.data)
     this.#metadata = options.metadata
     // this.privateData
     // this.indentLevel
@@ -159,8 +159,17 @@ export default class StepInstance {
    *
    * @returns TxData
    */
-  getData() {
-    return this.#data
+  getTxData() {
+    return this.#txdata
+  }
+  // getData() {
+  //   return this.#txdata.getData()
+  // }
+  getDataAsObject() {
+    return this.#txdata.getData()
+  }
+  getDataAsJson() {
+    return this.#txdata.getJson()
   }
 
   getMetadata() {
@@ -172,7 +181,10 @@ export default class StepInstance {
   }
 
   async finish(status, note, newTx) {
-    console.log(`finish(${status}, ${note}, newTx):`, newTx)
+    // console.log(`StepInstance.finish(${status}, ${note}, newTx):`, newTx)
+    if (!newTx) {
+      newTx = this.getDataAsObject()
+    }
     const myTx = new TxData(newTx)
     // console.log('YARP', myTx)
     // console.log(`StepInstance.finish(${status}, ${note}). newTx:`, newTx)
@@ -181,11 +193,13 @@ export default class StepInstance {
 
     // Return the promise
     // console.log(`   -> stepId=${this.#stepId}, completionToken=${this.#completionToken}`)
-    return Scheduler.stepFinished(this.#stepId, this.#completionToken, status, note, newTx)
+    return Scheduler.stepFinished(this.#stepId, this.#completionToken, status, note, myTx)
   }
 
   async succeeded(newTx) {
-    const response = JSON.stringify(newTx, '', 2)
+    const myTx = new TxData(newTx)
+    const response = myTx.getJson()
+    // const response = JSON.stringify(newTx, '', 2)
     await dbStep.complete(this.#stepId, response)
 
     const status = Step.COMPLETED
@@ -193,7 +207,7 @@ export default class StepInstance {
 
     // Return the promise
     // console.log(`   -> stepId=${this.stepId}, completionToken=${this.completionToken}`)
-    return Scheduler.stepFinished(this.#stepId, this.#completionToken, status, note, newTx)
+    return Scheduler.stepFinished(this.#stepId, this.#completionToken, status, note, myTx)
   }
 
 

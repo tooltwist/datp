@@ -16,17 +16,13 @@ class DummyStep extends Step {
     // console.log(`this=`, this)
     // console.log(`instance=`, instance)
 
-    instance.privateData.dummy = 'Dummy was here!'
+    const data = instance.getDataAsObject()
 
-    // logbook.log(this.stepId, `DummyStep.invoke()`, {
-    //   level: logbook.LEVEL_DEBUG,
-    //   data: instance.data,
-    // })
 
     setTimeout(() => {
-      instance.tx.said = 'nothing'
+      data.said = 'nothing'
       const note = this.msg
-      instance.finish(Step.COMPLETED, note, instance.tx)
+      instance.finish(Step.COMPLETED, note, data)
     }, 1000)
   }//- invoke
 

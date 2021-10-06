@@ -43,15 +43,28 @@ async function persist(transactionIndexEntry, pipelineName) {
 }
 
 async function saveFinalStatus(txId, finalStatus, response) {
-  const json = response.getJson()
 
-  let sql = `UPDATE atp_transaction_instance SET transaction_status=?, completion_time=NOW(3), response=? WHERE transaction_id=?`
-  let params = [ finalStatus, json, txId ]
+  try {
+    const zzz = Math.round((Math.random() * 1000) % 1000)
+    // console.log(`\n\nWHAMMO 1 - ${zzz}\n\n`)
 
-  // console.log(`sql=`, sql)
-  // console.log(`params=`, params)
-  const result = await query(sql, params)
-  // console.log(`result=`, result)
+    const json = response.getJson()
+
+    let sql = `UPDATE atp_transaction_instance SET transaction_status=?, completion_time=NOW(3), response=? WHERE transaction_id=?`
+    let params = [ finalStatus, json, txId ]
+    // console.log(`\n\nWHAMMO 2 - ${zzz}\n\n`)
+
+    // console.log(`sql=`, sql)
+    // console.log(`params=`, params)
+    const result = await query(sql, params)
+    // console.log(`\n\nWHAMMO 3 - ${zzz}\n\n`)
+    // console.log(`result=`, result)
+    // console.log(`\n\nWHAMMO 4 - ${zzz}\n\n`)
+  } catch (e) {
+    // console.log(`\n\nWHAMMO 999\n\n`)
+    console.trace(e)
+    throw e
+  }
 }
 
 async function getTransaction(txId) {

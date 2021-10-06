@@ -12,11 +12,12 @@ class SaySomething extends Step {
     // instance.console(`*****`)
     instance.console(`SaySomething (${instance.getStepId()})`)
     instance.console(`"${this.msg}"`)
+    const data = instance.getDataAsObject()
 
     setTimeout(() => {
-      instance.tx.said = this.msg
+      data.said = this.msg
       const note = `Said "${this.msg}"`
-      instance.finish(Step.COMPLETED, note, instance.tx)
+      instance.finish(Step.COMPLETED, note, data)
     }, 1000)
   }
 

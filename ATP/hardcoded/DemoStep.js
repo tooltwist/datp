@@ -41,7 +41,7 @@ class DemoStep extends Step {
     //...
 
     // Time to complete the step and send a result
-    instance.finish(Step.COMPLETED, note, instance.tx)
+    instance.finish(Step.COMPLETED, note, null)
   }
 }
 

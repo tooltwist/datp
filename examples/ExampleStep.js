@@ -36,12 +36,13 @@ class ExampleStep extends Step {
   async invoke(instance) {
     instance.console(`ExampleStep (${instance.getStepId()})`)
     instance.console(`"${this.someValue}"`)
+    const data = instance.getDataAsObject()
 
     // Do something here
     //...
 
     // Time to complete the step and send a result
-    instance.finish(Step.COMPLETED, note, instance.tx)
+    instance.finish(Step.COMPLETED, note, data)
   }
 }
 

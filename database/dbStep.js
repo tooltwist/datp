@@ -47,7 +47,7 @@ async function updateStatus(stepId, status, progress, percentage) {
  * @param {String} response
  */
 async function complete(stepId, response) {
-  console.log(`dbStep.complete(${stepId}, ${JSON.stringify(response, '', 0)})`.dim)
+  // console.log(`dbStep.complete(${stepId}, ${JSON.stringify(response, '', 0)})`.dim)
   let sql = `UPDATE atp_step_instance SET status=?, status_time=NOW(3), completion_time=NOW(3), progress=?, percentage_complete=?, response=? WHERE step_id=?`
   let params = [ Step.COMPLETED, Step.COMPLETED, 100, response, stepId ]
   // console.log(`sql=`, sql)

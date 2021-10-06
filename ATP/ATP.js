@@ -8,6 +8,7 @@ import statusString from './lib/statusString'
 import ResultReceiver from './ResultReceiver'
 import ResultReceiverRegister from './ResultReceiverRegister'
 import GenerateHash from "./GenerateHash"
+import assert from 'assert'
 
 
 // Hardcoded steps
@@ -18,6 +19,7 @@ import MockStep from './hardcoded/MockStep'
 import RandomDelayStep from './hardcoded/RandomDelayStep'
 import ExampleStep from './hardcoded/ExampleStep'
 import DemoStep from './hardcoded/DemoStep'
+import MandatoryFieldsStep from './hardcoded/MandatoryFieldsStep'
 import dbTransactionInstance from '../database/dbTransactionInstance'
 import dbTransactionType from '../database/dbTransactionType'
 import colors from 'colors'
@@ -38,59 +40,74 @@ const ATP_TRANSACTION_COMPLETION_HANDLER_NAME = 'transaction-completion-handler'
  * ResultReceiver for the code that called ATP.initiateTransaction() to
  * start the transaction.
  */
-class TransactionCompletionHandler extends ResultReceiver {
+class AtpTransactionCompletionHandler extends ResultReceiver {
   constructor() {
     super()
   }
   async haveResult(contextForCompletionHandler, status, note, response) {
-    console.log(`<<<<    TransactionCompletionHandler.haveResult()  `.white.bgBlue.bold)
-    console.log(`  contextForCompletionHandler=`, JSON.stringify(contextForCompletionHandler, '', 0))
+    assert(response instanceof TxData)
+    // console.log(`<<<<    AtpTransactionCompletionHandler.haveResult()  `.white.bgBlue.bold)
+    // console.log(`  contextForCompletionHandler=`, JSON.stringify(contextForCompletionHandler, '', 0))
     // console.log(`  - status=`, status)
-    console.log(`  response=`, JSON.stringify(response, '', 0))
+    // console.log(`  response=`, response.toString())
     // Scheduler.dumpSteps(`\nAfter Completion`)
 
-    // Update the transaction status
-    const txId = contextForCompletionHandler.txId
+    try {
+      // Update the transaction status
+      const txId = contextForCompletionHandler.txId
 
 
-    // console.log(`\n\nkkkkk kkkkk kkkkk kkkkk kkkkk kkkkk kkkkk kkkkk kkkkk kkkkk kkkkk kkkkk kkkkk `)
-    console.log(`FINISHED ${txId}`)
-    // console.log(`this.#transactionIndex=`, this.#transactionIndex)
-    await defaultATE.dumpTransactions('wHEN HAVE RESULT')
+      // console.log(`\n\nkkkkk kkkkk kkkkk kkkkk kkkkk kkkkk kkkkk kkkkk kkkkk kkkkk kkkkk kkkkk kkkkk `)
+      console.log(`FINISHED ${txId}`)
+      // console.log(`this.#transactionIndex=`, this.#transactionIndex)
+      // await defaultATE.dumpTransactions('wHEN HAVE RESULT')
 
 
 
-    // console.log(`//////////////////////////////////////////////////`)
-    // console.log(`txId=`, txId)
-    // console.log(`defaultATE=`, defaultATE)
-    const txEntry = await defaultATE.getTransactionEntry(txId)
-    if (!txEntry) {
-      const msg = `INTERNAL ERROR IN TransactionCompletionHandler.haveResult: txEntry not found (${txId})`
-      console.log(msg)
-      throw new Error(msg)
+      // console.log(`//////////////////////////////////////////////////`)
+      // console.log(`txId=`, txId)
+      // console.log(`defaultATE=`, defaultATE)
+      const txEntry = await defaultATE.getTransactionEntry(txId)
+      if (!txEntry) {
+        const msg = `INTERNAL ERROR IN AtpTransactionCompletionHandler.haveResult: txEntry not found (${txId})`
+        console.log(msg)
+        throw new Error(msg)
+      }
+      // console.log(`txEntry=`, txEntry)
+      let transactionStatus
+      assert(status !== Step.FAIL) // Should not happen. Pipelines either rollback or abort.
+      switch (status) {
+        case Step.COMPLETED:
+          transactionStatus = TransactionIndexEntry.COMPLETE
+          break
+
+        case Step.ABORT:
+          transactionStatus = TransactionIndexEntry.TERMINATED
+          break
+
+        default:
+          transactionStatus = TransactionIndexEntry.UNKNOWN
+          assert(false)
+          break
+      }
+      txEntry.setStatus(transactionStatus)
+
+
+      // Persist the transaction
+      const zzz = Math.round((Math.random() * 1000) % 1000)
+      // console.log(`\n\nBEFORE YARP ${zzz}\n\n`)
+      await dbTransactionInstance.saveFinalStatus(txId, transactionStatus, response)
+      // console.log(`\n\nAFTER YARP ${zzz}\n\n`)
+
+      // Call the user's completion handler
+      const handlerName = contextForCompletionHandler.userCompletionHandlerName
+      const completionHandlerObj = await ResultReceiverRegister.getHandler(handlerName)
+      await completionHandlerObj.haveResult(contextForCompletionHandler, transactionStatus, note, response)
+    } catch (e) {
+      console.trace(`Error in transaction completion handler`, e)
+      throw e
     }
-    // console.log(`txEntry=`, txEntry)
-    let transactionStatus
-    switch (status) {
-      case Step.COMPLETED:
-        transactionStatus = TransactionIndexEntry.COMPLETE
-        break
-
-      default:
-        transactionStatus = TransactionIndexEntry.UNKNOWN
-        break
-    }
-    txEntry.setStatus(transactionStatus)
-
-
-    // Persist the transaction
-    await dbTransactionInstance.saveFinalStatus(txId, transactionStatus, response)
-
-    // Call the user's completion handler
-    const handlerName = contextForCompletionHandler.userCompletionHandlerName
-    const completionHandlerObj = await ResultReceiverRegister.getHandler(handlerName)
-    await completionHandlerObj.haveResult(contextForCompletionHandler, status, note, response)
-  }
+  }//- haveResult
 }
 
 
@@ -115,8 +132,9 @@ class AsynchronousTransactionEngine {
     await Pipeline.register()
     await ExampleStep.register()
     await DemoStep.register()
+    await MandatoryFieldsStep.register()
 
-    await ResultReceiver.register(ATP_TRANSACTION_COMPLETION_HANDLER_NAME, new TransactionCompletionHandler())
+    await ResultReceiver.register(ATP_TRANSACTION_COMPLETION_HANDLER_NAME, new AtpTransactionCompletionHandler())
 
   }//- initialize()
 
@@ -137,7 +155,8 @@ class AsynchronousTransactionEngine {
   async initiateTransaction(transactionId, transactionType, initiatedBy, data, completionHandlerName, color) {
     console.error(`>>>>    initiateTransaction(${transactionType})  `.white.bgBlue.bold)
     // console.log(`initiatedBy=`, initiatedBy)
-    console.log(`data=`, data)
+    // console.log(`data=`, data.toString())
+    // console.log(`data=`, typeof(data))
     // console.log(`completionHandlerName=`, completionHandlerName)
     // console.log(`color=`, color)
 
@@ -158,6 +177,7 @@ class AsynchronousTransactionEngine {
     // console.log(`status=`, status)
 
     const initialTxData = new TxData(data)
+    // console.log(`initialTxData=`, initialTxData.toString())
     // console.log(`initialTxData=`, initialTxData)
     // console.log(`initialTxData.getData()=`, await initialTxData.getData())
 
@@ -177,7 +197,7 @@ class AsynchronousTransactionEngine {
     // console.log(`\n\nkkkkk kkkkk kkkkk kkkkk kkkkk kkkkk kkkkk kkkkk kkkkk kkkkk kkkkk kkkkk kkkkk `)
     // console.log(`ADD ${txId}`)
     // console.log(`this.#transactionIndex=`, this.#transactionIndex)
-    await this.dumpTransactions('AFTER ADD')
+    // await this.dumpTransactions('AFTER ADD')
 
 
     // Invoke the step
@@ -248,7 +268,7 @@ class AsynchronousTransactionEngine {
   }//- getTransactionStatus()
 
   async getTransactionEntry(txId) {
-    console.log(`getTransactionEntry(${txId})`, this.#transactionIndex)
+    // console.log(`getTransactionEntry(${txId})`, this.#transactionIndex)
     const txEntry = this.#transactionIndex[txId]
     return txEntry ? txEntry : null
   }

@@ -4,7 +4,9 @@ import StepTypes from '../StepTypeRegister'
 import ResultReceiver from '../ResultReceiver'
 import ResultReceiverRegister from '../ResultReceiverRegister'
 import defaultATE from '../ATP'
-
+import TxData from '../TxData'
+import assert from 'assert'
+import StepInstance from '../StepInstance'
 
 const STEP_COMPLETION_HANDLER = 'pipeline-step-completion-handler'
 const VERBOSE = false
@@ -34,14 +36,13 @@ class Pipeline extends Step {
 
 
   async invoke(pipelineInstance) {
+    assert(pipelineInstance instanceof StepInstance)
     // await this.initIfRequired()
     // pipelineInstance.console(`*****`)
     pipelineInstance.console(`>>>>    Pipeline.invoke (${pipelineInstance.getStepId()})  `.blue.bgGreen.bold)
     // pipelineInstance.console(`*****`)
     // console.log(`tx=`, tx)
     // console.log(`pipelineInstance=`, pipelineInstance)
-    // console.log(`pipelineInstance.tx=`, pipelineInstance.tx)
-    // console.log(`context=`, context)
 
     // We'll save the responses from the steps
     pipelineInstance.privateData.responses = [ ]
@@ -49,9 +50,9 @@ class Pipeline extends Step {
     pipelineInstance.privateData.childStepIndex = 0
 
     //ZZZZ Should probably create a new TX object
-    const data = await pipelineInstance.getData()
+    const txdata = await pipelineInstance.getTxData()
     const metadata = await pipelineInstance.getMetadata()
-    this.initiateChildStep(pipelineInstance, data)
+    this.initiateChildStep(pipelineInstance, txdata)
 
     // logbook.log(id, `DummyStep.invoke()`, {
     //   level: logbook.LEVEL_DEBUG,
@@ -60,7 +61,9 @@ class Pipeline extends Step {
   }//- invoke
 
 
-  async initiateChildStep(pipelineInstance, data, metadata) {
+  async initiateChildStep(pipelineInstance, txdata, metadata) {
+    assert(pipelineInstance instanceof StepInstance)
+    assert(txdata instanceof TxData)
     // console.log(`PipelineStep.initiateChildStep()`, data)
     pipelineInstance.log(``)
     const stepNo = pipelineInstance.privateData.childStepIndex
@@ -82,7 +85,7 @@ class Pipeline extends Step {
     const definition = stepDef.definition
     const sequence = `${stepNo}`
 
-    await Scheduler.invokeStep(pipelineInstance.getTransactionId(), pipelineInstance, sequence, definition, data, STEP_COMPLETION_HANDLER, contextForCompletionHandler)
+    await Scheduler.invokeStep(pipelineInstance.getTransactionId(), pipelineInstance, sequence, definition, txdata, STEP_COMPLETION_HANDLER, contextForCompletionHandler)
 
     //ZZZZ Handling of sync steps???
 
@@ -99,7 +102,8 @@ class PipelineChildStepCompletionHandler extends ResultReceiver {
     super()
   }
   async haveResult(contextForCompletionHandler, status, note, newTx) {
-    console.log(`PipelineChildStepCompletionHandler.haveResult(): ${JSON.stringify(newTx, '', 0)}`)
+    assert(newTx instanceof TxData)
+    // console.log(`PipelineChildStepCompletionHandler.haveResult()`, newTx.toString())
     // console.log(`newTx=`, newTx)
     // console.log(`contextForCompletionHandler=`, contextForCompletionHandler)
 
@@ -150,6 +154,17 @@ class PipelineChildStepCompletionHandler extends ResultReceiver {
         const pipelineObject = pipelineInstance.stepObject
         await pipelineObject.initiateChildStep(pipelineInstance, txForNextStep)
       }
+
+    } else if (status === Step.FAIL || status === Step.ABORT) {
+      /*
+       *  Need to try Rollback
+       */
+      // We can't rollback yet, so abort instead.
+      console.log(`<<<<    PIPELINE FAILED ${pipelineStepId}  `.white.bgRed.bold)
+      // console.log(``)
+      // console.log(``)
+      // return Scheduler.haveResult(pipelineStepId, pipelineInstance.getCompletionToken(), Step.COMPLETED, newTx)
+      pipelineInstance.finish(Step.ABORT, `Step ${currentStepNo} failed`, newTx)
 
     } else {
       //ZZZZ

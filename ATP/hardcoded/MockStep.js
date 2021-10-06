@@ -19,6 +19,7 @@ class MockStep extends Step {
       // console.log(`this=`, this)
       // console.log(`instance=`, instance)
     }
+    const data = instance.getDataAsObject()
 
     instance.privateData.dummy = 'Dummy was here!'
 
@@ -28,9 +29,9 @@ class MockStep extends Step {
     // })
 
     // setTimeout(() => {
-      instance.tx.said = 'nothing'
+      data.said = 'nothing'
       const note = this.msg
-      instance.finish(Step.COMPLETED, note, instance.tx)
+      instance.finish(Step.COMPLETED, note, data)
     // }, 1000)
   }//- invoke
 

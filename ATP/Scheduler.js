@@ -37,13 +37,11 @@ class Scheduler {
     assert(typeof(completionHandlerData) === 'object')
 
 
-    if (parentInstance) {
-      parentInstance.console(`Scheduler.invokeStep(): ${JSON.stringify(definition, '', 0)}`)
-    } else {
-      console.log(`Scheduler.invokeStep(): ${JSON.stringify(definition, '', 0)}`)
-    }
-    // console.log(`tx=`, tx)
-    // console.log(`parentInstance=`, parentInstance)
+    // if (parentInstance) {
+    //   parentInstance.console(`Scheduler.invokeStep(): ${JSON.stringify(definition, '', 0)}`.yellow.bgBlue)
+    // } else {
+    //   console.log(`Scheduler.invokeStep(): ${JSON.stringify(definition, '', 0)}`.yellow.bgBlue)
+    // }
 
     let parentId = null
     let level = 0
@@ -160,7 +158,8 @@ class Scheduler {
   }//- invokeStep
 
   async stepFinished(stepId, token, status, note, newTx) {
-    // console.log(`Scheduler.stepFinished(stepId=${stepId}, token=${token}, status=${status}, note=${note}) newTx=`, newTx)
+    assert(newTx instanceof TxData)
+    // console.log(`Scheduler.stepFinished(stepId=${stepId}, token=${token}, status=${status}, note=${note}) newTx=`, newTx.toString())
 
     // Find the step
     const schedulerSnapshotOfStepInstance = this.stepIndex[stepId]

@@ -8,6 +8,13 @@ import { monitorMidi } from './mondat/midi'
 import dbTransactionInstance from './database/dbTransactionInstance'
 import colors from 'colors' // Yep, it is used
 import errors from 'restify-errors';
+import assert from 'assert'
+import TxData from './ATP/TxData'
+import forms from './VIEWS/forms'
+import providers from './VIEWS/providers-needToRemove/providers'
+import currencies_routes from './VIEWS/restify/currencies'
+import countries_routes from './VIEWS/restify/countries'
+
 
 const { defineRoute, showVersions, LOGIN_IGNORED } = apiVersions
 
@@ -24,11 +31,12 @@ class ApiTransactionCompletionHandler extends ResultReceiver {
     super()
   }
   async haveResult(contextForCompletionHandler, status, note, response) {
-    console.log(`<<<<    ApiTransactionCompletionHandler.haveResult()  `.white.bgRed.bold)
-    console.log(`  contextForCompletionHandler=`, JSON.stringify(contextForCompletionHandler, '', 0))
-    // console.log(`  status=`, status)
-    console.log(`  response=`, JSON.stringify(response, '', 0))
-    // await Scheduler.dumpSteps(`\nAfter Completion`)
+    assert(response instanceof TxData)
+    // console.log(`<<<<    ApiTransactionCompletionHandler.haveResult()  `.white.bgRed.bold)
+    // console.log(`  contextForCompletionHandler=`, JSON.stringify(contextForCompletionHandler, '', 0))
+    // // console.log(`  status=`, status)
+    // console.log(`  response=`, response.toString())
+    // // await Scheduler.dumpSteps(`\nAfter Completion`)
 
     console.log(`TRANSACTION ${contextForCompletionHandler.txId} IS COMPLETE [${status}].`)
     console.log(`responsesForSynchronousReturn is holding ${Object.keys(responsesForSynchronousReturn).length} responses`.dim)
@@ -53,8 +61,10 @@ class ApiTransactionCompletionHandler extends ResultReceiver {
         metadata: {
           transactionId: contextForCompletionHandler.txId,
           responseType: 'synchronous',
+          status,
+          note,
         },
-        data: response
+        data: response.getData(),
       })
       // console.log(`responsesForSynchronousReturn=`, responsesForSynchronousReturn)
       console.log(`responsesForSynchronousReturn is holding ${Object.keys(responsesForSynchronousReturn).length} responses`.dim)
@@ -141,7 +151,7 @@ async function initiateTransactionV1(req, res, next) {
         console.error(`Exception in response timeout handler.`, e)
       }
     }, MAX_SYNC_REPLY_WAIT_TIME)
-    console.log(`RETURNING FROM API FUNCTION (NO res.send() YET, WE'LL LEAVE THAT FOR A TIMEOUT OR FAST PIPELINE RESULT)`)
+    console.log(`RETURNING FROM API FUNCTION (NO res.send() YET, WE'LL LEAVE THAT FOR A TIMEOUT OR FAST PIPELINE RESULT)`.dim)
 
     // res.send({ transactionId })
     // return next();
@@ -240,6 +250,14 @@ async function routesForRestify(server, isMaster = false) {
   defineRoute(server, 'get', false, URL_PREFIX, '/result/:transactionId', [
     { versions: '1.0 - 1.0', handler: getTransactionResultV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
+
+
+  providers.init()
+  currencies_routes.init(server)
+  countries_routes.init(server)
+
+
+  forms.init(server)
 
 }
 

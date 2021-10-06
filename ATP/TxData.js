@@ -13,6 +13,7 @@ export default class TxData {
     if (initialData instanceof TxData) {
       // console.log(`YARP cloning TxData`)
       initialData = initialData.getJson() // Will clone via parsing
+      // console.log(`initialData becomes`, initialData)
     }
     switch (typeof(initialData)) {
       case 'string':
@@ -45,4 +46,25 @@ export default class TxData {
     return this.#json
   }
 
+
+
+  // Equivalent of Java's toString()
+  // See https://stackoverflow.com/questions/42886953/whats-the-recommended-way-to-customize-tostring-using-symbol-tostringtag-or-ov
+  get [Symbol.toStringTag]() {
+    if (this.#json) {
+      return "TxData with JSON"
+    }
+    return "TxData with Object"
+  }
+  toString() {
+    if (this.#json) {
+      return `${this.#json}`
+    }
+    return `${this.#data}`
+  }
+
 }
+
+// TxData.prototype.toString = function() {
+//   return 'ZEYARP'
+// }
