@@ -5,6 +5,7 @@ import errors from 'restify-errors'
 import query from '../database/query'
 import constants from './lib/constants'
 // import parameters from '../views/lib/parameters'
+import provider from './providers-needToRemove/providers'
 
 
 // const providers = [
@@ -60,6 +61,7 @@ export default {
 }
 
 async function init(server) {
+  console.log(`proviserAndServiceRoutes.init()`)
 
   // // Sort the list of providers
   // providers.sort((p1, p2) => {
@@ -69,10 +71,10 @@ async function init(server) {
   // })
 
   // Return a list of providers
-  server.get(`${constants.URL_PREFIX}/metadata/providers`, async function(req, res, next) {
+  server.get(`${constants.URL_PREFIX}/metadata/domains`, async function(req, res, next) {
 
     console.log(`---------------------------------`)
-    console.log(`/metadata/providers`)
+    console.log(`/metadata/domains`)
 
     const list = await providers.all()
     res.send(list)
@@ -80,16 +82,16 @@ async function init(server) {
   })//
 
   // Get a specific provider
-  server.get(`${constants.URL_PREFIX}/metadata/provider/:code`, async function(req, res, next) {
+  server.get(`${constants.URL_PREFIX}/metadata/domain/:code`, async function(req, res, next) {
     const code = req.params.code
 
     console.log(`---------------------------------`)
-    console.log(`/metadata/provider/${code}`)
+    console.log(`/metadata/domain/${code}`)
 
     const provider = await providers.get(code)
     // console.log(`provider=`, provider)
     if (!provider) {
-      res.send(new errors.NotFoundError(`Unknown provider ${code}`))
+      res.send(new errors.NotFoundError(`Unknown domain ${code}`))
       return next()
     }
     res.send(provider)
@@ -104,8 +106,8 @@ async function init(server) {
 
     const sql = `
       SELECT S.service, S.description, C.category, C.description AS category_description
-      FROM service S
-      LEFT JOIN service_category C ON C.category = S.category
+      FROM map_service S
+      LEFT JOIN map_service_category C ON C.category = S.category
       ORDER BY C.sequence
       `
     console.log(`sql=`, sql)
@@ -133,7 +135,7 @@ async function init(server) {
     const sql = `
       SELECT ps.provider, ps.service, s.description
       FROM provider_service ps
-      LEFT JOIN service s ON s.service = ps.service
+      LEFT JOIN map_service s ON s.service = ps.service
       WHERE provider=?`
     const params = [ providerCode ]
     const result = await query(sql, params)
@@ -164,7 +166,7 @@ async function init(server) {
 
     // Find the views for this provider / service
     const viewPattern = `${providerCode}-${serviceCode}-%`
-    const views = await parameters.getViews(constants.PETNET_TENANT, viewPattern)
+    const views = await parameters.getForms(constants.PETNET_TENANT, viewPattern)
     console.log(`views=`, views)
     const reply = [ ]
     for (const v of views) {
@@ -216,7 +218,7 @@ async function init(server) {
 
   //   // Find the views for this provider / service
   //   const viewPattern = `${providerCode}-${serviceCode}-%`
-  //   const views = await parameters.getViews(constants.PETNET_TENANT, viewPattern)
+  //   const views = await parameters.getForms(constants.PETNET_TENANT, viewPattern)
   //   console.log(`views=`, views)
   //   const reply = [ ]
   //   for (const v of views) {

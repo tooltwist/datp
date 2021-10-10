@@ -1,5 +1,6 @@
 import Step from "../Step"
 import StepTypes from '../StepTypeRegister'
+import query from '../../database/query'
 
 const VERBOSE = true
 
@@ -27,6 +28,9 @@ class MockStep extends Step {
     //   level: logbook.LEVEL_DEBUG,
     //   data: instance.data,
     // })
+    const reply = await query(`SELECT * from map_service`)
+    console.log(`++++++++++++++++++++++++++++++++++++++++++ reply=`, reply)
+
 
     // setTimeout(() => {
       data.said = 'nothing'

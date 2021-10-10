@@ -1,4 +1,4 @@
-import query from './query'
+import query from '../../database/query'
 
 const VERBOSE = false
 

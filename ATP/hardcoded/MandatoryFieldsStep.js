@@ -1,10 +1,10 @@
 import Step from "../Step"
 import StepTypes from '../StepTypeRegister'
-import ConversionHandler from '../../VIEWS/lib/ConversionHandler'
-import parameters from "../../views/lib/parameters"
+import ConversionHandler from '../../CONVERSION/lib/ConversionHandler'
+import formsAndFields from "../../CONVERSION/lib/formsAndFields-dodgey"
 
 
-const VIEW_TENANT = 'datp'
+const FORM_TENANT = 'datp'
 
 /**
  * This class represents a type of step, not an actual instance of a step
@@ -27,12 +27,12 @@ const VIEW_TENANT = 'datp'
  * tell the Scheduler that the step has completed. See ZZZZ for more information.
  */
 class MandatoryFieldsStep extends Step {
-  #view
+  #form
 
   constructor(definition) {
     super(definition)
     // console.log(`definition=`, definition)
-    this.#view = definition.view
+    this.#form = definition.view
   }
 
   /**
@@ -42,14 +42,14 @@ class MandatoryFieldsStep extends Step {
    */
   async invoke(instance) {
     instance.console(`MandatoryFieldsStep (${instance.getStepId()})`)
-    instance.console(`"${this.#view}"`)
+    instance.console(`"${this.#form}"`)
 
     const data = await instance.getDataAsObject()
 
     // Load the view definition
     // const provider = 'std'
     // const service = 'transfer'
-    // const serviceDetails = await parameters.getServiceDetails(provider, service)
+    // const serviceDetails = await formsAndFields.getServiceDetails(provider, service)
     // if (!serviceDetails) {
     //   // return next(new errors.NotImplementedError(`Provider ${provider} does not support ${service}`))
     //   // instance.fail
@@ -61,19 +61,19 @@ class MandatoryFieldsStep extends Step {
     // console.log(`serviceDetails=`, serviceDetails)
 
     // Check the view exists
-    const views = await parameters.getViews(VIEW_TENANT, this.#view)
+    const views = await formsAndFields.getForms(FORM_TENANT, this.#form)
     // console.log(`views=`, views)
     if (views.length === 0) {
-      return instance.finish(Step.FAIL, `Unknown view ${this.#view}`, { })
+      return instance.finish(Step.FAIL, `Unknown view ${this.#form}`, { })
     }
 
 
-    // const requestView = this.#view
+    // const requestView = this.#form
     // console.log(`requestView=`, requestView)
     // // const version = serviceDetails.request_version
     // const version = "1.0"
 
-    const viewFields = await parameters.getFields(VIEW_TENANT, this.#view)
+    const viewFields = await formsAndFields.getFields(FORM_TENANT, this.#form)
     // console.log(`viewFields=`, viewFields)
     if (viewFields.length === 0) {
       return instance.finish(Step.FAIL, note, data)
@@ -111,7 +111,7 @@ class MandatoryFieldsStep extends Step {
       return instance.finish(Step.FAIL, 'Invalid request', errors)
     }
 
-    // const requestMapping = await parameters.getMapping('datp', requestView, version)
+    // const requestMapping = await formsAndFields.getMapping('datp', requestView, version)
     // console.log(`requestMapping=`, requestMapping)
     // console.log(`+++++++++++++++++++^^^^^^^^^^^^^^^^^^^`)
 
@@ -119,7 +119,7 @@ class MandatoryFieldsStep extends Step {
     // ConversionHandler.
 
     // Time to complete the step and send a result
-    return instance.finish(Step.COMPLETED, '', { blah: 'blah' })
+    return instance.finish(Step.COMPLETED, '', data)
   }
 }
 
@@ -127,7 +127,7 @@ class MandatoryFieldsStep extends Step {
  * This function is called to register this as an available step type.
  */
 async function register() {
-  await StepTypes.register(myDef, 'MandatoryFieldsStep', 'Verify data fields against view')
+  await StepTypes.register(myDef, 'MandatoryFieldsStep', 'Verify data fields against form definition')
 }//- register
 
 /**
@@ -138,7 +138,7 @@ async function register() {
  */
  async function defaultDefinition() {
   return {
-    "view": "exampleView",
+    "form": "domain_service_request",
   }
 }
 

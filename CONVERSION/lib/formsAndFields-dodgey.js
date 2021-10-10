@@ -1,6 +1,7 @@
 import query from '../../database/query'
 import constants from './constants'
 // import providers from '../providers/providers'
+import assert from 'assert'
 
 
 export default {
@@ -8,14 +9,17 @@ export default {
   saveParameter,
   loadParameters,
   getMapping,
+  setMapping,
   getServiceDetails,
-  getViews,
+  getForms,
   getFields,
 }
 
 async function deleteParameters(provider, service, messageType) {
   // Delete the existing definition
   //ZZZZZ Need tenant
+  //WHATTHE
+  assert(false)
   const sql = `DELETE FROM formservice_field WHERE provider=? AND service=? AND message_type=? AND version=?`
   const params = [provider, service, messageType, constants.SCRATCH_VERSION]
   await query(sql, params)
@@ -25,6 +29,8 @@ async function deleteParameters(provider, service, messageType) {
 async function saveParameter(provider, service, messageType, sequence, name, type, mandatory) {
   const version = constants.SCRATCH_VERSION
   console.log(`${provider}/${service}/${messageType} => ${sequence},${name} => ${type}${mandatory ? ' MANDATORY' : ''}`)
+  //WHATTHE
+  assert(false)
 
   //ZZZZZ Need tenant
   const sql = `INSERT INTO formservice_field (provider, service, message_type, version, sequence, name, type, mandatory) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
@@ -37,6 +43,8 @@ async function saveParameter(provider, service, messageType, sequence, name, typ
 
 async function loadParameters(provider, service, messageType, version) {
   console.log(`loadParameters(${provider}, ${service}, ${messageType}, ${version})`)
+  //WHATTHE
+  assert(false)
 
   // Delete the existing definition
   //ZZZZZ Need tenant
@@ -72,6 +80,8 @@ async function loadParameters(provider, service, messageType, version) {
 }
 
 async function getServiceDetails(provider, service) {
+  //WHATTHE
+  assert(false)
   // Load the mapping records.
   const sql = `
     SELECT provider, service, request_message_version, response_message_version, connector
@@ -94,12 +104,12 @@ async function getServiceDetails(provider, service) {
   }
 }
 
-async function getViews(tenant, viewName) {
-  // console.log(`getViews(${tenant}, ${viewName})`)
+async function getForms(tenant, viewName) {
+  // console.log(`getForms(${tenant}, ${viewName})`)
 
   const sql = `
     SELECT tenant, view, description
-    FROM formservice_view
+    FROM formservice_form
     WHERE tenant=? AND view LIKE ?`
   const params = [ tenant, viewName ]
   // console.log(`sql=`, sql)
@@ -115,7 +125,7 @@ async function getViews(tenant, viewName) {
  * @param {*} viewName
  */
 async function getFields(tenant, viewName) {
-  // console.log(`parameters.js:getFields(${tenant}, ${viewName})`)
+  // console.log(`formsAndFields.js:getFields(${tenant}, ${viewName})`)
 
   const sql = `
     SELECT name, type, is_mandatory
@@ -141,7 +151,7 @@ async function getFields(tenant, viewName) {
 
 //ZZFS
 async function getMapping(tenant, mappingId, version) {
-  console.log(`parameters.js:getMapping(${tenant}, ${mappingId})`)
+  console.log(`formsAndFields.js:getMapping(${tenant}, ${mappingId})`)
   //ZZZ version is not used
   // Load the mapping records.
   const sql = `
@@ -165,6 +175,28 @@ async function getMapping(tenant, mappingId, version) {
     })
   }
   return mapping
+}
+
+async function setMapping(tenant, mappingId, version, toField, source, converter) {
+  console.log(`formsAndFields.js:addMapping(${tenant}, ${mappingId}, ${version}, ${toField}, ${source}, ${converter})`)
+
+  // Delete any existing mapping to this field
+  const sql = `DELETE FROM formservice_field_mapping WHERE tenant=? AND mapping_id=? AND version=? AND to_field=?`
+  const params = [ tenant, mappingId, version, toField ]
+  console.log(`sql=`, sql)
+  console.log(`params=`, params)
+  const result = await query(sql, params)
+  console.log(`result=`, result)
+
+  // Save the new mapping
+  if (source && source !== '-') {
+    let sql2 = `INSERT INTO formservice_field_mapping (tenant, mapping_id, version, to_field, source, converter) VALUES (?,?,?,?,?,?)`
+    const params2 = [ tenant, mappingId, version, toField, source, converter ]
+    console.log(`sql2=`, sql2)
+    console.log(`params2=`, params2)
+    const result2 = await query(sql2, params2)
+    console.log(`result2=`, result2)
+  }
 }
 
 // /**

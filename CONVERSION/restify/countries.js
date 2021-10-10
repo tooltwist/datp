@@ -15,7 +15,7 @@ async function init(server) {
   // Return all currencies
   server.get(`${constants.URL_PREFIX}/countries`, async function (req, res, next) {
     console.log(`-------------------------------------`)
-    console.log(`/gateway/countries`)
+    console.log(`${constants.URL_PREFIX}/countries`)
     res.send(countries)
     next()
   })//- /gateway/countries
@@ -23,7 +23,7 @@ async function init(server) {
   // Return a specific country
   server.get(`${constants.URL_PREFIX}/country/:countryCode`, async function (req, res, next) {
     console.log(`-------------------------------------`)
-    console.log(`/gateway/country/:countryCode`)
+    console.log(`${constants.URL_PREFIX}/country/:countryCode`)
     const countryCode = req.params.countryCode
     for (const c of countries) {
       if (c.code === countryCode) {
@@ -35,18 +35,18 @@ async function init(server) {
     return next(new errors.NotFoundError(`Unknown country code ${countryCode}`))
   })//- /gateway/country/:countryCode
 
-  // Return countries for a specific provider
-  server.get(`${constants.URL_PREFIX}/countries/:providerCode`, async function (req, res, next) {
-    console.log(`-------------------------------------`)
-    console.log(`/gateway/countries/:providerCode`)
-    const providerCode = req.params.providerCode
+  // // Return countries for a specific provider
+  // server.get(`${constants.URL_PREFIX}/countries/:providerCode`, async function (req, res, next) {
+  //   console.log(`-------------------------------------`)
+  //   console.log(`${constants.URL_PREFIX}/countries/:providerCode`)
+  //   const providerCode = req.params.providerCode
 
-    const provider = await providers.get(providerCode)
-    console.log(`provider=`, provider)
+  //   const provider = await providers.get(providerCode)
+  //   console.log(`provider=`, provider)
 
-    const countries = provider.plugin.getCountries()
-    res.send(countries)
-    next()
-  })//- /gateway/countries/:providerCode
+  //   const countries = provider.plugin.getCountries()
+  //   res.send(countries)
+  //   next()
+  // })//- /gateway/countries/:providerCode
 
 }

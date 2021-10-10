@@ -1,5 +1,5 @@
 import me from '../ATP/me'
-import dbNode from '../database/dbNode'
+import dbNode from './database/dbNode'
 import dbPipelines from '../database/dbPipelines'
 import StepTypeRegister from  '../ATP/StepTypeRegister'
 

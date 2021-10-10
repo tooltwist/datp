@@ -10,10 +10,11 @@ import colors from 'colors' // Yep, it is used
 import errors from 'restify-errors';
 import assert from 'assert'
 import TxData from './ATP/TxData'
-import forms from './VIEWS/forms'
-import providers from './VIEWS/providers-needToRemove/providers'
-import currencies_routes from './VIEWS/restify/currencies'
-import countries_routes from './VIEWS/restify/countries'
+import providerAndServiceRoutes from './CONVERSION/providerAndServiceRoutes'
+import providers from './CONVERSION/providers-needToRemove/providers'
+import currencies_routes from './CONVERSION/restify/currencies'
+import countries_routes from './CONVERSION/restify/countries'
+import formserviceYarp from './restify/formservice_yarp'
 
 
 const { defineRoute, showVersions, LOGIN_IGNORED } = apiVersions
@@ -252,12 +253,15 @@ async function routesForRestify(server, isMaster = false) {
   ])
 
 
-  providers.init()
+  // providers.init()
   currencies_routes.init(server)
   countries_routes.init(server)
 
 
-  forms.init(server)
+  providerAndServiceRoutes.init(server)
+  formserviceYarp.init(server)
+
+
 
 }
 
