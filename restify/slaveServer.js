@@ -13,7 +13,7 @@ const restify = require('restify');
 async function startSlaveServer(options) {
   console.log(`slaveServer()`)
   const server = restify.createServer({
-    handleUncaughtExceptions: true,
+    handleUncaughtExceptions: false,
   })
 
   // CORS setup

@@ -109,10 +109,10 @@ async function getForms(tenant, viewName) {
 
   const sql = `
     SELECT tenant, view, description
-    FROM formservice_form
+    FROM formservice_view
     WHERE tenant=? AND view LIKE ?`
-  const params = [ tenant, viewName ]
-  // console.log(`sql=`, sql)
+    const params = [ tenant, viewName ]
+    // console.log(`sql=`, sql)
   // console.log(`params=`, params)
   const result = await query(sql, params)
   // console.log(`result=`, result)
@@ -160,8 +160,8 @@ async function getMapping(tenant, mappingId, version) {
     WHERE tenant=? AND mapping_id=?`
     // const params = [ tenant, provider, service, messageType ]
     const params = [ tenant, mappingId ]
-    console.log(`sql=`, sql)
-    console.log(`params=`, params)
+    // console.log(`sql=`, sql)
+    // console.log(`params=`, params)
     const rows = await query(sql, params)
   // console.log(`rows=`, rows)
 

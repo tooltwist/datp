@@ -27,12 +27,12 @@ const FORM_TENANT = 'datp'
  * tell the Scheduler that the step has completed. See ZZZZ for more information.
  */
 class MandatoryFieldsStep extends Step {
-  #form
+  #view
 
   constructor(definition) {
     super(definition)
     // console.log(`definition=`, definition)
-    this.#form = definition.view
+    this.#view = definition.view
   }
 
   /**
@@ -42,55 +42,30 @@ class MandatoryFieldsStep extends Step {
    */
   async invoke(instance) {
     instance.console(`MandatoryFieldsStep (${instance.getStepId()})`)
-    instance.console(`"${this.#form}"`)
+    instance.console(`"${this.#view}"`)
 
     const data = await instance.getDataAsObject()
 
-    // Load the view definition
-    // const provider = 'std'
-    // const service = 'transfer'
-    // const serviceDetails = await formsAndFields.getServiceDetails(provider, service)
-    // if (!serviceDetails) {
-    //   // return next(new errors.NotImplementedError(`Provider ${provider} does not support ${service}`))
-    //   // instance.fail
-    //   //ZZZZ
-    //   // instance.log(`Provider ${provider} does not support ${service}`)
-    //   const note = `Provider ${provider} does not support ${service}`
-    //   return instance.finish(Step.FAIL, note, instance.getDataAsObject())
-    // }
-    // console.log(`serviceDetails=`, serviceDetails)
+    if (!this.#view) {
+      return await instance.badDefinition(`Missing parameter [view]`)
+    }
 
     // Check the view exists
-    const views = await formsAndFields.getForms(FORM_TENANT, this.#form)
+    const views = await formsAndFields.getForms(FORM_TENANT, this.#view)
     // console.log(`views=`, views)
     if (views.length === 0) {
-      return instance.finish(Step.FAIL, `Unknown view ${this.#form}`, { })
+      return instance.fail(`Unknown view ${this.#view}`, { })
     }
 
 
-    // const requestView = this.#form
-    // console.log(`requestView=`, requestView)
-    // // const version = serviceDetails.request_version
-    // const version = "1.0"
-
-    const viewFields = await formsAndFields.getFields(FORM_TENANT, this.#form)
+    const viewFields = await formsAndFields.getFields(FORM_TENANT, this.#view)
     // console.log(`viewFields=`, viewFields)
     if (viewFields.length === 0) {
-      return instance.finish(Step.FAIL, note, data)
+      return await instance.fail(note, data)
     }
 
-
     const handler = new ConversionHandler()
-    // console.log(`MY data=`, data)
-    // console.log(`MY data=`, data.toString())
-    // console.log(`MY data=`, typeof(data))
     handler.addSource('request', null, data)
-    // handler.addSource('auth', null, {
-    //   userId: 123,
-    //   email: 'philcal@mac.com',
-    // })
-
-
 
     // Check all the mandatory fields exist
     const errors = [ ]
@@ -105,21 +80,14 @@ class MandatoryFieldsStep extends Step {
         }
       }
     }
-    // console.log(`errors=`, errors)
+
     if (errors.length > 0) {
       // console.log(`YARP finishing now with errors`)
-      return instance.finish(Step.FAIL, 'Invalid request', errors)
+      return await instance.finish(Step.FAIL, 'Invalid request', errors)
     }
 
-    // const requestMapping = await formsAndFields.getMapping('datp', requestView, version)
-    // console.log(`requestMapping=`, requestMapping)
-    // console.log(`+++++++++++++++++++^^^^^^^^^^^^^^^^^^^`)
-
-
-    // ConversionHandler.
-
     // Time to complete the step and send a result
-    return instance.finish(Step.COMPLETED, '', data)
+    return await instance.finish(Step.COMPLETED, '', data)
   }
 }
 
@@ -138,7 +106,7 @@ async function register() {
  */
  async function defaultDefinition() {
   return {
-    "form": "domain_service_request",
+    "view": "std-SERVICE-request",
   }
 }
 

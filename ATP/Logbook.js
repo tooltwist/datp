@@ -1,3 +1,4 @@
+import dbLogbook from "../database/dbLogbook"
 
 const LEVEL_TRACE = 'trace'
 const LEVEL_WARNING = 'warning'
@@ -7,6 +8,11 @@ const LEVEL_DEBUG = 'debug'
 const VERBOSE = false
 
 class Logbook {
+  #transactionId
+  // #pipelineId
+  #sequencePrefix
+  #sequence
+  #autoPersist
 
   constructor(options) {
     if (VERBOSE) {
@@ -16,10 +22,28 @@ class Logbook {
       if (VERBOSE) {
         console.log(`options:`, options)
       }
+
+      // Check we have the required values
+      if (!options.transactionId) {
+        throw Error('Must specify options.transactionId')
+      }
+      // if (!options.pipelineId) {
+      //   throw Error('Must specify options.pipelineId')
+      // }
+
+      // Remember the options
+      this.#transactionId = options.transactionId
+      // this.pipelineId = options.pipelineId
+      if (options.sequencePrefix) {
+        this.#sequencePrefix = options.sequencePrefix
+      } else {
+        this.#sequencePrefix = ''
+      }
       if (options.autoPersist) {
         // Persist every log entry
-        this.autoPersist = true
+        this.#autoPersist = true
       }
+      this.#sequence = 0
       if (options.description) {
         this.description = options.description
       }
@@ -35,6 +59,11 @@ class Logbook {
   }
 
   async log(stepId, msg, options) {
+
+    //ZZZ Only during development. We don't want transaction-specific log output in the console.
+    console.log(`logbook: ${msg}`)
+
+    // Save the logbook entry.
     const entry = {
       step: stepId,
       msg,
@@ -59,7 +88,7 @@ class Logbook {
     this._log.push(entry)
 
     // Perhaps persist the entry
-    if (this.autoPersist || entry.persist) {
+    if (this.#autoPersist || entry.persist) {
       this.persist()
     }
   }
@@ -69,6 +98,7 @@ class Logbook {
    */
   async persist() {
     console.log(`Logbook.persist`)
+    dbLogbook.log()
   }
 
   // toString() {

@@ -30,13 +30,12 @@ export async function listPipelinesV1(req, res, next) {
 }
 
 export async function savePipelineDraftV1(req, res, next) {
-  console.log(`savePipelineDraftV1()`)
-  // const list = await dbPipelines.myPipelines()
-  console.log(`req.body=`, req.body)
+  // console.log(`savePipelineDraftV1()`)
+  // console.log(`req.body.steps=`, req.body.steps)
   const definition = req.body
   if (definition.stepType !== 'pipeline') {
     const msg = `stepType must be 'pipeline'`
-    console.log(`savePipelineDraftV1: ${msg}`)
+    // console.log(`savePipelineDraftV1: ${msg}`)
     return next(new errors.BadRequestError(msg))
   }
   await dbPipelines.savePipelineDraft(definition)

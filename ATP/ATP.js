@@ -20,9 +20,15 @@ import RandomDelayStep from './hardcoded/RandomDelayStep'
 import ExampleStep from './hardcoded/ExampleStep'
 import DemoStep from './hardcoded/DemoStep'
 import MandatoryFieldsStep from './hardcoded/MandatoryFieldsStep'
+import MapFieldsStep from './hardcoded/MapFieldsStep'
+import i2iBackend from '../i2i-backend/i2i-backend'
+
+
+// Database stuff
 import dbTransactionInstance from '../database/dbTransactionInstance'
 import dbTransactionType from '../database/dbTransactionType'
 import colors from 'colors'
+import Logbook from './Logbook'
 
 const ANTI_BRUTE_FORCE_DELAY = 2000 // 2 seconds
 
@@ -133,6 +139,8 @@ class AsynchronousTransactionEngine {
     await ExampleStep.register()
     await DemoStep.register()
     await MandatoryFieldsStep.register()
+    await MapFieldsStep.register()
+    await i2iBackend.register()
 
     await ResultReceiver.register(ATP_TRANSACTION_COMPLETION_HANDLER_NAME, new AtpTransactionCompletionHandler())
 
@@ -181,6 +189,9 @@ class AsynchronousTransactionEngine {
     // console.log(`initialTxData=`, initialTxData)
     // console.log(`initialTxData.getData()=`, await initialTxData.getData())
 
+
+
+
     // Remember the transaction
     const transactionIndexEntry = new TransactionIndexEntry(transactionId, transactionType, status, initiatedBy, initialTxData)
     // console.log(`WUMBOXI 1`, transactionIndexEntry)
@@ -192,12 +203,20 @@ class AsynchronousTransactionEngine {
     console.log(`inquiryToken=`, inquiryToken)
 
 
+
     this.#transactionIndex[txId] = transactionIndexEntry
 
     // console.log(`\n\nkkkkk kkkkk kkkkk kkkkk kkkkk kkkkk kkkkk kkkkk kkkkk kkkkk kkkkk kkkkk kkkkk `)
     // console.log(`ADD ${txId}`)
     // console.log(`this.#transactionIndex=`, this.#transactionIndex)
     // await this.dumpTransactions('AFTER ADD')
+
+
+    // Create a logbook for this transaction/pipeline
+    const logbook = new Logbook.cls({
+      transactionId: txId,
+      description: `Pipeline logbook`
+    })
 
 
     // Invoke the step
@@ -208,7 +227,7 @@ class AsynchronousTransactionEngine {
       txId,
       userCompletionHandlerName: completionHandlerName
     }
-    const invokeReply = await Scheduler.invokeStep(txId, parentInstance, fullSequencePrefix, definition, initialTxData, ATP_TRANSACTION_COMPLETION_HANDLER_NAME, contextForCompletionHandler)
+    const invokeReply = await Scheduler.invokeStep(txId, parentInstance, fullSequencePrefix, definition, initialTxData, logbook, ATP_TRANSACTION_COMPLETION_HANDLER_NAME, contextForCompletionHandler)
     // const invokeReply = await Scheduler.invokeStep(txId, parentInstance, fullSequencePrefix, definition, initialTxData, completionHandlerName, contextForCompletionHandler)
 
 

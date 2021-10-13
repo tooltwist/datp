@@ -23,6 +23,11 @@ export default class Step {
   static COMPLETED = 'completed'
 
   /**
+   * Error related to pipeline definition.
+   */
+  static INTERNAL_ERROR = 'internal-error'
+
+  /**
    * Pipeline step failed - attempt rollback.
    */
   static FAIL = 'fail'
@@ -52,18 +57,23 @@ export default class Step {
       try {
         await this.invoke(instance) // Provided by the step implementation
       } catch (e) {
-        instance.console(``)
-        // console.log(`Exception occurred while running step ${instance.getStepId()}:`)
-        instance.console(`Exception occurred while running step ${instance.getStepId()}:`)
-        instance.console(``)
-        //ZZZZZ
-        // handle the error better
-        console.log(e)
-        instance.console(``)
-        instance.console(``)
-        const note = `Exception in step.invoke()`
-        const data = { }
-        instance.finish(Step.FAIL, note, data)
+// console.log(`\n\n\nException in Step:`, e)
+//         instance.console(``)
+//         // console.log(`Exception occurred while running step ${instance.getStepId()}:`)
+//         instance.console(`Exception occurred while running step ${instance.getStepId()}:`)
+//         instance.console(``)
+//         //ZZZZZ
+//         // handle the error better
+//         console.log(e)
+//         instance.console(``)
+//         instance.console(``)
+
+        return await instance.exceptionInStep(e)
+        // const note = `Exception in step.invoke()`
+        // const data = {
+        //   error: `Exception`
+        // }
+        // instance.finish(Step.INTERNAL_ERROR, note, data)
       }
     }, 0)
       // let reply = this.invoke(instance) // Provided by the step implementation

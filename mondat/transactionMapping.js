@@ -21,27 +21,42 @@ export async function saveTransactionMappingsV1(req, res, next) {
   // console.log(`saveTransactionMappingsV1()`)
   // console.log(`req.params=`, req.params)
   // console.log(`req.body=`, req.body)
+  const node = 'master'
 
   try {
     // Try updating first
-    let sql = `UPDATE atp_transaction_type SET pipeline_name=?, pipeline_version=? WHERE transaction_type=?`
-    let params = [ req.body.pipelineName, req.body.pipelineVersion, req.body.transactionType ]
-    // console.log(`sql=`, sql)
-    // console.log(`params=`, params)
+    let sql = `UPDATE atp_transaction_type SET pipeline_name=?, pipeline_version=?, node_name=?`
+    let params = [ req.body.pipelineName, req.body.pipelineVersion, node ]
+    if (req.body.description) {
+      sql += `, description`
+      params.push(req.body.description)
+    }
+    sql += ` WHERE transaction_type=?`
+    params.push(req.body.transactionType)
+    console.log(`sql=`, sql)
+    console.log(`params=`, params)
     let result = await query(sql, params)
-    // console.log(`result=`, result)
+    console.log(`result=`, result)
     if (result.affectedRows === 1) {
       res.send({ status: 'ok' })
       return next()
     }
 
     // Update failed, must be a new transaction type.
-    sql = `INSERT INTO atp_transaction_type (transaction_type, pipeline_name, pipeline_version) VALUES (?, ?, ?)`
-    params = [ req.body.transactionType, req.body.pipelineName, req.body.pipelineVersion ]
-    // console.log(`sql=`, sql)
-    // console.log(`params=`, params)
-    result = await query(sql, params)
-    // console.log(`result=`, result)
+    let sql2a = `INSERT INTO atp_transaction_type (transaction_type, pipeline_name, pipeline_version, node_name`
+    let sql2b = `) VALUES (?, ?, ?, ?`
+    let sql2c = ` )`
+    let params2 = [ req.body.transactionType, req.body.pipelineName, req.body.pipelineVersion, node ]
+    if (req.body.description) {
+      sql2a += `, description`
+      sql2b += `, ?`
+      params.push(req.body.description)
+    }
+    let sql2 = `${sql2a}${sql2b}${sql2c}`
+    console.log(`sql2=`, sql2)
+    console.log(`params2=`, params2)
+    result = await query(sql2, params2)
+    console.log(`result=`, result)
 
     if (result.affectedRows === 1) {
       res.send({ status: 'ok' })

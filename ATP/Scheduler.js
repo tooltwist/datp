@@ -25,7 +25,7 @@ class Scheduler {
    * @param {*} completionHandlerData
    * @returns
    */
-  async invokeStep(transactionId, parentInstance, sequence, definition, tx, resultReceiver, completionHandlerData) {
+  async invokeStep(transactionId, parentInstance, sequence, definition, tx, logbook, resultReceiver, completionHandlerData) {
     // console.log(``)
     assert(typeof(transactionId) === 'string')
     // console.log(`typeof(sequence)=`, typeof(sequence))
@@ -86,6 +86,7 @@ class Scheduler {
       metadata: { },
       level,
       fullSequence,
+      logbook,
       // resultReceiver,
       completionToken: token,
       // completionHandlerData

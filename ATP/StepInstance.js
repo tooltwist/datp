@@ -7,6 +7,7 @@ import Scheduler from './Scheduler'
 import dbStep from "../database/dbStep";
 import dbPipelines from "../database/dbPipelines";
 import TxData from "./TxData";
+import dbArtifact from "../database/dbArtifact";
 
 
 export default class StepInstance {
@@ -18,6 +19,7 @@ export default class StepInstance {
   #logbook
   #txdata
   #metadata
+  #logSequence
 
   constructor() {
     // Definition
@@ -35,6 +37,8 @@ export default class StepInstance {
     this.#completionToken = null
     // Children
     // this.childStep = 0
+
+    this.#logSequence = 0
 
     // Note that this object is transitory - not persisted. It will be
     // recreated if we reload this stepInstance from persistant storage.
@@ -67,8 +71,8 @@ export default class StepInstance {
     this.#completionToken = options.completionToken
 
     // Log this step being materialized
-    this.#logbook = new Logbook.cls({ description: `Test pipeline`})
-    this.log(0, Logbook.LEVEL_TRACE, `Start step ${this.#stepId}`)
+    this.#logbook = options.logbook
+    await this.log(0, Logbook.LEVEL_TRACE, `Start step ${this.#stepId}`)
 
 
     // this.indentLevel = parentContext ? (parentContext.indentLevel + 1) : 1
@@ -180,6 +184,31 @@ export default class StepInstance {
     return this.fullSequence
   }
 
+  /**
+   * Persist a value of interest used by the step
+   * @param {String} name
+   * @param {String | Number | Object} value
+   */
+  async artifact(name, value) {
+    // console.log(`StepInstance.artifact(${name}, ${value})`)
+
+    switch (typeof(value)) {
+      case 'string':
+        break
+      case 'number':
+        value = value.toString()
+        break;
+      default:
+        value = 'JSON:' + JSON.stringify(value, '', 2)
+        break
+    }
+    await dbArtifact.saveArtifact(this.#stepId, name, value)
+  }
+
+  /*
+   * Step return functions
+   */
+
   async finish(status, note, newTx) {
     // console.log(`StepInstance.finish(${status}, ${note}, newTx):`, newTx)
     if (!newTx) {
@@ -189,7 +218,7 @@ export default class StepInstance {
     // console.log('YARP', myTx)
     // console.log(`StepInstance.finish(${status}, ${note}). newTx:`, newTx)
     const response = myTx.getJson()
-    await dbStep.complete(this.#stepId, response)
+    await dbStep.saveExitStatus(this.#stepId, status, response)
 
     // Return the promise
     // console.log(`   -> stepId=${this.#stepId}, completionToken=${this.#completionToken}`)
@@ -200,9 +229,9 @@ export default class StepInstance {
     const myTx = new TxData(newTx)
     const response = myTx.getJson()
     // const response = JSON.stringify(newTx, '', 2)
-    await dbStep.complete(this.#stepId, response)
-
     const status = Step.COMPLETED
+    await dbStep.saveExitStatus(this.#stepId, status, response)
+
     const note = ''
 
     // Return the promise
@@ -210,6 +239,73 @@ export default class StepInstance {
     return Scheduler.stepFinished(this.#stepId, this.#completionToken, status, note, myTx)
   }
 
+  async fail(note, newTx) {
+    const myTx = new TxData(newTx)
+    const response = myTx.getJson()
+    // const response = JSON.stringify(newTx, '', 2)
+    this.console(`Step exiting with fail status [${note}]`)
+
+    const status = Step.FAIL
+    await dbStep.saveExitStatus(this.#stepId, status, response)
+
+    return Scheduler.stepFinished(this.#stepId, this.#completionToken, status, note, myTx)
+  }
+
+  async badDefinition(msg) {
+    // console.log(`StepInstance.badDefinition(${msg})`)
+
+    // Write this to the admin log.
+    //ZZZZ
+
+    // Write to the transaction / step
+    this.console(msg)
+    await this.log(`Step reported bad definition [${msg}]`)
+    await this.artifact('badStepDefinition', this.#definition)
+
+    // Finish the step
+    const status = Step.INTERNAL_ERROR
+    const data = {
+      error: `Internal error: bad pipeline definition. Please notify system administrator.`,
+      transactionId: this.#transactionId,
+      stepId: this.#stepId
+    }
+    await dbStep.saveExitStatus(this.#stepId, status, data)
+
+    const note = `Bad step definition: ${msg}`
+    return Scheduler.stepFinished(this.#stepId, this.#completionToken, status, note, new TxData(data))
+  }
+
+  async exceptionInStep(e) {
+    // console.log(`StepInstance.exceptionInStep()`)
+
+    // Write this to the admin log.
+    //ZZZZ
+
+    // Write to the transaction / step
+    await this.console(`Exception in step: ${e.stack}`)
+    await this.log(`Exception in step.`, e)
+    // this.artifact('exception', { stacktrace: e.stack })
+
+    // Trim down the stacktract and save it
+    let trace = e.stack
+    let pos = trace.indexOf('    at processTicksAndRejections')
+    if (pos >= 0) {
+      trace = trace.substring(0, pos)
+    }
+    await this.artifact('exception', trace)
+
+    // Finish the step
+    const status = Step.INTERNAL_ERROR
+    const data = {
+      error: `Internal error: exception in step. Please notify system administrator.`,
+      transactionId: this.#transactionId,
+      stepId: this.#stepId
+    }
+    await dbStep.saveExitStatus(this.#stepId, status, data)
+
+    const note = `Exception in step`
+    return Scheduler.stepFinished(this.#stepId, this.#completionToken, status, note, new TxData(data))
+  }
 
   // pushPipeline (pipelineStep) {
   //   this.log(Logbook.LEVEL_TRACE, `Start pipeline ${pipelineStep.#stepId}`)
@@ -262,6 +358,10 @@ export default class StepInstance {
 
   log(msg, level) {
     this.#logbook.log(this.pipeId, msg, level)
+  }
+
+  getLogbook() {
+    return this.#logbook
   }
 
   indentStr() {

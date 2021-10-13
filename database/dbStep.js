@@ -4,7 +4,7 @@ import query from './query'
 export default {
   startStep,
   updateStatus,
-  complete,
+  saveExitStatus,
   getRecentPerformance,
 }
 
@@ -46,10 +46,10 @@ async function updateStatus(stepId, status, progress, percentage) {
  * @param {String} stepId
  * @param {String} response
  */
-async function complete(stepId, response) {
-  // console.log(`dbStep.complete(${stepId}, ${JSON.stringify(response, '', 0)})`.dim)
+async function saveExitStatus(stepId, status, response) {
+  // console.log(`dbStep.saveExitStatus(${stepId}, ${status}, ${JSON.stringify(response, '', 0)})`.dim)
   let sql = `UPDATE atp_step_instance SET status=?, status_time=NOW(3), completion_time=NOW(3), progress=?, percentage_complete=?, response=? WHERE step_id=?`
-  let params = [ Step.COMPLETED, Step.COMPLETED, 100, response, stepId ]
+  let params = [ status, status, 100, response, stepId ]
   // console.log(`sql=`, sql)
   // console.log(`params=`, params)
   const result = await query(sql, params)

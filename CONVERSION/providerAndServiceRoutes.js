@@ -110,9 +110,9 @@ async function init(server) {
       LEFT JOIN map_service_category C ON C.category = S.category
       ORDER BY C.sequence
       `
-    console.log(`sql=`, sql)
+    // console.log(`sql=`, sql)
     const result = await query(sql)
-    console.log(`result=`, result)
+    // console.log(`result=`, result)
     // const list = await providers.all()
     res.send(result)
     next()

@@ -29,7 +29,7 @@ class MockStep extends Step {
     //   data: instance.data,
     // })
     const reply = await query(`SELECT * from map_service`)
-    console.log(`++++++++++++++++++++++++++++++++++++++++++ reply=`, reply)
+    // console.log(`++++++++++++++++++++++++++++++++++++++++++ reply=`, reply)
 
 
     // setTimeout(() => {

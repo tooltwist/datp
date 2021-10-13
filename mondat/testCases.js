@@ -53,7 +53,7 @@ export async function saveTestCasesV1(req, res, next) {
       return next()
     }
   } catch (e) {
-    console.log(`saveTransactionMappingsV1(): Exception saving m_test_case:`, e)
+    console.log(`saveTestCasesV1(): Exception saving m_test_case:`, e)
   }
   res.send(new errors.InternalServerError(`Unable to save new test case`))
   return next()

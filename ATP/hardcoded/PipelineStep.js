@@ -84,8 +84,9 @@ class Pipeline extends Step {
     }
     const definition = stepDef.definition
     const sequence = `${stepNo}`
+    const logbook = pipelineInstance.getLogbook()
 
-    await Scheduler.invokeStep(pipelineInstance.getTransactionId(), pipelineInstance, sequence, definition, txdata, STEP_COMPLETION_HANDLER, contextForCompletionHandler)
+    await Scheduler.invokeStep(pipelineInstance.getTransactionId(), pipelineInstance, sequence, definition, txdata, logbook, STEP_COMPLETION_HANDLER, contextForCompletionHandler)
 
     //ZZZZ Handling of sync steps???
 
@@ -155,7 +156,7 @@ class PipelineChildStepCompletionHandler extends ResultReceiver {
         await pipelineObject.initiateChildStep(pipelineInstance, txForNextStep)
       }
 
-    } else if (status === Step.FAIL || status === Step.ABORT) {
+    } else if (status === Step.FAIL || status === Step.ABORT || status === Step.INTERNAL_ERROR) {
       /*
        *  Need to try Rollback
        */

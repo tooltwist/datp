@@ -24,10 +24,14 @@ async function init(server) {
   server.get(`${constants.FORMSERVICE_URL_PREFIX}/view/:viewName`, async function (req, res, next) {
     console.log(`-------------------------------------`)
     console.log(`/formservice/view/:viewName`)
+    console.log(`req.query=`, req.query)
+    console.log(`res.params=`, res.params)
+    console.log(`req.body=`, req.body)
+
 
     const viewName = req.params.viewName
     console.log(`viewName=`, viewName)
-    const createIfNotFound = (req.params.createIfNotFound === 'true')
+    const createIfNotFound = (req.query.createIfNotFound === 'true')
     // console.log(`req.params.createIfNotFound=`, req.params.createIfNotFound)
     console.log(`createIfNotFound`, createIfNotFound)
     // console.log(`req.query=`, req.query)

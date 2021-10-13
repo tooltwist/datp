@@ -3,6 +3,7 @@ import juice from '@tooltwist/juice-client'
 // require('mysql2/promise')
 
 const VERBOSE = false
+const SHOW_PROGRESS = false
 
 let promisePool = null
 
@@ -34,7 +35,9 @@ async function checkPool() {
 
     promisePool = pool.promise();
   } catch (error) {
-    return console.log(`Could not connect - ${error}`);
+    console.log(`Could not connect - ${error}`);
+    // return
+    throw error
   }
 }
 
@@ -44,17 +47,40 @@ export default async function query(dbQuery, params = []) {
     console.log('params: ', params);
   }
 
+  if (SHOW_PROGRESS) {
+    console.log(`query 1 - ${dbQuery}`)
+  }
+
+  // Check we have no undefined bind parameters, because they create
+  // a nasty exception that somehow doesn't get caught by the catch here.
+  for (let i = 0; i < params.length; i++) {
+    if (params[i] === undefined) {
+      throw new Error(`Bind parameter must not be undefined [index=${i}]`)
+    }
+  }
+
+  if (SHOW_PROGRESS) {
+    console.log(`query 2`)
+  }
+
   await checkPool()
+
+  if (SHOW_PROGRESS) {
+    console.log(`query 3`)
+  }
 
   // See https://www.npmjs.com/package/mysql2#using-promise-wrapper
   // create the connection
   // const connection = await mysql2.createConnection(config);
   // query database
   // const [rows, fields] = await connection.execute(dbQuery, params);
-
   const [rows, fields] = await promisePool.execute(dbQuery, params);
 
+  if (SHOW_PROGRESS) {
+    console.log(`query 4`)
+  }
+
   return rows
-};
+}
 
 module.exports = query;

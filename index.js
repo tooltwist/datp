@@ -74,8 +74,6 @@ class ApiTransactionCompletionHandler extends ResultReceiver {
       // The response object has already been used by the timeout.
       console.log(`  HAVE TRANSACTION RESULT, BUT API RESPONSE IS ALREADY USED - WILL NEED TO REPLY BY POLLING OR WEBHOOK`.blue.bgYellow.bold)
     }
-
-    // dbTransactionInstance.complete()
   }
 }
 
@@ -193,11 +191,12 @@ async function getTransactionResultV1(req, res, next) {
     delete tx.inquiryToken
 
     const result = JSON.parse(tx.response)
-
-    res.send({
+    const reply = {
       status: tx.status,
       result,
-    })
+    }
+    console.log(`reply=`, reply)
+    res.send(reply)
     return next()
   } catch (e) {
     console.log(`Exception while getting transaction response:`, e)
