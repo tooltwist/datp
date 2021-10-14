@@ -17,13 +17,17 @@ export const TEST_CHINABANK_ACCOUNT = '3590333624'
 // UNIONBANK                              00010083420
 export const TEST_UNIONBANK_ACCOUNT = '00010083420'
 
-export async function authenticate(instance) {
+export async function authenticate(instance, asTreasurer) {
 
   //ZZZZZ Get credentials for the current user the database
-  // const username = TEST_TXMAKER_EMAIL
-  // const password = TEST_TXMAKER_PASSWORD
-  const username = TEST_TREASURER_EMAIL
-  const password = TEST_TREASURER_PASSWORD
+  let username = TEST_TXMAKER_EMAIL
+  let password = TEST_TXMAKER_PASSWORD
+  if (asTreasurer) {
+    // const username = TEST_TXMAKER_EMAIL
+    // const password = TEST_TXMAKER_PASSWORD
+    username = TEST_TREASURER_EMAIL
+    password = TEST_TREASURER_PASSWORD
+  }
 
   console.log(`authenticate(${username}, ${password})`)
 

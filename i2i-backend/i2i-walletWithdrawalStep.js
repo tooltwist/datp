@@ -25,8 +25,6 @@ class i2iBackend_WalletWithdrawalStep extends Step {
       return await instance.badDefinition(`Missing parameter [amount]`)
     }
     console.log(`data is `, data)
-
-    // Validate the input fields
     const senderReference = data.senderReference
     const amount = data.amount
     const remarks = data.remarks ? data.remarks : ''
@@ -34,7 +32,7 @@ class i2iBackend_WalletWithdrawalStep extends Step {
 
     let authenticationToken
     try {
-      authenticationToken = await authenticate(instance)
+      authenticationToken = await authenticate(instance, true)
       console.log(`authenticationToken=`, authenticationToken)
     } catch (e) {
       console.error(e)

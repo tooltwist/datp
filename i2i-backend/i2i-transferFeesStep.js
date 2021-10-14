@@ -5,7 +5,7 @@ import { authenticate } from './i2i-misc'
 
 const VERBOSE = true
 
-class i2iBackend_WalletWithdrawalStatusStep extends Step {
+class i2iBackend_TransferFeesStep extends Step {
 
   constructor(definition) {
     super(definition)
@@ -13,36 +13,37 @@ class i2iBackend_WalletWithdrawalStatusStep extends Step {
 
   async invoke(instance) {
     if (VERBOSE) {
-      instance.console(`i2iBackend_WalletWithdrawalStatusStep (${instance.getStepId()})`)
+      // instance.console(`*****`)
+      instance.console(`i2iBackend_TransferFeesStep (${instance.getStepId()})`)
     }
 
     // Check the input parameters
     const data = await instance.getDataAsObject()
-    if (!data.senderReference) {
-      return await instance.badDefinition(`Missing parameter [senderReference]`)
+    if (!data.amount) {
+      return await instance.badDefinition(`Missing parameter [amount]`)
     }
     console.log(`data is `, data)
+    const amount = data.amount
 
-    // Validate the input fields
-    const senderReference = data.senderReference
-    const callback = 'https://yoursite.domain.ph/callback'
-
+    // Authenticate for this user
     let authenticationToken
     try {
-      authenticationToken = await authenticate(instance, true)
+      authenticationToken = await authenticate(instance, false)
       console.log(`authenticationToken=`, authenticationToken)
     } catch (e) {
       console.error(e)
       instance.finish(Step.FAIL, 'Authentication error', { })
     }
 
+
     try {
-      // See https://i2i.readme.io/reference/getwithdrawstatus
-      // curl --request GET \
-      // --url 'https://api.stg.i2i.ph/api-apic/wallet/withdraw?senderReference=UB123456' \
-      // --header 'Accept: application/json' \
-      // --header 'Authorization: aaaaa'
-      const url = `https://api.stg.i2i.ph/api-apic/wallet/withdraw?senderReference=${senderReference}`
+      // See https://i2i.readme.io/reference/getfeesremittance
+      //   curl --request GET \
+      //  --url 'https://api.stg.i2i.ph/api-apic/remittance/fees?amount=123' \
+      //  --header 'Accept: application/json' \
+      //  --header 'Authorization: aaaa' \
+      //  --header 'Content-Type: application/json'
+      const url = `https://api.stg.i2i.ph/api-apic/remittance/fees?amount=${amount}`
       const reply = await axios.get(url, {
         headers: {
           Authorization: authenticationToken
@@ -51,9 +52,9 @@ class i2iBackend_WalletWithdrawalStatusStep extends Step {
       console.log(`reply=`, reply)
       if (reply.status !== 200) {
         console.log(`\n\n\n ********** ERROR RETURN\n\n`)
-        console.log(`Getting withdrawal status failed with status ${reply.response.status}`)
+        console.log(`Getting transfer fees failed with status ${reply.response.status}`)
         console.log(`\n\n\n ********** ERROR RETURN\n\n`)
-        return instance.finish(Step.FAIL, 'Getting withdrawal status failed', reply.data)
+        return instance.finish(Step.FAIL, 'Requesting transfer fees failed', reply.data)
       }
 
       // All good
@@ -66,13 +67,13 @@ class i2iBackend_WalletWithdrawalStatusStep extends Step {
       console.log(`Response is`, e.response)
       console.log(`Data is`, e.response.data)
       console.log(`\n\n\n ********** EXCEPTION RETURN\n\n`)
-      instance.finish(Step.FAIL, 'Getting withdrawal status failed', e.response.data)
+      instance.finish(Step.FAIL, 'Requesting transfer fees failed', e.response.data)
     }
   }//- invoke
 }//- class
 
 async function register() {
-  await StepTypes.register(myDef, 'i2iBackend_WalletWithdrawalStatus', 'Get wallet withdrawal status')
+  await StepTypes.register(myDef, 'i2iBackend_TransferFeesStep', 'Get transfer fees')
 }//- register
 
 async function defaultDefinition() {
@@ -80,7 +81,7 @@ async function defaultDefinition() {
   }
 }
 async function factory(definition) {
-  const obj = new i2iBackend_WalletWithdrawalStatusStep(definition)
+  const obj = new i2iBackend_TransferFeesStep(definition)
   // console.log(`obj=`, obj)
   return obj
 }//- factory
@@ -88,7 +89,7 @@ async function factory(definition) {
 async function describe(definition) {
   return {
     stepType: definition.stepType,
-    description: 'Get wallet withdrawal status'
+    description: 'Get transfer fees'
   }
 }
 

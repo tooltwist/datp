@@ -28,11 +28,97 @@ const FORM_TENANT = 'datp'
  */
 class MandatoryFieldsStep extends Step {
   #view
+  #validations
+  #unknownFields
+  #definition
+
+  static UNKNOWN_FIELDS_IGNORE = 'ignore'
+  static UNKNOWN_FIELDS_WARNING = 'warning'
+  static UNKNOWN_FIELDS_ERROR = 'error'
+
 
   constructor(definition) {
     super(definition)
-    // console.log(`definition=`, definition)
+    console.log(`MandatoryFieldsStep.constructor()`, definition)
+    this.#definition = definition
+
+
     this.#view = definition.view
+    this.#validations = definition.validations ? definition.validations : [ ]
+    this.#unknownFields = definition.unknownFields ? definition.unknownFields : 'ignore'
+  }
+
+  async validateView(instance, handler, viewName, errors, viewFieldIndex) {
+    if (typeof(viewName) != 'string') {
+      await instance.badDefinition(`Parameter 'view' must be a string`)
+      return { fatal: true }
+    }
+
+    // Check the view exists
+    const views = await formsAndFields.getForms(FORM_TENANT, this.#view)
+    // console.log(`views=`, views)
+    if (views.length === 0) {
+      // await instance.badDefinition(`view parameter must be a string`)
+      errors.push(`Unknown view [${this.#view}]`)
+      // return true
+    }
+
+    // Check all the fields exist
+    const viewFields = await formsAndFields.getFields(FORM_TENANT, viewName)
+    // console.log(`viewFields=`, viewFields)
+    if (viewFields.length === 0) {
+      // await instance.fail(`No fields for `, data)
+      // No fields in theis view
+      return { fatal: false }
+    }
+
+    // Check all the mandatory fields exist
+    for (const fld of viewFields) {
+      // Add to the index we are creating
+      viewFieldIndex[fld.name] = true
+
+      // If the field is mandatory, check it is in the input
+      // console.log(`fld=`, fld)
+      if (fld.mandatory) {
+        // console.log(`==> mandatory ${fld.name} of type ${fld.type}`)
+        const value = handler.getSourceValue(`request:${fld.name}`)
+        // console.log(`    value=`, value)
+        if (value === null) {
+          errors.push(`Expected request to contain field [${fld.name}]`)
+        }
+      }
+    }
+    return { fatal: false }
+  }
+
+  async validateFields(instance, handler, validations, errors) {
+    if (typeof(validations) != 'object') {
+      await instance.badDefinition(`Parameter 'validations' must be an object`)
+      return { fatal: true }
+    }
+
+    // Check all the mandatory fields exist
+    for (const fieldName in validations) {
+      const values = validations[fieldName]
+      console.log(`fieldName=`, fieldName)
+      console.log(`values=`, values)
+
+      const actualValue = handler.getSourceValue(`request:${fieldName}`)
+      console.log(` - ${fieldName}=`, actualValue)
+      if (actualValue !== null) {
+        let ok = false
+        for (const value of values) {
+          if (actualValue === value) {
+            ok = true
+            break
+          }
+        }
+        if (!ok) {
+          errors.push(`Invalid value for field [${fieldName}]`)
+        }
+      }
+    }
+    return { fatal: false }
   }
 
   /**
@@ -45,48 +131,66 @@ class MandatoryFieldsStep extends Step {
     instance.console(`"${this.#view}"`)
 
     const data = await instance.getDataAsObject()
-
-    if (!this.#view) {
-      return await instance.badDefinition(`Missing parameter [view]`)
-    }
-
-    // Check the view exists
-    const views = await formsAndFields.getForms(FORM_TENANT, this.#view)
-    // console.log(`views=`, views)
-    if (views.length === 0) {
-      return instance.fail(`Unknown view ${this.#view}`, { })
-    }
-
-
-    const viewFields = await formsAndFields.getFields(FORM_TENANT, this.#view)
-    // console.log(`viewFields=`, viewFields)
-    if (viewFields.length === 0) {
-      return await instance.fail(note, data)
-    }
-
     const handler = new ConversionHandler()
     handler.addSource('request', null, data)
-
-    // Check all the mandatory fields exist
     const errors = [ ]
-    for (const fld of viewFields) {
-      // console.log(`fld=`, fld)
-      if (fld.mandatory) {
-        // console.log(`==> mandatory ${fld.name} of type ${fld.type}`)
-        const value = handler.getSourceValue(`request:${fld.name}`)
-        // console.log(`    value=`, value)
-        if (value === null) {
-          errors.push(`Expected request to contain ${fld.name}`)
-        }
+    let viewName = null
+    let viewFieldIndex = [ ]
+    let checkForUnknownFields = true
+
+    for (let def in this.#definition) {
+      console.log(`--------> `, def)
+      switch (def) {
+        case 'view':
+          viewName = this.#definition.view
+          let { fatal2 } = await this.validateView(instance, handler, viewName, errors, viewFieldIndex)
+          if (fatal2) {
+            return
+          }
+          break
+        case 'unknownFields':
+          const unknownFields = this.#definition.unknownFields
+          if (!unknownFields) {
+            checkForUnknownFields = false
+          }
+          break
+        case 'validations':
+          const validations = this.#definition.validations
+          console.log(`validations=`, validations)
+          console.log(`typeof(validations)=`, typeof(validations))
+          let { fatal3 } = await this.validateFields(instance, handler, validations, errors)
+          if (fatal3) {
+            return
+          }
+          break
+        case 'stepType':
+        case 'description':
+          // Ignore these
+          break
+        default:
+          return await instance.badDefinition(`Unknown parameter in definition [${def}]`)
       }
     }
 
+    // Check for unkown fields
+    if (checkForUnknownFields) {
+      console.log(`Checking fields`, viewFieldIndex)
+      if (!viewName) {
+        return await instance.badDefinition(`Cannot use [unknownFields] parameter without specifying [view]`)
+      }
+      handler.recurseThroughAllFields('request', (fieldName, value) => {
+        console.log(`-> ${fieldName}, ${value}`)
+        if (!viewFieldIndex[fieldName]) {
+          errors.push(`Unknown field [${fieldName}]`)
+        }
+      })
+    }
+
+    // Time to complete the step and send a result
     if (errors.length > 0) {
       // console.log(`YARP finishing now with errors`)
       return await instance.finish(Step.FAIL, 'Invalid request', errors)
     }
-
-    // Time to complete the step and send a result
     return await instance.finish(Step.COMPLETED, '', data)
   }
 }

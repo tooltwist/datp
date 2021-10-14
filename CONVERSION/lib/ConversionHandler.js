@@ -63,6 +63,27 @@ export default class ConversionHandler {
     return value
   }
 
+  recurseThroughAllFields(sourceName, fn) {
+    const sourceObject = this.sources[sourceName]
+    console.log(`      sourceObject=`, sourceObject)
+    if (!sourceObject) {
+      throw new Error(`Unknown source (${sourceName})`)
+    }
+    this.recurseThroughAllFieldsRecurse(sourceObject, '', fn)
+  }
+
+  recurseThroughAllFieldsRecurse(object, prefix, fn) {
+    for (let property in object) {
+      const path = `${prefix}${property}`
+      const value = object[property]
+      if (typeof(value) === 'object') {
+        this.recurseThroughAllFieldsRecurse(value, `${path}.`, fn)
+      } else {
+        fn(path, value)
+      }
+    }
+  }
+
   getValue(object, field) {
     // console.log(`        - getValue(object, ${field})`, object)
     // console.log(`typeof(object)=`, typeof(object))

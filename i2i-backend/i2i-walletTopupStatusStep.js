@@ -18,18 +18,16 @@ class i2iBackend_WalletTopupStatusStep extends Step {
 
     // Check the input parameters
     const data = await instance.getDataAsObject()
-    if (!data.senderReference) {
-      return await instance.badDefinition(`Missing parameter [senderReference]`)
+    if (!data.amount) {
+      return await instance.badDefinition(`Missing parameter [amount]`)
     }
     console.log(`data is `, data)
-
-    // Validate the input fields
-    const senderReference = data.senderReference
+    const amount = data.amount
     const callback = 'https://yoursite.domain.ph/callback'
 
     let authenticationToken
     try {
-      authenticationToken = await authenticate(instance)
+      authenticationToken = await authenticate(instance, true)
       console.log(`authenticationToken=`, authenticationToken)
     } catch (e) {
       console.error(e)
@@ -37,12 +35,13 @@ class i2iBackend_WalletTopupStatusStep extends Step {
     }
 
     try {
-      // See https://i2i.readme.io/reference/gettopupstatus
+      // See https://i2i.readme.io/reference/getfeesremittance
       //   curl --request GET \
-      //  --url 'https://api.stg.i2i.ph/api-apic/wallet/topup?senderReference=12345' \
+      //  --url 'https://api.stg.i2i.ph/api-apic/remittance/fees?amount=123' \
       //  --header 'Accept: application/json' \
-      //  --header 'Authorization: sdsdsd'
-      const url = `https://api.stg.i2i.ph/api-apic/wallet/topup?senderReference=${senderReference}`
+      //  --header 'Authorization: aaaa' \
+      //  --header 'Content-Type: application/json'
+      const url = `https://api.stg.i2i.ph/api-apic/remittance/fees?amount=${amount}`
       const reply = await axios.get(url, {
         headers: {
           Authorization: authenticationToken
@@ -72,7 +71,7 @@ class i2iBackend_WalletTopupStatusStep extends Step {
 }//- class
 
 async function register() {
-  await StepTypes.register(myDef, 'i2iBackend_WalletTopupStatus', 'Get wallet top up status')
+  await StepTypes.register(myDef, 'i2iBackend_WalletTopupStatus', 'Get transaction fees')
 }//- register
 
 async function defaultDefinition() {
@@ -81,14 +80,13 @@ async function defaultDefinition() {
 }
 async function factory(definition) {
   const obj = new i2iBackend_WalletTopupStatusStep(definition)
-  // console.log(`obj=`, obj)
   return obj
 }//- factory
 
 async function describe(definition) {
   return {
     stepType: definition.stepType,
-    description: 'Get wallet top up status'
+    description: 'Get transaction fees'
   }
 }
 

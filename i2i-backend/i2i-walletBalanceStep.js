@@ -18,7 +18,7 @@ class i2iBackend_WalletBalanceStep extends Step {
 
     let authenticationToken
     try {
-      authenticationToken = await authenticate(instance)
+      authenticationToken = await authenticate(instance, true)
       console.log(`authenticationToken=`, authenticationToken)
     } catch (e) {
       console.error(e)
