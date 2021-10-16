@@ -139,7 +139,7 @@ class MandatoryFieldsStep extends Step {
     let checkForUnknownFields = true
 
     for (let def in this.#definition) {
-      console.log(`--------> `, def)
+      // console.log(`--------> `, def)
       switch (def) {
         case 'view':
           viewName = this.#definition.view
@@ -174,12 +174,12 @@ class MandatoryFieldsStep extends Step {
 
     // Check for unkown fields
     if (checkForUnknownFields) {
-      console.log(`Checking fields`, viewFieldIndex)
+      // console.log(`Checking fields`, viewFieldIndex)
       if (!viewName) {
         return await instance.badDefinition(`Cannot use [unknownFields] parameter without specifying [view]`)
       }
       handler.recurseThroughAllFields('request', (fieldName, value) => {
-        console.log(`-> ${fieldName}, ${value}`)
+        // console.log(`-> ${fieldName}, ${value}`)
         if (!viewFieldIndex[fieldName]) {
           errors.push(`Unknown field [${fieldName}]`)
         }

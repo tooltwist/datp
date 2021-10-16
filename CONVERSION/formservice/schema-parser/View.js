@@ -61,6 +61,7 @@ export default class View {
 
       var field = new Field(fieldName);
       await field.parseFromDatabase(this, row)
+      console.log(`WHOPIII YARP`, field)
 
       this.fieldLookup[fieldName] = field;
       numFields++
@@ -307,7 +308,7 @@ export default class View {
   }
 
   async addField(schema, newField) {
-    console.log(`addField()`, newField)
+    console.log(`View.js:addField()`, newField)
 
 
 

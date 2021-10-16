@@ -2,8 +2,8 @@
   "name": "uxba-pipeline",
   "version": "1.0.0",
   "description": "Pipeline processor for UBX Aggregator",
-  "main": "main.js",
-  "license": "MIT",
+  "main": "index.js",
+  "license": "Proprietary intellectual property of Tooltwist",
   "private": true,
   "dependencies": {
     "@tooltwist/juice-client": "^1.0.20",

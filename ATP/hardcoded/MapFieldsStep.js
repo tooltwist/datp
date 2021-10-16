@@ -84,7 +84,7 @@ class MapFieldsStep extends Step {
 
     const version = -1
     const mapping = await formsAndFields.getMapping(FORM_TENANT, this.#mappingId, version)
-    // console.log(`mapping=`, mapping)
+    console.log(`mapping=`, mapping)
 
 
     const handler = new ConversionHandler()

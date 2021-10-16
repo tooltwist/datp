@@ -4,15 +4,14 @@ import DATP from '../DATP/datp'
 import corsMiddleware from "restify-cors-middleware";
 import figlet from 'figlet'
 import juice from '@tooltwist/juice-client'
-import me from '../ATP/me'
-import { registerAsSlave } from './registerAsSlave'
-
+import me from '../../DATP/ATP/me'
 
 const restify = require('restify');
 
-async function startSlaveServer(options) {
-  console.log(`slaveServer()`)
-  const server = restify.createServer({
+async function startMasterServer(options) {
+  console.log(`startMasterServer()`)
+
+  var server = restify.createServer({
     handleUncaughtExceptions: false,
   })
 
@@ -39,10 +38,26 @@ async function startSlaveServer(options) {
   server.use(restify.plugins.bodyParser({ mapParams: false }));
 
 
-  // Start DATP (Distributed Asynchronous Transaction Engine)
+  // A few routes
+  // function sendV1(req, res, next) {
+  //   res.send('hello: ' + req.params.name);
+  //   return next();
+  // }
+
+  // function sendV2(req, res, next) {
+  //   res.send({ hello: req.params.name });
+  //   return next();
+  // }
+
+  // server.get('/hello/:name', restify.plugins.conditionalHandler([
+  //   { version: '1.1.3', handler: sendV1 },
+  //   { version: '2.0.0', handler: sendV2 }
+  // ]));
+  // const server = await restifyMasterServer()
   await DATP.run()
   await DATP.routesForRestify(server)
-  await registerAsSlave(server)
+  await DATP.registerAsMaster(server)
+  await DATP.monitorMidi()
 
   /*
   *  Display a nice message.
@@ -59,11 +74,14 @@ async function startSlaveServer(options) {
   /*
   *  Start the server.
   */
-  const port = await juice.int('datp.port', 8081)
+  const port = await juice.int('datp.port', 8080)
   console.log(`Starting server on port ${port}`)
   server.listen(port);
+// })().catch(e => {
+//   console.error(e)
+// })
 }
 
 export default {
-  startSlaveServer
+  startMasterServer
 }

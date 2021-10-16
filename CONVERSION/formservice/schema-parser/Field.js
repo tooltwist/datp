@@ -17,7 +17,9 @@ export default class Field {
   }
 
   async parseFromDatabase(view, row) {
-    // console.log('field.parseFromDatabase(' + this.name + ')', row);
+    if (row.name === 'method') {
+      console.trace('field.parseFromDatabase(' + this.name + ')', row);
+    }
     this.viewName = view.name;
     // this.definition = fieldDef;
     this.properties = {
@@ -26,6 +28,9 @@ export default class Field {
       sequence: row.sequence,
       type: row.type,
       label: row.label,
+      exampleValue: row.example_value,
+      defaultValue: row.default_value,
+      allowableValues: row.allowable_values,
     };
 
     if (!this.properties.label) {
@@ -246,6 +251,21 @@ export default class Field {
         params.push(newField.label)
         sep = ','
       }
+      if (typeof(newField.defaultValue) !== 'undefined' && newField.defaultValue !== field.defaultValue) {
+        sql += `${sep} default_value=?`
+        params.push(newField.defaultValue)
+        sep = ','
+      }
+      if (typeof(newField.exampleValue) !== 'undefined' && newField.exampleValue !== field.exampleValue) {
+        sql += `${sep} example_value=?`
+        params.push(newField.exampleValue)
+        sep = ','
+      }
+      if (typeof(newField.allowableValues) !== 'undefined' && newField.allowableValues !== field.allowableValues) {
+        sql += `${sep} allowable_values=?`
+        params.push(newField.allowableValues)
+        sep = ','
+      }
       if (typeof(newField.columnName) !== 'undefined' && newField.columnName !== field.columnName) {
         sql += `${sep} column_name=?`
         params.push(newField.columnName)
@@ -293,8 +313,8 @@ export default class Field {
       params.push(this.viewName)
       params.push(this.name)
 
-      // console.log(`sql=`, sql)
-      // console.log(`params=`, params)
+      console.log(`sql=`, sql)
+      console.log(`params=`, params)
       if (sep) {
         // console.log(`Update ${schema.tenant}/${this.viewName}/${this.name}`)
         await query(sql, params)

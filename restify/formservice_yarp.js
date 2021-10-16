@@ -92,6 +92,9 @@ async function init(server) {
           name: fieldName,
           label: field.properties.label,
           type: field.properties.type,
+          exampleValue: field.properties.exampleValue,
+          defaultValue: field.properties.defaultValue,
+          allowableValues: field.properties.allowableValues,
           sequence: field.properties.sequence,
           // isDescription: field.properties.isDescription,
           properties: { }
@@ -210,9 +213,9 @@ async function init(server) {
     const fieldName = req.params.fieldName
     console.log(`-------------------------------------`)
     console.log(`PUT /formservice/field/${viewName}/${fieldName}`)
-    // console.log(`viewName=`, viewName)
-    // console.log(`fieldName=`, fieldName)
-    // console.log(`req.body=`, req.body)
+    console.log(`viewName=`, viewName)
+    console.log(`fieldName=`, fieldName)
+    console.log(`req.body=`, req.body)
     const newField = req.body
 
     try {
