@@ -139,7 +139,7 @@ class AsynchronousTransactionEngine {
     await ExampleStep.register()
     await DemoStep.register()
     await MandatoryFieldsStep.register()
-    await MapFieldsStep.register()
+    // await MapFieldsStep.register()
     await i2iBackend.register()
 
     await ResultReceiver.register(ATP_TRANSACTION_COMPLETION_HANDLER_NAME, new AtpTransactionCompletionHandler())
