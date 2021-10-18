@@ -61,7 +61,7 @@ export default class View {
 
       var field = new Field(fieldName);
       await field.parseFromDatabase(this, row)
-      console.log(`WHOPIII YARP`, field)
+      // console.log(`WHOPIII YARP`, field)
 
       this.fieldLookup[fieldName] = field;
       numFields++

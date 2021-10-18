@@ -24,16 +24,16 @@ async function init(server) {
   server.get(`${constants.FORMSERVICE_URL_PREFIX}/view/:viewName`, async function (req, res, next) {
     console.log(`-------------------------------------`)
     console.log(`/formservice/view/:viewName`)
-    console.log(`req.query=`, req.query)
-    console.log(`res.params=`, res.params)
-    console.log(`req.body=`, req.body)
+    // console.log(`req.query=`, req.query)
+    // console.log(`res.params=`, res.params)
+    // console.log(`req.body=`, req.body)
 
 
     const viewName = req.params.viewName
-    console.log(`viewName=`, viewName)
+    // console.log(`viewName=`, viewName)
     const createIfNotFound = (req.query.createIfNotFound === 'true')
     // console.log(`req.params.createIfNotFound=`, req.params.createIfNotFound)
-    console.log(`createIfNotFound`, createIfNotFound)
+    // console.log(`createIfNotFound`, createIfNotFound)
     // console.log(`req.query=`, req.query)
     // console.log(`req.params=`, req.params)
     // console.log(`req=`, req)
@@ -237,7 +237,7 @@ async function init(server) {
       if (!field) {
         return next(new errors.NotFoundError(`Unknown field ${viewName}/${fieldName}`))
       }
-      field.update(schema, newField)
+      field.updateField(schema, newField)
     } catch (err) {
       console.log(`err=`, err)
       return next(err)
@@ -296,10 +296,10 @@ async function init(server) {
     console.log(`/formservice/mapping/:mappingId`)
 
     const mappingId = req.params.mappingId
-    console.log(`mappingId=`, mappingId)
+    // console.log(`mappingId=`, mappingId)
     const version = -1
     const mapping = await formsAndFields.getMapping(constants.PETNET_TENANT, mappingId, version)
-    console.log(`mapping=`, mapping)
+    // console.log(`mapping=`, mapping)
     res.send(mapping)
     return next()
 

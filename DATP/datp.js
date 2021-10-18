@@ -12,7 +12,7 @@ import errors from 'restify-errors';
 import assert from 'assert'
 import TxData from '../ATP/TxData'
 import providerAndServiceRoutes from '../CONVERSION/providerAndServiceRoutes'
-import providers from '../CONVERSION/providers-needToRemove/providers'
+// import providers from '../CONVERSION/providers-needToRemove/providers'
 import currencies_routes from '../CONVERSION/restify/currencies'
 import countries_routes from '../CONVERSION/restify/countries'
 import formserviceYarp from '../restify/formservice_yarp'
@@ -34,13 +34,13 @@ class ApiTransactionCompletionHandler extends ResultReceiver {
   }
   async haveResult(contextForCompletionHandler, status, note, response) {
     assert(response instanceof TxData)
-    // console.log(`<<<<    ApiTransactionCompletionHandler.haveResult()  `.white.bgRed.bold)
+    console.log(`<<<<    ApiTransactionCompletionHandler.haveResult()  `.white.bgRed.bold)
     // console.log(`  contextForCompletionHandler=`, JSON.stringify(contextForCompletionHandler, '', 0))
-    // // console.log(`  status=`, status)
+    // console.log(`  status=`, status)
     // console.log(`  response=`, response.toString())
     // // await Scheduler.dumpSteps(`\nAfter Completion`)
 
-    console.log(`TRANSACTION ${contextForCompletionHandler.txId} IS COMPLETE [${status}].`)
+    console.log(`TRANSACTION ${contextForCompletionHandler.txId} HAS FINISHED [${status}].`)
     console.log(`responsesForSynchronousReturn is holding ${Object.keys(responsesForSynchronousReturn).length} responses`.dim)
 
     // See if we can respond immediately
@@ -81,20 +81,40 @@ class ApiTransactionCompletionHandler extends ResultReceiver {
 
 
 
-async function initiateTransactionV1(req, res, next) {
+async function initiateTransactionRouteV1(req, res, next) {
   console.log(`>>>>    Initiate transaction ${req.params.transactionType}  `.white.bgRed.bold)
   // console.log(`req.params=`, req.params)
   // console.log(`req.body=`, req.body)
   // console.log(`req.query=`, req.query)
 
+  const transactionType = req.params.transactionType
+  // // const transactionType = 'remittance-init'
+  // const color = req.query.color
+  // // console.log(`color=`, color)
+  // // const initialData = { amount: 123.45, hello: 'there' }
+  // const initiatedBy = 'nobody' //ZZZZ
+  const initialData = req.body
+
+  const options = {
+    color: req.query.color,
+    initiatedBy: 'nobody' //ZZZZ
+  }
+
+  // This will reply, although maybe not till it times out.
+  await initiateTransaction(req, res, next, transactionType, initialData, options)
+}
+
+
+export async function initiateTransaction(req, res, next, transactionType, initialData, options) {
+
   try {//ZZZZZ
-    const transactionType = req.params.transactionType
+    // const transactionType = req.params.transactionType
     // const transactionType = 'remittance-init'
-    const color = req.query.color
+    const color = options.color ? options.color : null
     // console.log(`color=`, color)
     // const initialData = { amount: 123.45, hello: 'there' }
-    const initiatedBy = 'nobody' //ZZZZ
-    const initialData = req.body
+    const initiatedBy = options.initiatedBy ? options.initiatedBy : 'unknown'
+    // const initialData = req.body
 
     // Remember this transaction and it's 'req' object, so we can send an API response, either:
     //  1. When we get a response from the pipeline.
@@ -123,7 +143,7 @@ async function initiateTransactionV1(req, res, next) {
      * to the original API call, telling the API client they will need to get the transaction
      * result using one of the asynchronous methods (i.e. Polling or via webhook).
      */
-    const MAX_SYNC_REPLY_WAIT_TIME = 500 // milliseconds
+    const MAX_SYNC_REPLY_WAIT_TIME = 2500 // milliseconds
     syncResponse.timeoutHandle = setTimeout(() => {
       // Check that the transaction hasn't completed, and already used 'res' and 'next'
       try {
@@ -161,18 +181,32 @@ async function initiateTransactionV1(req, res, next) {
   }
 }
 
-async function getTransactionResultV1(req, res, next) {
-  console.log(`>>>>    get transaction result ${req.params.transactionId}  `.white.bgRed.bold)
+async function getTransactionResultRouteV1(req, res, next) {
+  // console.log(`>>>>    get transaction result ${req.params.transactionId}  `.white.bgRed.bold)
   // console.log(`req.params=`, req.params)
   // console.log(`req.body=`, req.body)
   // console.log(`req.query=`, req.query)
 
-  try {
+  // try {
     const transactionId = req.params.transactionId
+    const fetchToken = 'xyz'//ZZZZZ
+    // console.log(`transactionId=`, transactionId)
+    await getTransactionResult(req, res, next, transactionId, fetchToken)
+  }
+
+
+export async function getTransactionResult(req, res, next, transactionId, fetchToken) {
+  console.log(`>>>>    get transaction result ${transactionId}  `.white.bgRed.bold)
+  console.log(`req.params=`, req.params)
+  console.log(`req.body=`, req.body)
+  console.log(`req.query=`, req.query)
+
+  try {
+
     // console.log(`transactionId=`, transactionId)
 
     const tx = await ATP.getTransactionResult(transactionId)
-    console.log(`tx.response=`, tx.response)
+    // console.log(`tx.response=`, tx.response)
 
     if (!tx) {
       res.send(new errors.NotFoundError(`Unknown transaction`))
@@ -191,12 +225,36 @@ async function getTransactionResultV1(req, res, next) {
     delete tx.responseMethod
     delete tx.inquiryToken
 
-    const result = JSON.parse(tx.response)
+    // console.log(`tx.response=`, tx.response)
+    // console.log(`typeof(tx.response)=`, typeof(tx.response))
+    let result
+    try {
+      result = JSON.parse(tx.response)
+    } catch (e) {
+      result = tx.response.toString()
+    }
+    // switch (typeof(tx.response)) {
+    //   case 'undefined':
+    //     result = 'undefined'
+    //     break
+    //   case 'string':
+    //     result = tx.response
+    //     break
+    //   case 'object':
+    //     result = tx.response
+    //     break
+    //   default:
+    //     if (tx.result) {
+    //       result = tx.result.toString()
+    //     } else {
+    //       result = 'null'
+    //     }
+    // }
     const reply = {
       status: tx.status,
       result,
     }
-    console.log(`reply=`, reply)
+    // console.log(`reply=`, reply)
     res.send(reply)
     return next()
   } catch (e) {
@@ -241,15 +299,15 @@ async function routesForRestify(server, isMaster = false) {
 
   //ZZZZ Change to a PUT
   // server.get('/initiate/:transactionType', restify.plugins.conditionalHandler([
-  //   { version: '1.1.3', handler: initiateTransactionV1 },
+  //   { version: '1.1.3', handler: initiateTransactionRouteV1 },
   //   // { version: '2.0.0', handler: sendV2 }
   // ]));
   const URL_PREFIX = 'datp'
   defineRoute(server, 'put', false, URL_PREFIX, '/initiate/:transactionType', [
-    { versions: '1.0 - 1.0', handler: initiateTransactionV1, auth: LOGIN_IGNORED, noTenant: true }
+    { versions: '1.0 - 1.0', handler: initiateTransactionRouteV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
   defineRoute(server, 'get', false, URL_PREFIX, '/result/:transactionId', [
-    { versions: '1.0 - 1.0', handler: getTransactionResultV1, auth: LOGIN_IGNORED, noTenant: true }
+    { versions: '1.0 - 1.0', handler: getTransactionResultRouteV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
 
 
@@ -267,11 +325,11 @@ async function run() {
   await ResultReceiver.register(API_TRANSACTION_COMPLETION_HANDLER_NAME, new ApiTransactionCompletionHandler())
 }
 
-
 export default {
   routesForRestify,
   registerAsMaster: master.registerAsMaster,
   // registerAsSlave: slave.registerAsSlave,
   monitorMidi,
   run,
+  initiateTransaction,
 }

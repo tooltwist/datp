@@ -6,6 +6,7 @@ import pad from './lib/pad'
 import statusString from './lib/statusString'
 import assert from 'assert'
 import TxData from './TxData'
+import dbStep from '../database/dbStep'
 
 const VERBOSE = false
 const DELETE_COMPLETED_STEPS_IMMEDIATELY = false
@@ -161,6 +162,13 @@ class Scheduler {
   async stepFinished(stepId, token, status, note, newTx) {
     assert(newTx instanceof TxData)
     // console.log(`Scheduler.stepFinished(stepId=${stepId}, token=${token}, status=${status}, note=${note}) newTx=`, newTx.toString())
+    // console.log(`Scheduler.stepFinished(stepId=${stepId}, token=${token}, status=${status}, note=${note})`)
+
+    // Update the step status.
+    // This will fail if the step has completed already.
+    // await dbStep.saveExitStatus(stepId, status, data)
+
+
 
     // Find the step
     const schedulerSnapshotOfStepInstance = this.stepIndex[stepId]
@@ -170,12 +178,16 @@ class Scheduler {
     }
     const stepInstance = await schedulerSnapshotOfStepInstance.getStepInstance()
     // stepInstance.console(`<<<<<<<<<< <<<<<<<<<< <<<<<<<<<< END   ${stepInstance.getStepType()}: ${stepId} ${token}`)
-    stepInstance.console(`<<<<<<<<<< <<<<<<<<<< <<<<<<<<<< END   [${stepInstance.getStepType()}] ${stepId}`)
+    stepInstance.console(`<<<<<<<<<< <<<<<<<<<< <<<<<<<<<< END   [${stepInstance.getStepType()}] ${stepId} status=${status}`)
 
     // Check the token is correct
     await schedulerSnapshotOfStepInstance.validateToken(token)
 
     //ZZZZ Check the status is valid
+
+
+    // Update the status in the database
+    // await dbStep.updateStatus(stepId, status, 100, 100)
 
     // Update the persisted step details
     await schedulerSnapshotOfStepInstance.setStatus(token, status)

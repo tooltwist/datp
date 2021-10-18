@@ -4,6 +4,8 @@ import converter_skip from './converter_skip'
 
 
 export default class ConversionHandler {
+  #target
+
   constructor() {
     this.sources = {} // name -> data
     this.definitions= { }
@@ -13,6 +15,7 @@ export default class ConversionHandler {
       literal: new converter_literal(),
       skip: new converter_skip(),
     }
+    this.#target = { }
   }
 
   addSource(name, definition, object) {
@@ -23,12 +26,28 @@ export default class ConversionHandler {
     this.definitions[name] = definition
   }
 
-  convert(rules) {
+  setInitialTarget(target) {
+    this.#target = target
+  }
+
+  /**
+   *
+   * @param {*} rules
+   * @param {[field]} targetFieldIndex Optional [ fieldpath => { name, type, mandatory } }
+   * @returns
+   */
+  convert(rules, targetFieldIndex) {
     // console.log(`handler.convert()`)
     // console.log(`rules=`, rules)
-    const obj = { }
+    // const obj = { }
+
     for (const rule of rules) {
       // console.log(`  -> ${rule.field} = ${rule.source}`)
+      let targetType = null
+      if (targetFieldIndex && targetFieldIndex[rule.field]) {
+        targetType = targetFieldIndex[rule.field].type
+        // console.log(`    targetType=`, targetType)
+      }
       const description = `${rule.source} => ${rule.field}`
 
       // Call the converter
@@ -36,10 +55,10 @@ export default class ConversionHandler {
       if (!converter) {
         converter = this.defaultConverter
       }
-      converter.convert(this, obj, rule.field, rule.source, description)
+      converter.convert(this, this.#target, rule.field, rule.source, description, targetType)
     }
 
-    return obj
+    return this.#target
   }
 
   getSourceValue(path) {
@@ -65,7 +84,7 @@ export default class ConversionHandler {
 
   recurseThroughAllFields(sourceName, fn) {
     const sourceObject = this.sources[sourceName]
-    console.log(`      sourceObject=`, sourceObject)
+    // console.log(`      sourceObject=`, sourceObject)
     if (!sourceObject) {
       throw new Error(`Unknown source (${sourceName})`)
     }

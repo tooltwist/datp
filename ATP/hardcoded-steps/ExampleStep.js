@@ -73,7 +73,8 @@ class ExampleStep extends Step {
     // Time to complete the step and send a result
     // const note = 'whatever'
     // instance.finish(Step.COMPLETED, note, tx)
-    instance.succeeded(data)
+    const note = ''
+    instance.succeeded(note, data)
   }
 }
 

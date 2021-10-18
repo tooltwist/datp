@@ -104,7 +104,8 @@ class PipelineChildStepCompletionHandler extends ResultReceiver {
   }
   async haveResult(contextForCompletionHandler, status, note, newTx) {
     assert(newTx instanceof TxData)
-    // console.log(`PipelineChildStepCompletionHandler.haveResult()`, newTx.toString())
+    // console.log(`PipelineChildStepCompletionHandler.haveResult(status=${status})`, newTx.toString())
+    // console.log(`PipelineChildStepCompletionHandler.haveResult(status=${status})`)
     // console.log(`newTx=`, newTx)
     // console.log(`contextForCompletionHandler=`, contextForCompletionHandler)
 

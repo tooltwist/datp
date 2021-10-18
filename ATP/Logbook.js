@@ -58,10 +58,13 @@ class Logbook {
     this.LEVEL_DEBUG = LEVEL_DEBUG
   }
 
-  async log(stepId, msg, options) {
+  async log(stepId, options, msg) {
 
     //ZZZ Only during development. We don't want transaction-specific log output in the console.
-    console.log(`logbook: ${msg}`)
+    // console.log(`stepId=`, stepId)
+    // console.log(`options=`, options)
+    // console.log(`msg=`, msg)
+    // console.trace(`logbook: ${msg}`)
 
     // Save the logbook entry.
     const entry = {

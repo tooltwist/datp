@@ -1,6 +1,7 @@
 import me from '../ATP/me'
 import query from './query'
 import GenerateHash from "../ATP/GenerateHash"
+import TransactionIndexEntry from '../ATP/TransactionIndexEntry'
 
 export default {
   persist,
@@ -45,11 +46,27 @@ async function persist(transactionIndexEntry, pipelineName) {
 async function saveFinalStatus(txId, finalStatus, response) {
 
   try {
-    const zzz = Math.round((Math.random() * 1000) % 1000)
+    // const zzz = Math.round((Math.random() * 1000) % 1000)
     // console.log(`\n\nWHAMMO 1 - ${zzz}\n\n`)
 
-    const json = response.getJson()
+    // Check the status has not already been set. If it has, then the step is
+    // running two thread, most likely because it did not 'await' when completing.
+    let sql1 = `SELECT transaction_status FROM atp_transaction_instance WHERE transaction_id=?`
+    let params1 = [ txId ]
+    const result1 = await query(sql1, params1)
+    if (result1.length < 1) {
+      const msg = `Internal Error: trying to set status of transaction not in the database [${txId}]`
+      console.trace(msg)
+      throw new Error(msg)
+    }
+    if (result1[0].transaction_status !== TransactionIndexEntry.RUNNING) {
+      console.trace(`BIG PROBLEM - attempt to set transaction completion status twice. Step might not be using 'await' when completing.`)
+      throw new Error(`Fatal error in transaction. Attempt to set transaction completion status twice. Step might not be using 'await' when completing.`)
+    }
 
+
+    // Set the completion status and the response from the transaction
+    const json = response.getJson()
     let sql = `UPDATE atp_transaction_instance SET transaction_status=?, completion_time=NOW(3), response=? WHERE transaction_id=?`
     let params = [ finalStatus, json, txId ]
     // console.log(`\n\nWHAMMO 2 - ${zzz}\n\n`)

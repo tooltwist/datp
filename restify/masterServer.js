@@ -79,6 +79,8 @@ async function startMasterServer(options) {
 // })().catch(e => {
 //   console.error(e)
 // })
+
+  return server
 }
 
 export default {

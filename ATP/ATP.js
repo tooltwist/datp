@@ -12,17 +12,16 @@ import assert from 'assert'
 
 
 // Hardcoded steps
-import DummyStep from './hardcoded/DummyStep'
-import SaySomethingStep from './hardcoded/SaySomethingStep'
-import Pipeline from './hardcoded/PipelineStep'
-import MockStep from './hardcoded/MockStep'
-import RandomDelayStep from './hardcoded/RandomDelayStep'
-import ExampleStep from './hardcoded/ExampleStep'
-import DemoStep from './hardcoded/DemoStep'
-import MandatoryFieldsStep from './hardcoded/MandatoryFieldsStep'
-import MapFieldsStep from './hardcoded/MapFieldsStep'
-import i2iBackend from '../i2i-backend/i2i-backend'
-
+import DummyStep from './hardcoded-steps/DummyStep'
+import SaySomethingStep from './hardcoded-steps/SaySomethingStep'
+import Pipeline from './hardcoded-steps/PipelineStep'
+import MockStep from './hardcoded-steps/MockStep'
+import RandomDelayStep from './hardcoded-steps/RandomDelayStep'
+import ExampleStep from './hardcoded-steps/ExampleStep'
+import DemoStep from './hardcoded-steps/DemoStep'
+import MandatoryFieldsStep from './hardcoded-steps/MandatoryFieldsStep'
+import MapFieldsStep from './hardcoded-steps/MapFieldsStep'
+import ConvertDatesStep from './hardcoded-steps/ConvertDatesStep'
 
 // Database stuff
 import dbTransactionInstance from '../database/dbTransactionInstance'
@@ -52,10 +51,10 @@ class AtpTransactionCompletionHandler extends ResultReceiver {
   }
   async haveResult(contextForCompletionHandler, status, note, response) {
     assert(response instanceof TxData)
-    // console.log(`<<<<    AtpTransactionCompletionHandler.haveResult()  `.white.bgBlue.bold)
+    console.log(`<<<<    AtpTransactionCompletionHandler.haveResult(${status}, ${note})  `.white.bgBlue.bold)
     // console.log(`  contextForCompletionHandler=`, JSON.stringify(contextForCompletionHandler, '', 0))
     // console.log(`  - status=`, status)
-    // console.log(`  response=`, response.toString())
+    // console.log(`  - response=`, response.toString())
     // Scheduler.dumpSteps(`\nAfter Completion`)
 
     try {
@@ -84,31 +83,41 @@ class AtpTransactionCompletionHandler extends ResultReceiver {
       assert(status !== Step.FAIL) // Should not happen. Pipelines either rollback or abort.
       switch (status) {
         case Step.COMPLETED:
+          console.log(`Step is COMPLETED`)
           transactionStatus = TransactionIndexEntry.COMPLETE
           break
 
         case Step.ABORT:
+          console.log(`Step is ABORT`)
           transactionStatus = TransactionIndexEntry.TERMINATED
           break
 
         default:
+          console.log(`------- Step completed with an unrecognised status ${status}`)
+
           transactionStatus = TransactionIndexEntry.UNKNOWN
           assert(false)
           break
       }
+      // console.log(`1. transactionStatus=`, transactionStatus)
       txEntry.setStatus(transactionStatus)
+      // console.log(`2. transactionStatus=`, transactionStatus)
 
 
       // Persist the transaction
-      const zzz = Math.round((Math.random() * 1000) % 1000)
+      // const zzz = Math.round((Math.random() * 1000) % 1000)
       // console.log(`\n\nBEFORE YARP ${zzz}\n\n`)
       await dbTransactionInstance.saveFinalStatus(txId, transactionStatus, response)
       // console.log(`\n\nAFTER YARP ${zzz}\n\n`)
+      // console.log(`3. transactionStatus=`, transactionStatus)
 
       // Call the user's completion handler
       const handlerName = contextForCompletionHandler.userCompletionHandlerName
       const completionHandlerObj = await ResultReceiverRegister.getHandler(handlerName)
+      // console.log(`4. transactionStatus=`, transactionStatus)
+      // console.log(`YARPIIIINNNN AtpTransactionCompletionHandler.haveResult, finishing with status ${transactionStatus}`)
       await completionHandlerObj.haveResult(contextForCompletionHandler, transactionStatus, note, response)
+      // console.log(`5. transactionStatus=`, transactionStatus)
     } catch (e) {
       console.trace(`Error in transaction completion handler`, e)
       throw e
@@ -139,8 +148,8 @@ class AsynchronousTransactionEngine {
     await ExampleStep.register()
     await DemoStep.register()
     await MandatoryFieldsStep.register()
-    // await MapFieldsStep.register()
-    await i2iBackend.register()
+    await MapFieldsStep.register()
+    await ConvertDatesStep.register()
 
     await ResultReceiver.register(ATP_TRANSACTION_COMPLETION_HANDLER_NAME, new AtpTransactionCompletionHandler())
 

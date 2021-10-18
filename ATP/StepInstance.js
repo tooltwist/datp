@@ -1,6 +1,6 @@
 import GenerateHash from "./GenerateHash"
 import Logbook from './Logbook'
-const fs = require('fs');
+// const fs = require('fs');
 import StepTypes from './StepTypeRegister'
 import Step from './Step'
 import Scheduler from './Scheduler'
@@ -72,7 +72,7 @@ export default class StepInstance {
 
     // Log this step being materialized
     this.#logbook = options.logbook
-    await this.log(0, Logbook.LEVEL_TRACE, `Start step ${this.#stepId}`)
+    await this.log(Logbook.LEVEL_TRACE, `Start step ${this.#stepId}`)
 
 
     // this.indentLevel = parentContext ? (parentContext.indentLevel + 1) : 1
@@ -211,6 +211,8 @@ export default class StepInstance {
 
   async finish(status, note, newTx) {
     // console.log(`StepInstance.finish(${status}, ${note}, newTx):`, newTx)
+    // console.log(`StepInstance.finish(${status}, ${note}, newTx)`)
+    // console.log(`StepInstance.finish(${status}, ${note}, newTx):`, newTx)
     if (!newTx) {
       newTx = this.getDataAsObject()
     }
@@ -225,21 +227,19 @@ export default class StepInstance {
     return Scheduler.stepFinished(this.#stepId, this.#completionToken, status, note, myTx)
   }
 
-  async succeeded(newTx) {
+  async succeeded(note, newTx) {
     const myTx = new TxData(newTx)
     const response = myTx.getJson()
     // const response = JSON.stringify(newTx, '', 2)
     const status = Step.COMPLETED
     await dbStep.saveExitStatus(this.#stepId, status, response)
 
-    const note = ''
-
     // Return the promise
     // console.log(`   -> stepId=${this.stepId}, completionToken=${this.completionToken}`)
     return Scheduler.stepFinished(this.#stepId, this.#completionToken, status, note, myTx)
   }
 
-  async fail(note, newTx) {
+  async failed(note, newTx) {
     const myTx = new TxData(newTx)
     const response = myTx.getJson()
     // const response = JSON.stringify(newTx, '', 2)
@@ -259,7 +259,7 @@ export default class StepInstance {
 
     // Write to the transaction / step
     this.console(msg)
-    await this.log(`Step reported bad definition [${msg}]`)
+    await this.log(Logbook.LEVEL_TRACE, `Step reported bad definition [${msg}]`)
     await this.artifact('badStepDefinition', this.#definition)
 
     // Finish the step
@@ -276,14 +276,14 @@ export default class StepInstance {
   }
 
   async exceptionInStep(e) {
-    // console.log(`StepInstance.exceptionInStep()`)
+    // console.log(Logbook.LEVEL_TRACE, `StepInstance.exceptionInStep()`)
 
     // Write this to the admin log.
     //ZZZZ
 
     // Write to the transaction / step
     await this.console(`Exception in step: ${e.stack}`)
-    await this.log(`Exception in step.`, e)
+    await this.log(Logbook.LEVEL_TRACE, `Exception in step.`, e)
     // this.artifact('exception', { stacktrace: e.stack })
 
     // Trim down the stacktract and save it
@@ -356,8 +356,11 @@ export default class StepInstance {
       }
   }
 
-  log(msg, level) {
-    this.#logbook.log(this.pipeId, msg, level)
+  log(level, msg) {
+    const options = {
+      level
+    }
+    this.#logbook.log(this.pipeId, options, msg)
   }
 
   getLogbook() {

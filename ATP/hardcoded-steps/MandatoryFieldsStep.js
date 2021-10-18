@@ -1,7 +1,6 @@
-import Step from "../Step"
+import { ConversionHandler, FormsAndFields } from '../..'
+import Step from '../Step'
 import StepTypes from '../StepTypeRegister'
-import ConversionHandler from '../../CONVERSION/lib/ConversionHandler'
-import formsAndFields from "../../CONVERSION/lib/formsAndFields-dodgey"
 
 
 const FORM_TENANT = 'datp'
@@ -39,7 +38,7 @@ class MandatoryFieldsStep extends Step {
 
   constructor(definition) {
     super(definition)
-    console.log(`MandatoryFieldsStep.constructor()`, definition)
+    // console.log(`MandatoryFieldsStep.constructor()`, definition)
     this.#definition = definition
 
 
@@ -55,7 +54,7 @@ class MandatoryFieldsStep extends Step {
     }
 
     // Check the view exists
-    const views = await formsAndFields.getForms(FORM_TENANT, this.#view)
+    const views = await FormsAndFields.getForms(FORM_TENANT, this.#view)
     // console.log(`views=`, views)
     if (views.length === 0) {
       // await instance.badDefinition(`view parameter must be a string`)
@@ -64,10 +63,10 @@ class MandatoryFieldsStep extends Step {
     }
 
     // Check all the fields exist
-    const viewFields = await formsAndFields.getFields(FORM_TENANT, viewName)
+    const viewFields = await FormsAndFields.getFields(FORM_TENANT, viewName)
     // console.log(`viewFields=`, viewFields)
     if (viewFields.length === 0) {
-      // await instance.fail(`No fields for `, data)
+      // await instance.failed(`No fields for `, data)
       // No fields in theis view
       return { fatal: false }
     }
@@ -75,17 +74,45 @@ class MandatoryFieldsStep extends Step {
     // Check all the mandatory fields exist
     for (const fld of viewFields) {
       // Add to the index we are creating
-      viewFieldIndex[fld.name] = true
+      if (fld.type === 'amount3') {
+        // console.log(`ADDING FIELDS FOR amount3 - ${fld.name}`)
+        viewFieldIndex[`${fld.name}.currency`] = true
+        viewFieldIndex[`${fld.name}.unscaledAmount`] = true
+        viewFieldIndex[`${fld.name}.scale`] = true
+      } else {
+        viewFieldIndex[fld.name] = true
+      }
 
       // If the field is mandatory, check it is in the input
       // console.log(`fld=`, fld)
       if (fld.mandatory) {
-        // console.log(`==> mandatory ${fld.name} of type ${fld.type}`)
-        const value = handler.getSourceValue(`request:${fld.name}`)
-        // console.log(`    value=`, value)
-        if (value === null) {
-          errors.push(`Expected request to contain field [${fld.name}]`)
+        if (fld.type === 'amount3') {
+          // console.log(`\n\n----- IS amount3 ----\n`)
+
+          // Special handling for amount3, which requires a three part object.
+          const value1 = handler.getSourceValue(`request:${fld.name}.currency`)
+          const value2 = handler.getSourceValue(`request:${fld.name}.unscaledAmount`)
+          const value3 = handler.getSourceValue(`request:${fld.name}.scale`)
+          if (value1 === null) {
+            errors.push(`Expected request to contain field [${fld.name}.currency]`)
+          }
+          if (value2 === null) {
+            errors.push(`Expected request to contain field [${fld.name}.unscaledAmount]`)
+          }
+          if (value3 === null) {
+            errors.push(`Expected request to contain field [${fld.name}.scale]`)
+          }
+
+        } else {
+          // Regular field
+          // console.log(`==> mandatory ${fld.name} of type ${fld.type}`)
+          const value = handler.getSourceValue(`request:${fld.name}`)
+          // console.log(`    value=`, value)
+          if (value === null) {
+            errors.push(`Expected request to contain field [${fld.name}]`)
+          }
         }
+
       }
     }
     return { fatal: false }
@@ -100,11 +127,11 @@ class MandatoryFieldsStep extends Step {
     // Check all the mandatory fields exist
     for (const fieldName in validations) {
       const values = validations[fieldName]
-      console.log(`fieldName=`, fieldName)
-      console.log(`values=`, values)
+      // console.log(`fieldName=`, fieldName)
+      // console.log(`values=`, values)
 
       const actualValue = handler.getSourceValue(`request:${fieldName}`)
-      console.log(` - ${fieldName}=`, actualValue)
+      // console.log(` - ${fieldName}=`, actualValue)
       if (actualValue !== null) {
         let ok = false
         for (const value of values) {
@@ -156,8 +183,8 @@ class MandatoryFieldsStep extends Step {
           break
         case 'validations':
           const validations = this.#definition.validations
-          console.log(`validations=`, validations)
-          console.log(`typeof(validations)=`, typeof(validations))
+          // console.log(`validations=`, validations)
+          // console.log(`typeof(validations)=`, typeof(validations))
           let { fatal3 } = await this.validateFields(instance, handler, validations, errors)
           if (fatal3) {
             return
@@ -187,10 +214,13 @@ class MandatoryFieldsStep extends Step {
     }
 
     // Time to complete the step and send a result
+    instance.console(`${errors.length} errors.`)
     if (errors.length > 0) {
       // console.log(`YARP finishing now with errors`)
-      return await instance.finish(Step.FAIL, 'Invalid request', errors)
+      instance.console(`Step failed`)
+      return await instance.failed('Invalid request', errors)
     }
+    instance.console(`Step success`)
     return await instance.finish(Step.COMPLETED, '', data)
   }
 }

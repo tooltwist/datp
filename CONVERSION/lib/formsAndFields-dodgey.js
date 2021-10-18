@@ -151,7 +151,7 @@ async function getFields(tenant, viewName) {
 
 //ZZFS
 async function getMapping(tenant, mappingId, version) {
-  console.log(`formsAndFields.js:getMapping(${tenant}, ${mappingId})`)
+  // console.log(`formsAndFields.js:getMapping(${tenant}, ${mappingId})`)
   //ZZZ version is not used
   // Load the mapping records.
   const sql = `

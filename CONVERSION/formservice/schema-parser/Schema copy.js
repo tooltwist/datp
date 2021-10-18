@@ -19,7 +19,7 @@ export default class Schema {
    * @param {String} tenant
    */
   async loadSchemaFromDatabase(tenant) {
-    console.log(`loadSchemaFromDatabase()`)
+    // console.log(`loadSchemaFromDatabase()`)
 
     let sql = `
       SELECT view, description, view_type FROM formservice_view

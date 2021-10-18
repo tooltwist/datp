@@ -1,8 +1,6 @@
-import Step from "../Step"
+import { ConversionHandler, FormsAndFields } from '../..'
+import Step from '../Step'
 import StepTypes from '../StepTypeRegister'
-import ConversionHandler from '../../CONVERSION/lib/ConversionHandler'
-import formsAndFields from "../../CONVERSION/lib/formsAndFields-dodgey"
-
 
 const FORM_TENANT = 'datp'
 
@@ -51,22 +49,22 @@ class MapFieldsStep extends Step {
     // Load the view definition
     // const provider = 'std'
     // const service = 'transfer'
-    // const serviceDetails = await formsAndFields.getServiceDetails(provider, service)
+    // const serviceDetails = await FormsAndFields.getServiceDetails(provider, service)
     // if (!serviceDetails) {
     //   // return next(new errors.NotImplementedError(`Provider ${provider} does not support ${service}`))
     //   // instance.fail
     //   //ZZZZ
     //   // instance.log(`Provider ${provider} does not support ${service}`)
     //   const note = `Provider ${provider} does not support ${service}`
-    //   return instance.finish(Step.FAIL, note, instance.getDataAsObject())
+    //   return instance.failed(note, instance.getDataAsObject())
     // }
     // console.log(`serviceDetails=`, serviceDetails)
 
     // Check the view exists
-    const views = await formsAndFields.getForms(FORM_TENANT, this.#targetView)
+    const views = await FormsAndFields.getForms(FORM_TENANT, this.#targetView)
     // console.log(`views=`, views)
     if (views.length === 0) {
-      return instance.finish(Step.FAIL, `Unknown view ${this.#targetView}`, { })
+      return instance.failed(`Unknown view ${this.#targetView}`, { })
     }
 
 
@@ -75,32 +73,21 @@ class MapFieldsStep extends Step {
     // // const version = serviceDetails.request_version
     // const version = "1.0"
 
-    // const viewFields = await formsAndFields.getFields(FORM_TENANT, this.#form)
-    // // console.log(`viewFields=`, viewFields)
-    // if (viewFields.length === 0) {
-    //   return instance.finish(Step.FAIL, note, data)
-    // }
+    // Get details of the destination fields
+    const targetFields = await FormsAndFields.getFields(FORM_TENANT, this.#targetView)
+    const targetFieldIndex = [ ]
+    for (const field of targetFields) {
+      targetFieldIndex[field.name] = field
+    }
 
-
+    // Get the field mapping, from request to target
     const version = -1
-    const mapping = await formsAndFields.getMapping(FORM_TENANT, this.#mappingId, version)
-    console.log(`mapping=`, mapping)
+    const mapping = await FormsAndFields.getMapping(FORM_TENANT, this.#mappingId, version)
 
-
+    // Convert the objects
     const handler = new ConversionHandler()
-    // console.log(`MY data=`, data)
-    // console.log(`MY data=`, data.toString())
-    // console.log(`MY data=`, typeof(data))
     handler.addSource('request', null, data)
-    // handler.addSource('auth', null, {
-    //   userId: 123,
-    //   email: 'philcal@mac.com',
-    // })
-    // const newData = {
-    //   yarp: 'whammo!',
-    // }
-    // handler.addSource('target', null, newData)
-    const newData = handler.convert(mapping)
+    const newData = handler.convert(mapping, targetFieldIndex)
     console.log(`newData=`, newData)
 
 
@@ -112,39 +99,8 @@ class MapFieldsStep extends Step {
     newData._mapFields.push({
       mappingId: this.#mappingId,
       targetView: this.#targetView,
-      // input: data
     })
 
-
-
-
-    // // Check all the mandatory fields exist
-    // const errors = [ ]
-    // for (const fld of viewFields) {
-    //   // console.log(`fld=`, fld)
-    //   if (fld.mandatory) {
-    //     // console.log(`==> mandatory ${fld.name} of type ${fld.type}`)
-    //     const value = handler.getSourceValue(`request:${fld.name}`)
-    //     // console.log(`    value=`, value)
-    //     if (value === null) {
-    //       errors.push(`Expected request to contain ${fld.name}`)
-    //     }
-    //   }
-    // }
-    // // console.log(`errors=`, errors)
-    // if (errors.length > 0) {
-    //   // console.log(`YARP finishing now with errors`)
-    //   return instance.finish(Step.FAIL, 'Invalid request', errors)
-    // }
-
-    // const requestMapping = await formsAndFields.getMapping('datp', requestView, version)
-    // console.log(`requestMapping=`, requestMapping)
-    // console.log(`+++++++++++++++++++^^^^^^^^^^^^^^^^^^^`)
-
-
-    // ConversionHandler.
-
-    // const newData = data
     // Time to complete the step and send a result
     return instance.finish(Step.COMPLETED, '', newData)
   }

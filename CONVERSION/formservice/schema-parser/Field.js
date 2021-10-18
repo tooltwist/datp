@@ -17,9 +17,9 @@ export default class Field {
   }
 
   async parseFromDatabase(view, row) {
-    if (row.name === 'method') {
-      console.trace('field.parseFromDatabase(' + this.name + ')', row);
-    }
+    // if (row.name === 'method') {
+    //   console.trace('field.parseFromDatabase(' + this.name + ')', row);
+    // }
     this.viewName = view.name;
     // this.definition = fieldDef;
     this.properties = {
@@ -206,8 +206,8 @@ export default class Field {
    * @param {Object} newField Object containing values to be updated.
    * Should be similar to a Field object, but values are optional.
    */
-  async update(schema, newField) {
-    // console.log(`Field.updateField()`, newField)
+  async updateField(schema, newField) {
+    console.log(`Field.updateField()`, newField)
 
     // Can only change if the definition came from the database
     if (schema.definitionFrom !== 'mysql') {

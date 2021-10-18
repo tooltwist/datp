@@ -28,7 +28,18 @@ async function startStep(stepId, stepType, transactionId, parentId, sequence, js
  * @param {Number} percentage
  */
 async function updateStatus(stepId, status, progress, percentage) {
-  let sql = `UPDATE atp_step_instance SET status=?, status_time=NOW(3), progress, percentage_complete`
+  // console.log(`\n\n*-*-*-*-*-*-*dbStep.updateStatus(${stepId}, ${status}, ${progress}, ${percentage})\n`)
+  throw new Error(`temporarily Deprecated.`)
+
+  // Check the status has not already been set to completed
+  let sql1 = `SELECT status FROM atp_step_instance WHERE step_id=?`
+  let params1 = [ stepId ]
+  const result1 = await query(sql1, params1)
+  console.log(`Existing step status =`, result1)
+
+
+  // Update the status now
+  let sql = `UPDATE atp_step_instance SET status=?, status_time=NOW(3), progress=?, percentage_complete=?`
   let params = [ status, progress, percentage ]
   if (status === Step.COMPLETED) {
     sql += `, status_time=NOW(3)`
@@ -47,7 +58,28 @@ async function updateStatus(stepId, status, progress, percentage) {
  * @param {String} response
  */
 async function saveExitStatus(stepId, status, response) {
-  // console.log(`dbStep.saveExitStatus(${stepId}, ${status}, ${JSON.stringify(response, '', 0)})`.dim)
+  // console.log(`\n\n*-*-*-*-*-*-*dbStep.saveExitStatus(${stepId}, ${status})\n`)
+
+  // Check the status has not already been set to completed
+  let sql1 = `SELECT status FROM atp_step_instance WHERE step_id=?`
+  let params1 = [ stepId ]
+  const result1 = await query(sql1, params1)
+  if (result1.length < 1) {
+    const msg = `Internal error: step ${stepId} not in the database`
+    console.trace(msg)
+    throw new Error(msg)
+  }
+  if (result1[0].status !== Step.RUNNING) {
+     const msg = `Trying to set exist status of non-running step ${stepId}.`
+     console.trace(msg)
+     throw new Error(msg)
+  }
+  // console.log(`Existing step status =`, result1)
+  console.log(`   ====> Previous status=${result1[0].status}. Setting to ${status}.`)
+
+
+  // Update the status now
+  console.log(`dbStep.saveExitStatus(${stepId}, ${status}, ${JSON.stringify(response, '', 0)})`.dim)
   let sql = `UPDATE atp_step_instance SET status=?, status_time=NOW(3), completion_time=NOW(3), progress=?, percentage_complete=?, response=? WHERE step_id=?`
   let params = [ status, status, 100, response, stepId ]
   // console.log(`sql=`, sql)

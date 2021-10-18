@@ -79,11 +79,12 @@ export default class StepIndexEntry {
 
   async validateToken(token) {
     if (token !== this.#completionToken) {
-      throw new Error(`Invalid completionToken - hack attempt on step (${this.#stepId})?`)
+      throw new Error(`Invalid completionToken - possible hack attempt on step (${this.#stepId})?`)
     }
   }
 
   async callCompletionHandler(token, status, note, newTx) {
+    // console.log(`callCompletionHandler(${token}, status=${status}, note=${note})`, newTx)
     // assert(token instanceof String)  ZZZZZ
     // assert(status instanceof String) ZZZZZ
     assert(newTx instanceof TxData)
