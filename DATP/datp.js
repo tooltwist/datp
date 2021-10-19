@@ -5,7 +5,7 @@ import master from '../restify/master'
 import apiVersions from '../ATP/lib/apiVersions'
 import masterServer from '../restify/masterServer'
 import slaveServer from '../restify/slaveServer'
-import { monitorMidi } from '../mondat/midi'
+// import { monitorMidi } from '../mondat/midi'
 import dbTransactionInstance from '../database/dbTransactionInstance'
 import colors from 'colors' // Yep, it is used
 import errors from 'restify-errors';
@@ -328,8 +328,7 @@ async function run() {
 export default {
   routesForRestify,
   registerAsMaster: master.registerAsMaster,
-  // registerAsSlave: slave.registerAsSlave,
-  monitorMidi,
+  // monitorMidi,
   run,
   initiateTransaction,
 }

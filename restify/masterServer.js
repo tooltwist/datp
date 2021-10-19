@@ -56,7 +56,7 @@ async function startMasterServer(options) {
   await DATP.run()
   await DATP.routesForRestify(server)
   await DATP.registerAsMaster(server)
-  await DATP.monitorMidi()
+  // await DATP.monitorMidi()
 
   /*
   *  Display a nice message.
@@ -75,7 +75,7 @@ async function startMasterServer(options) {
   */
   const port = await juice.int('datp.port', 8080)
   console.log(`Starting server on port ${port}`)
-  server.listen(port);
+  server.listen(port, '0.0.0.0');
 // })().catch(e => {
 //   console.error(e)
 // })

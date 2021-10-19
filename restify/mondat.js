@@ -1,5 +1,5 @@
 import { defineRoute, LOGIN_IGNORED } from '../ATP/lib/apiVersions'
-import { getMidiValuesV1 } from '../mondat/midi';
+// import { getMidiValuesV1 } from '../mondat/midi';
 import { listNodesV1 } from '../mondat/nodes'
 import { listPipelinesV1, pipelineDefinitionV1, pipelineDescriptionV1, savePipelineDraftV1 } from '../mondat/pipelines'
 import { getRecentPerformanceV1 } from '../mondat/recentPerformance';
@@ -108,12 +108,12 @@ async function registerRoutes(server) {
     { versions: '1.0 - 1.0', handler: deleteTestCasesV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
 
-  /*
-   *  Midi values
-   */
-  defineRoute(server, 'get', false, URL_PREFIX, '/midiValues', [
-    { versions: '1.0 - 1.0', handler: getMidiValuesV1, auth: LOGIN_IGNORED, noTenant: true }
-  ])
+  // /*
+  //  *  Midi values
+  //  */
+  // defineRoute(server, 'get', false, URL_PREFIX, '/midiValues', [
+  //   { versions: '1.0 - 1.0', handler: getMidiValuesV1, auth: LOGIN_IGNORED, noTenant: true }
+  // ])
 
   /*
    *  Performance
