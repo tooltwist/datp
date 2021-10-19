@@ -71,9 +71,20 @@ async function startMasterServer(options) {
   console.log();
 
   /*
+   *  See if we are also serving up Mondate static files.
+   */
+  const port = await juice.int('datp.port', 8080)
+  const serveMondat = await juice.boolean('datp.serveMondat', false)
+  if (serveMondat) {
+    console.log(`Hosting Mondate application at http://0.0.0.0:${port}//mondate`)
+    const staticFilesDir = `${__dirname}/../../MONDAT/dist`
+    console.log(`staticFilesDir=`, staticFilesDir)
+    server.get('/mondat/*', restify.plugins.serveStaticFiles(staticFilesDir))
+  }
+
+  /*
   *  Start the server.
   */
-  const port = await juice.int('datp.port', 8080)
   console.log(`Starting server on port ${port}`)
   server.listen(port, '0.0.0.0');
 // })().catch(e => {
