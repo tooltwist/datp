@@ -16,6 +16,7 @@ import providerAndServiceRoutes from '../CONVERSION/providerAndServiceRoutes'
 import currencies_routes from '../CONVERSION/restify/currencies'
 import countries_routes from '../CONVERSION/restify/countries'
 import formserviceYarp from '../restify/formservice_yarp'
+import { DATP_URL_PREFIX } from '../CONVERSION/lib/constants'
 
 
 const { defineRoute, showVersions, LOGIN_IGNORED } = apiVersions
@@ -281,7 +282,7 @@ async function routesForRestify(server, isMaster = false) {
   /*
   *	Healthcheck page.
   */
-  const MONDAT_PREFIX = '/mondat'
+  // const MONDAT_PREFIX = '/mondat'
 
   // defineRoute(server, 'get', false, MONDAT_PREFIX, '/healthcheck', [
   //   { versions: '1.0 - 1.0', handler: healthcheckHandler, auth: LOGIN_IGNORED, noTenant: true }
@@ -302,11 +303,10 @@ async function routesForRestify(server, isMaster = false) {
   //   { version: '1.1.3', handler: initiateTransactionRouteV1 },
   //   // { version: '2.0.0', handler: sendV2 }
   // ]));
-  const URL_PREFIX = 'datp'
-  defineRoute(server, 'put', false, URL_PREFIX, '/initiate/:transactionType', [
+  defineRoute(server, 'put', false, DATP_URL_PREFIX, '/initiate/:transactionType', [
     { versions: '1.0 - 1.0', handler: initiateTransactionRouteV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
-  defineRoute(server, 'get', false, URL_PREFIX, '/result/:transactionId', [
+  defineRoute(server, 'get', false, DATP_URL_PREFIX, '/result/:transactionId', [
     { versions: '1.0 - 1.0', handler: getTransactionResultRouteV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
 

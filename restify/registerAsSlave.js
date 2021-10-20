@@ -2,7 +2,7 @@ import juice from '@tooltwist/juice-client'
 import axios from 'axios'
 import me from '../ATP/me'
 import dbPipelines from '../database/dbPipelines'
-import healthcheck from './healthcheck'
+// import healthcheck from './healthcheck'
 import StepTypeRegister from  '../ATP/StepTypeRegister'
 
 
@@ -11,7 +11,7 @@ const REPORT_IN_INTERVAL = 15 * 1000
 export async function registerAsSlave(server) {
   console.log(`registerAsSlave()`)
 
-  healthcheck.registerRoutes(server)
+  // healthcheck.registerRoutes(server)
 
   const protocol = await juice.string('datp.protocol')
   const host = await juice.string('datp.host')

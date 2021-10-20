@@ -147,10 +147,12 @@ export function defineRoute(server, operation, tenantInUrl, prefix, path, handle
     path = path.substring(1)
   }
   let op4 = operation.toUpperCase()
-  while (op4.length < 4) {
-    op4 += ' '
+  while (op4.length < 6) {
+    // op4 += ' '
+    op4 = ' ' + op4
   }
-  console.log(`Registering ${op4} ${prefix}/:version/${tenantBit}${path}`)
+  // console.log(`Registering ${op4} ${prefix}/:version/${tenantBit}${path}`)
+  console.log(`  ${op4} ${prefix}/:version/${tenantBit}${path}`)
 
   // Now register the route
   switch (operation) {
@@ -167,6 +169,7 @@ export function defineRoute(server, operation, tenantInUrl, prefix, path, handle
       break
 
     case 'delete':
+    case 'del':
       server.del(`${prefix}/:version/${tenantBit}${path}`, wrapper)
       break
 

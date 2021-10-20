@@ -5,7 +5,7 @@ import restify from 'restify'
 import NodeRegister from '../DATP/NodeRegister'
 import me from '../ATP/me'
 import dbNode from '../DATP/database/dbNode'
-import healthcheck from './healthcheck'
+// import healthcheck from './healthcheck'
 import mondat from './mondat'
 
 async function registerSlaveV1(req, res) {
@@ -30,7 +30,7 @@ async function registerAsMaster(server) {
   // const datpMasterEndpoint = await juice.string('datp.masterEndpoint', juice.MANDATORY)
   // console.log(`datpMasterEndpoint=`, datpMasterEndpoint)
 
-  healthcheck.registerRoutes(server)
+  // healthcheck.registerRoutes(server)
   mondat.registerRoutes(server)
 
   // Initialize the name, etc

@@ -1,13 +1,12 @@
 import { defineRoute, LOGIN_IGNORED } from '../ATP/lib/apiVersions'
+import { DATP_URL_PREFIX } from '../CONVERSION/lib/constants'
 
 async function registerRoutes(server) {
 
   /*
   *	Healthcheck page.
   */
-  const URL_PREFIX = '/datp'
-
-  defineRoute(server, 'get', false, URL_PREFIX, '/healthcheck', [
+  defineRoute(server, 'get', false, DATP_URL_PREFIX, '/healthcheck', [
     { versions: '1.0 - 1.0', handler: healthcheckHandler, auth: LOGIN_IGNORED, noTenant: true }
   ])
 

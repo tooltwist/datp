@@ -1,9 +1,9 @@
 import errors from 'restify-errors'
-// import query from '../lib/query'
-import constants from '../lib/constants'
-// import providers from '../providers/providers'
 import currencies from '../lookup/currencies'
 import providers from '../providers-needToRemove/providers'
+import { LOOKUP_URL_PREFIX } from '../lib/constants'
+import apiVersions from '../../ATP/lib/apiVersions'
+const { defineRoute, LOGIN_IGNORED } = apiVersions
 
 
 
@@ -15,40 +15,49 @@ async function init(server) {
   console.log(`countries/lookups:init()`)
 
   // Return all currencies
-  server.get(`${constants.URL_PREFIX}/currencies`, async function (req, res, next) {
-    console.log(`-------------------------------------`)
-    console.log(`/gateway/currencies`)
-    res.send(currencies)
-    next()
-  })//- /gateway/currencies
+  defineRoute(server, 'get', false, LOOKUP_URL_PREFIX, '/currencies', [
+    { versions: '1.0 - 1.0', auth: LOGIN_IGNORED, noTenant: true, handler: async (req, res, next) => {
+      // server.get(`${LOOKUP_URL_PREFIX}/currencies`, async function (req, res, next) {
+      console.log(`-------------------------------------`)
+      console.log(`/gateway/currencies`)
+      res.send(currencies)
+      next()
+    }}
+  ])//- /gateway/currencies
 
   // Return a specific currency
-  server.get(`${constants.URL_PREFIX}/currency/:currencyCode`, async function (req, res, next) {
-    console.log(`-------------------------------------`)
-    console.log(`/gateway/currency/:currencyCode`)
-    const currencyCode = req.params.currencyCode
+  defineRoute(server, 'get', false, LOOKUP_URL_PREFIX, '/currency/:currencyCode', [
+    { versions: '1.0 - 1.0', auth: LOGIN_IGNORED, noTenant: true, handler: async (req, res, next) => {
+      // server.get(`${LOOKUP_URL_PREFIX}/currency/:currencyCode`, async function (req, res, next) {
+      console.log(`-------------------------------------`)
+      console.log(`/gateway/currency/:currencyCode`)
+      const currencyCode = req.params.currencyCode
 
-    const currency = currencies[currencyCode]
-    if (currency) {
-      res.send(currency)
-      return next()
-    } else {
-      return next(new errors.NotFoundError(`Unknown currency ${currencyCode}`))
-    }
-  })//- /gateway/currency/:currencyCode
+      const currency = currencies[currencyCode]
+      if (currency) {
+        res.send(currency)
+        return next()
+      } else {
+        return next(new errors.NotFoundError(`Unknown currency ${currencyCode}`))
+      }
+    }}
+  ])//- /gateway/currency/:currencyCode
 
   // Return currencies for a specific provider
-  server.get(`${constants.URL_PREFIX}/currencies/:providerCode`, async function (req, res, next) {
-    console.log(`-------------------------------------`)
-    console.log(`/gateway/currencies/:providerCode`)
-    const providerCode = req.params.providerCode
+  defineRoute(server, 'get', false, LOOKUP_URL_PREFIX, '/currencies/:providerCode', [
+    { versions: '1.0 - 1.0', auth: LOGIN_IGNORED, noTenant: true, handler: async (req, res, next) => {
+      // server.get(`${LOOKUP_URL_PREFIX}/currencies/:providerCode`, async function (req, res, next) {
+      console.log(`-------------------------------------`)
+      console.log(`/gateway/currencies/:providerCode`)
+      const providerCode = req.params.providerCode
 
-    const provider = await providers.get(providerCode)
-    console.log(`provider=`, provider)
+      const provider = await providers.get(providerCode)
+      console.log(`provider=`, provider)
 
-    const currencies = provider.plugin.getCurrencies()
-    res.send(currencies)
-    next()
-  })//- /gateway/currency/:currencyCode
+      const currencies = provider.plugin.getCurrencies()
+      res.send(currencies)
+      next()
+    }}
+  ])//- /gateway/currency/:currencyCode
 
 }

@@ -1,7 +1,9 @@
 import errors from 'restify-errors'
 import constants from '../lib/constants'
 import countries from '../lookup/countries'
-import providers from '../providers-needToRemove/providers'
+import { LOOKUP_URL_PREFIX } from '../lib/constants'
+import apiVersions from '../../ATP/lib/apiVersions'
+const { defineRoute, LOGIN_IGNORED } = apiVersions
 
 
 
@@ -13,27 +15,33 @@ async function init(server) {
   console.log(`routes/countries:init()`)
 
   // Return all currencies
-  server.get(`${constants.URL_PREFIX}/countries`, async function (req, res, next) {
-    console.log(`-------------------------------------`)
-    console.log(`${constants.URL_PREFIX}/countries`)
-    res.send(countries)
-    next()
-  })//- /gateway/countries
+  defineRoute(server, 'get', false, LOOKUP_URL_PREFIX, '/countries', [
+    { versions: '1.0 - 1.0', auth: LOGIN_IGNORED, noTenant: true, handler: async (req, res, next) => {
+      // server.get(`${constants.URL_PREFIX}/countries`, async function (req, res, next) {
+      console.log(`-------------------------------------`)
+      console.log(`${constants.URL_PREFIX}/countries`)
+      res.send(countries)
+      next()
+    }}
+  ])//- /gateway/countries
 
   // Return a specific country
-  server.get(`${constants.URL_PREFIX}/country/:countryCode`, async function (req, res, next) {
-    console.log(`-------------------------------------`)
-    console.log(`${constants.URL_PREFIX}/country/:countryCode`)
-    const countryCode = req.params.countryCode
-    for (const c of countries) {
-      if (c.code === countryCode) {
-        res.send(c.name)
-        return next()
+  defineRoute(server, 'get', false, LOOKUP_URL_PREFIX, '/country/:countryCode', [
+    { versions: '1.0 - 1.0', auth: LOGIN_IGNORED, noTenant: true, handler: async (req, res, next) => {
+      // server.get(`${constants.URL_PREFIX}/country/:countryCode`, async function (req, res, next) {
+      console.log(`-------------------------------------`)
+      console.log(`${constants.URL_PREFIX}/country/:countryCode`)
+      const countryCode = req.params.countryCode
+      for (const c of countries) {
+        if (c.code === countryCode) {
+          res.send(c.name)
+          return next()
+        }
       }
-    }
-    // const country = countries.get(countryCode)
-    return next(new errors.NotFoundError(`Unknown country code ${countryCode}`))
-  })//- /gateway/country/:countryCode
+      // const country = countries.get(countryCode)
+      return next(new errors.NotFoundError(`Unknown country code ${countryCode}`))
+    }}
+  ])//- /gateway/country/:countryCode
 
   // // Return countries for a specific provider
   // server.get(`${constants.URL_PREFIX}/countries/:providerCode`, async function (req, res, next) {

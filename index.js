@@ -10,6 +10,7 @@ import { initiateTransaction, getTransactionResult } from './DATP/datp'
 import resultReceiver from './ATP/ResultReceiver'
 import resultReceiverRegister from './ATP/ResultReceiverRegister'
 import scheduler from './ATP/Scheduler'
+import healthcheck from './restify/healthcheck'
 
 
 export const Step = step
@@ -46,9 +47,15 @@ export function addRoute(server, operation, urlPrefix, path, versionFunctionMapp
 
 }//- addRoute
 
+export function goLive(server) {
+  // Registering the healthcheck will allow the Load Balancer to recognise the server is active.
+  healthcheck.registerRoutes(server)
+}
+
 export default {
   restifyMasterServer,
   restifySlaveServer,
+  goLive,
 
   // These are here for convenience for external applications.
   Step,
