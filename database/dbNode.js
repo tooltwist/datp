@@ -4,7 +4,7 @@
  * rights reserved. No warranty, explicit or implicit, provided. In no event shall
  * the author or owner be liable for any claim or damages.
  */
-import query from '../../database/query'
+import query from './query'
 
 const VERBOSE = false
 

@@ -1,4 +1,4 @@
-import { defineRoute, LOGIN_IGNORED } from '../ATP/lib/apiVersions'
+import { defineRoute, LOGIN_IGNORED } from '../lib/apiVersions'
 import { DATP_URL_PREFIX } from '../CONVERSION/lib/constants'
 
 async function registerRoutes(server) {

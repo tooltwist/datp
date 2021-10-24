@@ -38,7 +38,7 @@ class DummyStep extends Step {
 }//- class Dummy
 
 async function register() {
-  await StepTypes.register(myDef, 'dummy', 'Dummy step')
+  await StepTypes.register(myDef, 'example/dummy', 'Dummy step')
 }//- register
 
 async function factory(definition) {
@@ -56,5 +56,6 @@ async function defaultDefinition() {
 const myDef = {
   register,
   factory,
+  defaultDefinition,
 }
 export default myDef

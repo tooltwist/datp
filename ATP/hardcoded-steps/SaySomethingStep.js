@@ -33,7 +33,7 @@ class SaySomething extends Step {
 }
 
 async function register() {
-  await StepTypes.register(myDef, 'saySomething', 'Display a message to the console')
+  await StepTypes.register(myDef, 'example/saySomething', 'Display a message to the console')
 }//- register
 
 async function defaultDefinition() {

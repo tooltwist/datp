@@ -115,7 +115,7 @@ function twoDigits(num) {
  * This function is called to register this as an available step type.
  */
 async function register() {
-  await StepTypes.register(myDef, 'convertDates', 'Convert dates from ISO to Philippine format')
+  await StepTypes.register(myDef, 'util/convertDates', 'Convert dates from ISO to Philippine format')
 }//- register
 
 /**

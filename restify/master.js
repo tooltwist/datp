@@ -4,7 +4,7 @@
 import restify from 'restify'
 import NodeRegister from '../DATP/NodeRegister'
 import me from '../ATP/me'
-import dbNode from '../DATP/database/dbNode'
+import dbNode from '../database/dbNode'
 // import healthcheck from './healthcheck'
 import mondat from './mondat'
 

@@ -11,9 +11,9 @@ import parser from '../CONVERSION/formservice/schema-parser/index'
 import Schema from '../CONVERSION/formservice/schema-parser/Schema'
 import FieldProperties from '../CONVERSION/formservice/schema-parser/field_properties'
 // import parameters from '../lib/parameters'
-import formsAndFields from '../CONVERSION/lib/formsAndFields-dodgey'
+import formsAndFields from '../CONVERSION/lib/formsAndFields'
 import { FORMSERVICE_URL_PREFIX } from '../CONVERSION/lib/constants'
-import apiVersions from '../ATP/lib/apiVersions'
+import apiVersions from '../lib/apiVersions'
 const { defineRoute, LOGIN_IGNORED } = apiVersions
 
 

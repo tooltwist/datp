@@ -184,7 +184,7 @@ class PipelineChildStepCompletionHandler extends ResultReceiver {
 
 
 async function register() {
-  await StepTypes.register(PipelineDef, 'pipeline', 'Pipeline')
+  await StepTypes.register(PipelineDef, 'hidden/pipeline', 'Pipeline')
   await ResultReceiverRegister.register(STEP_COMPLETION_HANDLER, new PipelineChildStepCompletionHandler())
 }
 

@@ -235,7 +235,7 @@ class MandatoryFieldsStep extends Step {
  * This function is called to register this as an available step type.
  */
 async function register() {
-  await StepTypes.register(myDef, 'MandatoryFieldsStep', 'Verify data fields against form definition')
+  await StepTypes.register(myDef, 'util/mandatory-fields', 'Verify data fields against form definition')
 }//- register
 
 /**

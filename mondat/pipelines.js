@@ -19,7 +19,7 @@ export async function pipelineDescriptionV1(req, res, next) {
 }
 
 export async function pipelineDefinitionV1(req, res, next) {
-  console.log(`pipelineDefinitionV1()`)
+  // console.log(`pipelineDefinitionV1()`)
 
   // A pipeline is a type of step.
   const pipelineName = req.params.pipeline

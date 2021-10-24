@@ -12,7 +12,7 @@ import query from '../database/query'
 import constants from './lib/constants'
 // import parameters from '../views/lib/parameters'
 import provider from './providers-needToRemove/providers'
-import apiVersions from '../ATP/lib/apiVersions'
+import apiVersions from '../lib/apiVersions'
 const { defineRoute, LOGIN_IGNORED } = apiVersions
 
 import { MONITOR_URL_PREFIX } from './lib/constants'

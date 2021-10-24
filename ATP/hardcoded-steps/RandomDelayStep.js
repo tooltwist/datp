@@ -75,7 +75,7 @@ class RandomDelayStep extends Step {
 }//- class Dummy
 
 async function register() {
-  await StepTypes.register(myDef, 'delay', 'Delay a random period of time')
+  await StepTypes.register(myDef, 'util/delay', 'Delay a random period of time')
 }//- register
 
 async function defaultDefinition() {

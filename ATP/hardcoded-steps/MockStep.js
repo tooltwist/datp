@@ -51,7 +51,7 @@ class MockStep extends Step {
 }//- class Dummy
 
 async function register() {
-  await StepTypes.register(myDef, 'mock', 'Simulation step')
+  await StepTypes.register(myDef, 'util/mock', 'Simulation step')
 }//- register
 
 async function defaultDefinition() {

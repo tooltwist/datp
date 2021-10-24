@@ -55,7 +55,7 @@ class DemoStep extends Step {
  * This function is called to register this as an available step type.
  */
 async function register() {
-  await StepTypes.register(myDef, 'DemoStep', 'An example of a simple step')
+  await StepTypes.register(myDef, 'example/demo', 'An example of a simple step')
 }//- register
 
 /**

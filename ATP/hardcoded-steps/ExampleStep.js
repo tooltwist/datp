@@ -1,9 +1,3 @@
-/* Copyright Tooltwist Innovations Limited - All Rights Reserved
- * This file is part of DATP and as such is proprietary and confidential software.
- * Unauthorized copying of this file, via any medium is strictly prohibited. All
- * rights reserved. No warranty, explicit or implicit, provided. In no event shall
- * the author or owner be liable for any claim or damages.
- */
 import Step from "../Step"
 import StepTypes from '../StepTypeRegister'
 
@@ -28,26 +22,10 @@ import StepTypes from '../StepTypeRegister'
  * tell the Scheduler that the step has completed. See ZZZZ for more information.
  */
 class ExampleStep extends Step {
-  #delta
 
   constructor(definition) {
-    console.log(`ExampleStep.constructor()`, definition)
     super(definition)
-    console.log(`zzzzz=`, typeof(definition.delta))
-    switch (typeof(definition.delta)) {
-      case 'string':
-        this.#delta = parseFloat(definition.delta)
-        break
-
-      case 'number':
-        this.#delta = definition.delta
-        break
-
-      default:
-        console.log(`Invalid or missing 'definition.delta'.`)
-        this.#delta = 0.0
-    }
-    // console.log(`this.#delta=`, this.#delta)
+    this.someValue = definition.someValue
   }
 
   /**
@@ -56,29 +34,14 @@ class ExampleStep extends Step {
    * @param {StepInstance} instance
    */
   async invoke(instance) {
-    instance.console(`ExampleStep(hardcoded) (${instance.getStepId()})`)
-    instance.console(`this.#delta is ${this.#delta} (${typeof(this.#delta)})`)
-
-    const meta = await instance.getMetadata()
-    instance.console(`meta=`, meta)
+    instance.console(`ExampleStep (${instance.getStepId()})`)
+    instance.console(`"${this.someValue}"`)
+    const data = instance.getDataAsObject()
 
     // Do something here
     //...
-    const data = instance.getDataAsObject()
-    instance.console(`data before =`, data)
-    instance.console(`data before =`, typeof data)
-    instance.console(`data before =`, data.toString())
-    if (typeof(data.amt) !== 'number') {
-      instance.console('Initializing data.amt')
-      data.amt = 0.0
-    }
-    data.amt += this.#delta
-    instance.console(`data after =`, data)
-
 
     // Time to complete the step and send a result
-    // const note = 'whatever'
-    // instance.finish(Step.COMPLETED, note, tx)
     const note = ''
     instance.succeeded(note, data)
   }
@@ -88,20 +51,9 @@ class ExampleStep extends Step {
  * This function is called to register this as an available step type.
  */
 async function register() {
-  await StepTypes.register(myDef, 'exampleStep', 'Example')
+  await StepTypes.register(myDef, 'example/exampleStep', 'Example step')
 }//- register
 
-/**
- * The data returned by this function will be the initial definition
- * when this step type is dragged into a pipeline.
- *
- * @returns Object
- */
- async function defaultDefinition() {
-  return {
-    delta: 1.5
-  }
-}
 
 /**
  *
@@ -116,7 +68,6 @@ async function factory(definition) {
 
 const myDef = {
   register,
-  defaultDefinition,
   factory,
 }
 export default myDef

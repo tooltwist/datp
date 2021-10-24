@@ -32,7 +32,6 @@ class StepTypeRegister {
       stepModule,
       description
     }
-
   }
 
   async getStepType(type) {
@@ -46,7 +45,6 @@ class StepTypeRegister {
   }
 
   async factory(type, definition) {
-    // console.error('factory ${type}')
     const stepModule = this.index[type]
     if (!stepModule) {
       throw new Error(`Unknown step type (${type})`)
@@ -55,11 +53,6 @@ class StepTypeRegister {
     // console.log(`StepTypes.factory: step=`, step)
     return step
   }
-
-  // async getNote(stepType, schedulerSnapshotOfStepInstance) {
-  //   const cls = this.index[stepType]
-  //   return cls ? cls : null
-  // }
 
   async names() {
     const list = [ ]
@@ -78,16 +71,13 @@ class StepTypeRegister {
   async myStepTypes() {
     const list = [ ]
     for (const name in this.index) {
-      // console.log(`-> ${name}`)
       const stepType = this.index[name]
-// console.log(`myStepTypes: step=`, stepType)
       const record = {
         name,
         description: stepType.description,
       }
       if (stepType.stepModule.defaultDefinition) {
         record.defaultDefinition = await stepType.stepModule.defaultDefinition()
-// console.log(`**** USING DEFAULT DEFINTION`, record)
       } else {
         record.defaultDefinition = { }
       }

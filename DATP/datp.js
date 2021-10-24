@@ -7,27 +7,19 @@
 import ATP from '../ATP/ATP'
 import ResultReceiver from '../ATP/ResultReceiver'
 import master from '../restify/master'
-// import slave from './restify/registerAsSlave'
-import apiVersions from '../ATP/lib/apiVersions'
-import masterServer from '../restify/masterServer'
-import slaveServer from '../restify/slaveServer'
+import apiVersions from '../lib/apiVersions'
 // import { monitorMidi } from '../mondat/midi'
-import dbTransactionInstance from '../database/dbTransactionInstance'
-import colors from 'colors' // Yep, it is used
 import errors from 'restify-errors';
 import assert from 'assert'
 import TxData from '../ATP/TxData'
 import providerAndServiceRoutes from '../CONVERSION/providerAndServiceRoutes'
-// import providers from '../CONVERSION/providers-needToRemove/providers'
 import currencies_routes from '../CONVERSION/restify/currencies'
 import countries_routes from '../CONVERSION/restify/countries'
-import formserviceYarp from '../restify/formservice_yarp'
+import formserviceYarp from '../restify/formservice'
 import { DATP_URL_PREFIX } from '../CONVERSION/lib/constants'
 
 
 const { defineRoute, showVersions, LOGIN_IGNORED } = apiVersions
-
-// console.log(`apiVersions=`, apiVersions)
 
 // Index of response objects
 const responsesForSynchronousReturn = [ ] // txId -> { res, next, timestamp, timeoutHandle }
