@@ -1,69 +1,34 @@
 import errors from 'restify-errors'
-// import query from '../lib/query'
 import constants from '../CONVERSION/lib/constants'
-// import providers from '../CONVERSION/providers/providers'
-import countries from '../CONVERSION/lookup/countries'
-// import formservice from '@tooltwist/formservice'
-// import parser from '@tooltwist/formservice/schema-parser/index'
-import parser from '../CONVERSION/formservice/schema-parser/index'
-// const parse = require('@tooltwist/formservice/schema-parser/index')
-// import schemaFile from '../formservice.config'
 import Schema from '../CONVERSION/formservice/schema-parser/Schema'
 import FieldProperties from '../CONVERSION/formservice/schema-parser/field_properties'
-// import parameters from '../lib/parameters'
 import formsAndFields from '../CONVERSION/lib/formsAndFields'
 import { FORMSERVICE_URL_PREFIX } from '../CONVERSION/lib/constants'
 import apiVersions from '../lib/apiVersions'
 const { defineRoute, LOGIN_IGNORED } = apiVersions
-
-
 
 export default {
   init,
 }
 
 async function init(server) {
-  console.log(`routes/formservice_yarp:init()`)
+  // console.log(`routes/formservice_yarp:init()`)
 
   // Return all currencies
   defineRoute(server, 'get', false, FORMSERVICE_URL_PREFIX, '/view/:viewName', [
     { versions: '1.0 - 1.0', auth: LOGIN_IGNORED, noTenant: true, handler: async (req, res, next) => {
       // server.get(`${constants.FORMSERVICE_URL_PREFIX}/view/:viewName`, async function (req, res, next) {
       console.log(`-------------------------------------`)
-      console.log(`/formservice/view/:viewName`)
-      // console.log(`req.query=`, req.query)
-      // console.log(`res.params=`, res.params)
-      // console.log(`req.body=`, req.body)
-
+      console.log(`/formservice/:version/view/:viewName`)
 
       const viewName = req.params.viewName
-      // console.log(`viewName=`, viewName)
       const createIfNotFound = (req.query.createIfNotFound === 'true')
-      // console.log(`req.params.createIfNotFound=`, req.params.createIfNotFound)
-      // console.log(`createIfNotFound`, createIfNotFound)
-      // console.log(`req.query=`, req.query)
-      // console.log(`req.params=`, req.params)
-      // console.log(`req=`, req)
-
-      // formservice.getSchema()
-      // let result = await getMappedView(context, 'thing', { })
-
-      // console.log(`parser=`, parser)
 
       const schema = new Schema()
-      // await schema.loadSchemaFromShortform(schemaFile.schema)
-      const tenant = constants.PETNET_TENANT
+      const tenant = constants.DEFAULT_TENANT
       await schema.loadSchemaFromDatabase(tenant)
 
-        // console.log(`---------------------------`)
-        // console.log(`schema=`, schema)
-        // console.log(`schema.views=`, schema.views)
-        // console.log(`schema.views.list[1]=`, schema.views.list[1])
-        // console.log(`Got schema`, schema.definition.schema)
-        // console.log(`views=`, schema.views)
         let index = schema.views.index[viewName]
-        // const index = schema.getView(viewName)
-        // console.log(`index=`, index)
         if (index === undefined) {
           if (createIfNotFound) {
             // Create a new view and proceed
@@ -76,14 +41,11 @@ async function init(server) {
             console.log(`View ${viewName} not found`)
             return next(new errors.NotFoundError(`Unknown view ${viewName}`))
           }
-        } else {
-          console.log(`View found`)
+        // } else {
+        //   console.log(`View found`)
         }
         const view = schema.views.list[index]
         // console.log(`view=`, view)
-        // console.log(`view.fieldLookup.status=`, view.fieldLookup.status)
-        // console.log(`view.referenceList.references=`, view.referenceList.references)
-        // console.log(`view.fieldLookup=`, view.fieldLookup)
 
         // Sanitise the definition. We do not want to expose DB details.
         const reply = {
@@ -92,6 +54,8 @@ async function init(server) {
           fields: [ ],
           descriptionField: view.descriptionField,
           modes: view.modes,
+          notes: view.notes,
+          description: view.description,
         }
         for (const fieldName in view.fieldLookup) {
           const field = view.fieldLookup[fieldName]
@@ -106,9 +70,7 @@ async function init(server) {
             // isDescription: field.properties.isDescription,
             properties: { }
           }
-          // if (field.properties.type) {
-          //   fldRec.type = field.properties.type
-          // }
+
           // Copy the standard field properties and modifiers
           for (let property in FieldProperties) {
             const name = FieldProperties[property]
@@ -117,7 +79,6 @@ async function init(server) {
               fldRec.properties[name] = true
             }
           }
-          // console.log(`//////////// YIP YIP YARP END`)
 
           // if (field.properties.isPrimaryKey) {
           //   fldRec.is_primary_key = true
@@ -180,7 +141,7 @@ async function init(server) {
     { versions: '1.0 - 1.0', auth: LOGIN_IGNORED, noTenant: true, handler: async (req, res, next) => {
       // server.post(`${constants.FORMSERVICE_URL_PREFIX}/field/:viewName`, async function (req, res, next) {
       console.log(`-------------------------------------`)
-      console.log(`POST /formservice/field/:viewName`)
+      console.log(`POST /formservice/:version/field/:viewName`)
 
       const viewName = req.params.viewName
       // console.log(`viewName=`, viewName)
@@ -189,7 +150,7 @@ async function init(server) {
 
       try {
         const schema = new Schema()
-        const tenant = constants.PETNET_TENANT
+        const tenant = constants.DEFAULT_TENANT
         await schema.loadSchemaFromDatabase(tenant)
 
         // schema.updateField(viewName, fieldName, req.body)
@@ -225,7 +186,7 @@ async function init(server) {
       const viewName = req.params.viewName
       const fieldName = req.params.fieldName
       console.log(`-------------------------------------`)
-      console.log(`PUT /formservice/field/${viewName}/${fieldName}`)
+      console.log(`PUT /formservice/:version/field/${viewName}/${fieldName}`)
       console.log(`viewName=`, viewName)
       console.log(`fieldName=`, fieldName)
       console.log(`req.body=`, req.body)
@@ -233,7 +194,7 @@ async function init(server) {
 
       try {
         const schema = new Schema()
-        const tenant = constants.PETNET_TENANT
+        const tenant = constants.DEFAULT_TENANT
         await schema.loadSchemaFromDatabase(tenant)
 
         // schema.updateField(viewName, fieldName, req.body)
@@ -269,7 +230,7 @@ async function init(server) {
     { versions: '1.0 - 1.0', auth: LOGIN_IGNORED, noTenant: true, handler: async (req, res, next) => {
       // server.del(`${constants.FORMSERVICE_URL_PREFIX}/field/:viewName/:fieldName`, async function (req, res, next) {
       console.log(`-------------------------------------`)
-      console.log(`DELETE /formservice/field/:viewName/:fieldName`)
+      console.log(`DELETE /formservice/:version/field/:viewName/:fieldName`)
 
       const viewName = req.params.viewName
       const fieldName = req.params.fieldName
@@ -278,7 +239,7 @@ async function init(server) {
 
       try {
         const schema = new Schema()
-        const tenant = constants.PETNET_TENANT
+        const tenant = constants.DEFAULT_TENANT
         await schema.loadSchemaFromDatabase(tenant)
 
         // Get the field
@@ -312,12 +273,12 @@ async function init(server) {
     { versions: '1.0 - 1.0', auth: LOGIN_IGNORED, noTenant: true, handler: async (req, res, next) => {
       // server.get(`${constants.FORMSERVICE_URL_PREFIX}/mapping/:mappingId`, async function (req, res, next) {
       console.log(`-------------------------------------`)
-      console.log(`/formservice/mapping/:mappingId`)
+      console.log(`/formservice/:version/mapping/:mappingId`)
 
       const mappingId = req.params.mappingId
       // console.log(`mappingId=`, mappingId)
       const version = -1
-      const mapping = await formsAndFields.getMapping(constants.PETNET_TENANT, mappingId, version)
+      const mapping = await formsAndFields.getMapping(constants.DEFAULT_TENANT, mappingId, version)
       // console.log(`mapping=`, mapping)
       res.send(mapping)
       return next()
@@ -330,26 +291,50 @@ async function init(server) {
    */
    defineRoute(server, 'post', false, FORMSERVICE_URL_PREFIX, '/mapping', [
     { versions: '1.0 - 1.0', auth: LOGIN_IGNORED, noTenant: true, handler: async (req, res, next) => {
-    //  server.post(`${constants.FORMSERVICE_URL_PREFIX}/mapping/:mappingId/:fieldName/:source`, async function (req, res, next) {
-    // server.post(`${constants.FORMSERVICE_URL_PREFIX}/mapping`, async function (req, res, next) {
       console.log(`-------------------------------------`)
-      console.log(`/formservice/mapping/:mappingId/:fieldname/:source`)
+      console.log(`/formservice/:version/mapping/:mappingId/:fieldname/:source`)
 
       const mapping = req.body
       console.log(`mapping=`, mapping)
 
-      // /:mappingId/:fieldName/:source
-
       const mappingId = mapping.mappingId
-      // console.log(`mappingId=`, mappingId)
       const version = -1
       const fieldName = mapping.fieldName
       const source = mapping.source
       const converter = mapping.converter ? mapping.converter : null
-      await formsAndFields.setMapping(constants.PETNET_TENANT, mappingId, version, fieldName, source, converter)
+      await formsAndFields.setMapping(constants.DEFAULT_TENANT, mappingId, version, fieldName, source, converter)
       res.send({ status: 'ok' })
       return next()
     }}
   ])//- /formservice/mapping/:mappingId/:fieldname/:source
 
+  /**
+   * Update the description and notes for a view.
+   */
+   defineRoute(server, 'put', false, FORMSERVICE_URL_PREFIX, '/viewDetails', [
+    { versions: '1.0 - 1.0', auth: LOGIN_IGNORED, noTenant: true, handler: async (req, res, next) => {
+      console.log(`-------------------------------------`)
+      console.log(`PUT /formservice/:version/view/details`)
+
+      // Check the required parameters have been provided
+      const view = req.body
+      // console.log(`view=`, view)
+      if (!view.name) {
+        return next(new errors.BadRequestError('body must include view [name]'))
+      }
+      if (!view.version) {
+        return next(new errors.BadRequestError('body must include [version]'))
+      }
+      if (!view.description && !view.notes) {
+        return next(new errors.BadRequestError('body must include [description] or [notes]'))
+      }
+      view.tenant = constants.DEFAULT_TENANT
+
+      // Update the database
+      await formsAndFields.setViewDetails(view)
+
+      res.send({ status: 'ok' })
+      return next()
+    }}
+  ])//- /formservice/mapping/:mappingId/:fieldname/:source
 }//- init

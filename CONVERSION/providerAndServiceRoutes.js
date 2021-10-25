@@ -4,14 +4,10 @@
  * rights reserved. No warranty, explicit or implicit, provided. In no event shall
  * the author or owner be liable for any claim or damages.
  */
-// import constants from '../lib/constants'
 import providers from './providers-needToRemove/providers'
 import errors from 'restify-errors'
-// import parameters from '../lib/parameters'
 import query from '../database/query'
 import constants from './lib/constants'
-// import parameters from '../views/lib/parameters'
-import provider from './providers-needToRemove/providers'
 import apiVersions from '../lib/apiVersions'
 const { defineRoute, LOGIN_IGNORED } = apiVersions
 
@@ -23,14 +19,7 @@ export default {
 }
 
 async function init(server) {
-  console.log(`proviserAndServiceRoutes.init()`)
-
-  // // Sort the list of providers
-  // providers.sort((p1, p2) => {
-  //   if (p1.code < p2.code) return -1
-  //   if (p1.code > p2.code) return +1
-  //   return 0
-  // })
+  // console.log(`proviserAndServiceRoutes.init()`)
 
   defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/metadata/domains', [
     { versions: '1.0 - 1.0', auth: LOGIN_IGNORED, noTenant: true, handler: async (req, res, next) => {
@@ -43,21 +32,9 @@ async function init(server) {
   ])//- /metadata/domains
 
 
-  // Return a list of providers
-  // server.get(`${constants.URL_PREFIX}/metadata/domains`, async function(req, res, next) {
-
-  //   console.log(`---------------------------------`)
-  //   console.log(`/metadata/domains`)
-
-  //   const list = await providers.all()
-  //   res.send(list)
-  //   next()
-  // })//
-
   // Get a specific provider
   defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/domain/:code', [
     { versions: '1.0 - 1.0', auth: LOGIN_IGNORED, noTenant: true, handler: async (req, res, next) => {
-    // server.get(`${constants.URL_PREFIX}/metadata/domain/:code`, async function(req, res, next) {
       const code = req.params.code
 
       console.log(`---------------------------------`)
@@ -78,7 +55,6 @@ async function init(server) {
   // Return a list of services
   defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/metadata/services', [
     { versions: '1.0 - 1.0', auth: LOGIN_IGNORED, noTenant: true, handler: async (req, res, next) => {
-    // server.get(`${constants.URL_PREFIX}/metadata/services`, async function(req, res, next) {
 
       console.log(`---------------------------------`)
       console.log(`/metadata/services`)
@@ -102,7 +78,6 @@ async function init(server) {
   // Get services for a provider
   defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/services/:providerCode', [
     { versions: '1.0 - 1.0', auth: LOGIN_IGNORED, noTenant: true, handler: async (req, res, next) => {
-    // server.get(`${constants.URL_PREFIX}/metadata/services/:providerCode`, async function(req, res, next) {
       const providerCode = req.params.providerCode
 
       console.log(`---------------------------------`)
@@ -132,7 +107,6 @@ async function init(server) {
   // Get services for a provider
   defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/views/:providerCode/:serviceCode', [
     { versions: '1.0 - 1.0', auth: LOGIN_IGNORED, noTenant: true, handler: async (req, res, next) => {
-    // server.get(`${constants.URL_PREFIX}/metadata/views/:providerCode/:serviceCode`, async function(req, res, next) {
       const providerCode = req.params.providerCode
       const serviceCode = req.params.serviceCode
       const withFields = req.params.fields
@@ -153,8 +127,8 @@ async function init(server) {
 
       // Find the views for this provider / service
       const viewPattern = `${providerCode}-${serviceCode}-%`
-      const views = await parameters.getForms(constants.PETNET_TENANT, viewPattern)
-      console.log(`views=`, views)
+      const views = await parameters.getForms(constants.DEFAULT_TENANT, viewPattern)
+      // console.log(`views=`, views)
       const reply = [ ]
       for (const v of views) {
         const viewSuffix = v.view.substring(viewPattern.length - 1)
@@ -168,12 +142,12 @@ async function init(server) {
         const version = -1 //ZZZZZZ Version should be specified
         if (withFields === 'true') {
           //ZZZZ Should use schema
-          record.fields = await parameters.getFields(constants.PETNET_TENANT, v.view, version)
+          record.fields = await parameters.getFields(constants.DEFAULT_TENANT, v.view, version)
           // console.log(`record.fields=`, record.fields)
         }
         if (withMappings === 'true') {
           //ZZZZ Should use schema
-          record.mapping = await parameters.getMapping(constants.PETNET_TENANT, v.view, version)
+          record.mapping = await parameters.getMapping(constants.DEFAULT_TENANT, v.view, version)
           console.log(`record.mapping=`, record.mapping)
         }
         reply.push(record)
@@ -206,7 +180,7 @@ async function init(server) {
 
   //   // Find the views for this provider / service
   //   const viewPattern = `${providerCode}-${serviceCode}-%`
-  //   const views = await parameters.getForms(constants.PETNET_TENANT, viewPattern)
+  //   const views = await parameters.getForms(constants.DEFAULT_TENANT, viewPattern)
   //   console.log(`views=`, views)
   //   const reply = [ ]
   //   for (const v of views) {
@@ -221,12 +195,12 @@ async function init(server) {
   //     const version = -1 //ZZZZZZ Version should be specified
   //     if (withFields === 'true') {
   //       //ZZZZ Should use schema
-  //       record.fields = await parameters.getFields(constants.PETNET_TENANT, v.view, version)
+  //       record.fields = await parameters.getFields(constants.DEFAULT_TENANT, v.view, version)
   //       // console.log(`record.fields=`, record.fields)
   //     }
   //     if (withMappings === 'true') {
   //       //ZZZZ Should use schema
-  //       record.mapping = await parameters.getMapping(constants.PETNET_TENANT, v.view, version)
+  //       record.mapping = await parameters.getMapping(constants.DEFAULT_TENANT, v.view, version)
   //       console.log(`record.mapping=`, record.mapping)
   //     }
   //     reply.push(record)

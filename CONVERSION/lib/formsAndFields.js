@@ -19,6 +19,7 @@ export default {
   getServiceDetails,
   getForms,
   getFields,
+  setViewDetails,
 }
 
 async function deleteParameters(provider, service, messageType) {
@@ -203,6 +204,36 @@ async function setMapping(tenant, mappingId, version, toField, source, converter
     const result2 = await query(sql2, params2)
     console.log(`result2=`, result2)
   }
+}
+
+/**
+ * Update the description or notes for a view.
+ *
+ * @param {Object} view View object
+ */
+async function setViewDetails(view) {
+  // console.log(`setViewDetails()`, view)
+
+  let sql = `UPDATE formservice_view SET `
+  const params = [ ]
+  let sep = ''
+  if (view.description) {
+    sql += `description=?`
+    params.push(view.description)
+    sep += ', '
+  }
+  if (view.notes) {
+    sql += `${sep}notes=?`
+    params.push(view.notes)
+  }
+  sql += ` WHERE tenant=? AND version=? AND view=?`
+  params.push(view.tenant)
+  params.push(view.version)
+  params.push(view.name)
+
+  // console.log(`sql=`, sql)
+  // console.log(`params=`, params)
+  await query(sql, params)
 }
 
 // /**

@@ -47,8 +47,13 @@ export default class View {
   async parseFromDatabase(viewRow) {
     // console.log(`\n\n++++++++++++++\nviewRow=`, viewRow)
 
-    // const version = viewRow.version
+    this.notes = viewRow.notes
+    this.description = viewRow.description
+
+    this.version = viewRow.version
     const version = -1
+
+    // Select the fields for the view
     const sql = `
       SELECT * FROM formservice_field
       WHERE tenant=? AND view=? AND version=?

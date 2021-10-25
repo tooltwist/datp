@@ -40,7 +40,7 @@ export default class Schema {
     // })
 
     let sql = `
-      SELECT tenant, view, description, view_type FROM formservice_view
+      SELECT tenant, view, description, view_type, notes FROM formservice_view
       WHERE tenant=?`
     let params = [ tenant ]
     const views = await query(sql, params)
@@ -52,6 +52,8 @@ export default class Schema {
       var view = new View(viewRow.view);
       await view.parseFromDatabase(viewRow)
       this.views.add(view)
+      // console.log(`view=`, view)
+
     }
   }
 
@@ -141,7 +143,9 @@ export default class Schema {
     // console.log(`Schema.getView(${name})`);
     // console.log(`this.views=`, this.views);
     // return this.viewLookup[name] ? this.viewLookup[name] : null;
-    return this.views.get(name)
+    const view = this.views.get(name)
+    console.log(`view=`, view)
+    return view
   }
 
   views() {

@@ -49,6 +49,7 @@ export async function savePipelineDraft(definition) {
   const name = definition.name
   // console.log(`name=`, name)
   const description = definition.description
+  const notes = definition.notes
   // console.log(`description=`, description)
 
   // console.log(`definition.steps=`, definition.steps)
@@ -63,8 +64,8 @@ export async function savePipelineDraft(definition) {
 
 // const name2 = 'kljqhdlkjshf'
 
-  let sql = `UPDATE atp_pipeline SET node_name=?, description=?, status=?, steps_json=? WHERE name=? AND version=?`
-  let  params = [ nodeName, description, status, stepsJson, name, version ]
+  let sql = `UPDATE atp_pipeline SET node_name=?, description=?, notes=?, status=?, steps_json=? WHERE name=? AND version=?`
+  let  params = [ nodeName, description, notes, status, stepsJson, name, version ]
   // console.log(`sql=`, sql)
   // console.log(`params=`, params)
   let result = await query(sql, params)
@@ -73,14 +74,15 @@ export async function savePipelineDraft(definition) {
   if (result.affectedRows === 0) {
     console.log(`Not found`)
     // Save the pipeline with the next version number
-    sql = `INSERT INTO atp_pipeline (name, version, node_name, description, status, steps_json) VALUES (?, ?, ?, ?, ?, ?)`
-    params = [ name, version, nodeName, description, status, stepsJson ]
+    sql = `INSERT INTO atp_pipeline (name, version, node_name, description, notes, status, steps_json) VALUES (?, ?, ?, ?, ?, ?)`
+    params = [ name, version, nodeName, description, notes, status, stepsJson ]
     // console.log(`sql=`, sql)
     // console.log(`params=`, params)
     result = await query(sql, params)
     // console.log(`result=`, result)
   }
 }
+
 
 //ZZZZZ Remove this
 export async function createInitialPipelinesHack() {

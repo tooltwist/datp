@@ -9,7 +9,7 @@ import dbNode from '../database/dbNode'
 import mondat from './mondat'
 
 async function registerSlaveV1(req, res) {
-  console.log(`registerSlaveV1()`)
+  // console.log(`registerSlaveV1()`)
   // console.log(`req.params=`, req.params)
   // console.log(`req.body=`, req.body)
 
@@ -26,7 +26,7 @@ async function registerSlaveV1(req, res) {
 
 
 async function registerAsMaster(server) {
-  console.log(`registerAsMaster()`)
+  // console.log(`registerAsMaster()`)
   // const datpMasterEndpoint = await juice.string('datp.masterEndpoint', juice.MANDATORY)
   // console.log(`datpMasterEndpoint=`, datpMasterEndpoint)
 

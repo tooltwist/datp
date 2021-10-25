@@ -103,7 +103,7 @@ export default class Step {
         // console.log(`Loading definition for pipeline ${definition}`)
         // const rawdata = fs.readFileSync(`./pipeline-definitions/transaction-${definition}.json`)
         const pipelineName = definition
-        const sql = `SELECT node_name, name, version, description, steps_json FROM atp_pipeline WHERE name=?`
+        const sql = `SELECT node_name, name, version, description, steps_json, notes FROM atp_pipeline WHERE name=?`
         const params = [ pipelineName ]
         const result = await query(sql, params)
 
@@ -115,6 +115,7 @@ export default class Step {
           stepType: 'pipeline',
           name: row.name,
           description: row.description,
+          notes: row.notes,
           steps,
         }
         // console.log(`PIPELINE definition=`, definition)

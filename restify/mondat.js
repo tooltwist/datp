@@ -73,6 +73,9 @@ async function registerRoutes(server) {
   defineRoute(server, 'get', false, MONITOR_PREFIX, '/pipeline/:pipeline/definition', [
     { versions: '1.0 - 1.0', handler: pipelineDefinitionV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
+  // defineRoute(server, 'put', false, MONITOR_PREFIX, '/pipeline/details', [
+  //   { versions: '1.0 - 1.0', handler: savePipelineDetailsV1, auth: LOGIN_IGNORED, noTenant: true }
+  // ])
 
 
   // server.get(`${MONDAT_PREFIX}/nodes`, restify.plugins.conditionalHandler([

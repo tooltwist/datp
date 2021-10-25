@@ -18,7 +18,7 @@ export default {
 }
 
 async function init(server) {
-  console.log(`countries/lookups:init()`)
+  // console.log(`countries/lookups:init()`)
 
   // Return all currencies
   defineRoute(server, 'get', false, LOOKUP_URL_PREFIX, '/currencies', [

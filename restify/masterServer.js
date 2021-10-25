@@ -8,7 +8,7 @@ import me from '../../DATP/ATP/me'
 const restify = require('restify');
 
 async function startMasterServer(options) {
-  console.log(`startMasterServer()`)
+  // console.log(`startMasterServer()`)
 
   var server = restify.createServer({
     handleUncaughtExceptions: false,
