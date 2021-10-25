@@ -7,6 +7,7 @@
 import ATP from '../ATP/ATP'
 import dbPipelines from '../database/dbPipelines'
 import errors from 'restify-errors'
+import { STEP_TYPE_PIPELINE } from '../ATP/StepTypeRegister'
 
 export async function pipelineDescriptionV1(req, res, next) {
   console.log(`pipelineDescriptionV1()`)
@@ -39,8 +40,8 @@ export async function savePipelineDraftV1(req, res, next) {
   // console.log(`savePipelineDraftV1()`)
   // console.log(`req.body.steps=`, req.body.steps)
   const definition = req.body
-  if (definition.stepType !== 'pipeline') {
-    const msg = `stepType must be 'pipeline'`
+  if (definition.stepType !== STEP_TYPE_PIPELINE) {
+    const msg = `stepType must be '${STEP_TYPE_PIPELINE}'`
     // console.log(`savePipelineDraftV1: ${msg}`)
     return next(new errors.BadRequestError(msg))
   }

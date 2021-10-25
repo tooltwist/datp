@@ -3,6 +3,7 @@ import { defineRoute, LOGIN_IGNORED } from '../lib/apiVersions'
 import { listNodesV1 } from '../mondat/nodes'
 import { listPipelinesV1, pipelineDefinitionV1, pipelineDescriptionV1, savePipelineDraftV1 } from '../mondat/pipelines'
 import { getRecentPerformanceV1 } from '../mondat/recentPerformance';
+import { getStepInstanceDetailsV1 } from '../mondat/stepInstances';
 import { deleteTestCasesV1, getTestCasesV1, saveTestCasesV1 } from '../mondat/testCases';
 import { deleteTransactionMappingsV1, getTransactionMappingsV1, saveTransactionMappingsV1 } from '../mondat/transactionMapping';
 import { listAllTransactionsV1, transactionStatusV1 } from '../mondat/transactions';
@@ -45,6 +46,12 @@ async function registerRoutes(server) {
   defineRoute(server, 'get', false, MONITOR_PREFIX, '/transactions', [
     { versions: '1.0 - 1.0', handler: listAllTransactionsV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
+
+  defineRoute(server, 'get', false, MONITOR_PREFIX, '/stepInstance/:stepId', [
+    { versions: '1.0 - 1.0', handler: getStepInstanceDetailsV1, auth: LOGIN_IGNORED, noTenant: true }
+  ])
+
+
 
 
   // server.get('/transaction/:txId', restify.plugins.conditionalHandler([

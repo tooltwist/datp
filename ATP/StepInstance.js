@@ -6,14 +6,15 @@
  */
 import GenerateHash from "./GenerateHash"
 import Logbook from './Logbook'
-// const fs = require('fs');
 import StepTypes from './StepTypeRegister'
 import Step from './Step'
+import StepTypeRegister from './StepTypeRegister'
 import Scheduler from './Scheduler'
 import dbStep from "../database/dbStep";
 import dbPipelines from "../database/dbPipelines";
 import TxData from "./TxData";
 import dbArtifact from "../database/dbArtifact";
+import { STEP_TYPE_PIPELINE } from './StepTypeRegister'
 
 
 export default class StepInstance {
@@ -116,7 +117,7 @@ export default class StepInstance {
         // console.log(`jsonDefinition=`, jsonDefinition)
 
         this.#definition = {
-          stepType: 'pipeline',
+          stepType: STEP_TYPE_PIPELINE,
           description,
           steps,
         }

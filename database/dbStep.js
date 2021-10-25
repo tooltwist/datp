@@ -114,10 +114,8 @@ async function getRecentPerformance(seconds) {
 }
 
 
-// SELECT step_id, TIMESTAMPDIFF(MICROSECOND, start_time, completion_time), start_time, completion_time FROM `atp_step_instance` WHERE step_type = 'pipeline'
+// SELECT step_id, TIMESTAMPDIFF(MICROSECOND, start_time, completion_time), start_time, completion_time FROM `atp_step_instance` WHERE step_type = 'hidden/pipeline'
 
-// SELECT COUNT(status), AVG(TIMESTAMPDIFF(MICROSECOND, start_time, completion_time)) FROM `atp_step_instance` WHERE step_type = 'pipeline' AND status = 'completed'
+// SELECT COUNT(status), AVG(TIMESTAMPDIFF(MICROSECOND, start_time, completion_time)) FROM `atp_step_instance` WHERE step_type = 'hidden/pipeline' AND status = 'completed'
 
-
-// SELECT COUNT(status), AVG(TIMESTAMPDIFF(MICROSECOND, start_time, completion_time)) FROM `atp_step_instance` WHERE step_type = 'pipeline' AND status = 'completed' AND completion_time > (NOW() - INTERVAL 1 MINUTE)
-
+// SELECT COUNT(status), AVG(TIMESTAMPDIFF(MICROSECOND, start_time, completion_time)) FROM `atp_step_instance` WHERE step_type = 'hidden/pipeline' AND status = 'completed' AND completion_time > (NOW() - INTERVAL 1 MINUTE)

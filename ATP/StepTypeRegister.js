@@ -4,10 +4,14 @@
  * rights reserved. No warranty, explicit or implicit, provided. In no event shall
  * the author or owner be liable for any claim or damages.
  */
+export const STEP_TYPE_PIPELINE = 'hidden/pipeline'
+
+
 /**
  * This module maintains a list of step types.
  */
 class StepTypeRegister {
+
   constructor() {
     this.index = [ ]
   }
@@ -47,7 +51,8 @@ class StepTypeRegister {
   async factory(type, definition) {
     const stepModule = this.index[type]
     if (!stepModule) {
-      throw new Error(`Unknown step type (${type})`)
+      console.log(`this.index=`, this.index)
+      throw new Error(`Unknown step type [${type}]`)
     }
     const step = await stepModule.stepModule.factory(definition)
     // console.log(`StepTypes.factory: step=`, step)

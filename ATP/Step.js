@@ -5,9 +5,8 @@
  * the author or owner be liable for any claim or damages.
  */
 import StepTypeRegister from './StepTypeRegister'
-import fs from 'fs'
 import query from '../database/query'
-import dbStep from '../database/dbStep'
+import { STEP_TYPE_PIPELINE } from './StepTypeRegister'
 
 const VERBOSE = false
 
@@ -112,7 +111,7 @@ export default class Step {
         // console.log(`row.steps_json=`, row.steps_json)
         const steps = JSON.parse(row.steps_json)
         definition = {
-          stepType: 'pipeline',
+          stepType: STEP_TYPE_PIPELINE,
           name: row.name,
           description: row.description,
           notes: row.notes,

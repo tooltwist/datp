@@ -116,7 +116,7 @@ class MapFieldsStep extends Step {
  * This function is called to register this as an available step type.
  */
 async function register() {
-  await StepTypes.register(myDef, 'util/mapFields', 'Convert form using field mapping')
+  await StepTypes.register(myDef, 'util/map-fields', 'Convert form using field mapping')
 }//- register
 
 /**
