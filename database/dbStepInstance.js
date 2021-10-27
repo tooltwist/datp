@@ -11,7 +11,7 @@ export default {
 }
 
 export async function getStepInstanceDetails(stepId) {
-  console.log(`getStepInstanceDetails(${stepId})`)
+  // console.log(`getStepInstanceDetails(${stepId})`)
 
   const sql = `SELECT
       step_id AS stepId,
