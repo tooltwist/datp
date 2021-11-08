@@ -4,12 +4,12 @@
  * rights reserved. No warranty, explicit or implicit, provided. In no event shall
  * the author or owner be liable for any claim or damages.
  */
-import mysql2 from 'mysql2/promise';
+// import mysql2 from 'mysql2/promise';
 import juice from '@tooltwist/juice-client'
-// require('mysql2/promise')
 
 const VERBOSE = false
 const SHOW_PROGRESS = false
+const SHOW_CONNECTION_DETAILS = true
 
 let promisePool = null
 
@@ -20,6 +20,27 @@ async function checkPool() {
 
   try {
     const mysql = require('mysql2');
+
+    // Perhaps show a debugging message
+    if (SHOW_CONNECTION_DETAILS) {
+      const host = await juice.string('db.host', juice.MANDATORY)
+      const port = await juice.integer('db.port', juice.MANDATORY)
+      const database = await juice.string('db.database', juice.MANDATORY)
+      let user = await juice.string('db.user', juice.MANDATORY)
+      let password = await juice.string('db.password', juice.MANDATORY)
+      if (user && user.length > 2) {
+        user = user.substring(0, 2) + '?????'
+      } else {
+        user = 'xx?????'
+      }
+      if (password && password.length > 2) {
+        password = password.substring(0, 2) + '?????'
+      } else {
+        password = 'xx?????'
+      }
+      console.log(`Connecting to DB: ${host}:${port}, ${database}, ${user}/${password}`)
+    }
+
 
     // See https://github.com/sidorares/node-mysql2/issues/840
     const pool = mysql.createPool({

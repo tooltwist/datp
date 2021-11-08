@@ -50,6 +50,12 @@ export default class StepInstance {
     // Note that this object is transitory - not persisted. It will be
     // recreated if we reload this stepInstance from persistant storage.
     this.stepObject = null
+
+
+    this.TRACE = 'trace'
+    this.WARNING = 'warning'
+    this.ERROR = 'error'
+    this.DEBUG = 'debug'
   }
 
 
