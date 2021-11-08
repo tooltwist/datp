@@ -17,6 +17,7 @@ import resultReceiver from './ATP/ResultReceiver'
 import resultReceiverRegister from './ATP/ResultReceiverRegister'
 import scheduler from './ATP/Scheduler'
 import healthcheck from './restify/healthcheck'
+import juice from '@tooltwist/juice-client'
 
 
 export const Step = step
@@ -53,9 +54,16 @@ export function addRoute(server, operation, urlPrefix, path, versionFunctionMapp
 
 }//- addRoute
 
-export function goLive(server) {
+export async function goLive(server) {
   // Registering the healthcheck will allow the Load Balancer to recognise the server is active.
   healthcheck.registerRoutes(server)
+
+  // Perhaps serve up MONDAT
+  const serveMondat = await juice.boolean('datp.serveMondat', false)
+  if (serveMondat) {
+    await masterServer.serveMondat(server)
+  }
+
 }
 
 export default {
