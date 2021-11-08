@@ -45,6 +45,24 @@ class ExampleStep extends Step {
     const note = ''
     instance.succeeded(note, data)
   }
+
+  /**
+   * This function is called to roll back anything done when invoke was run.
+   * The step instance parameter provides the context of the transaction
+   * and also convenience functions.
+   * @param {StepInstance} instance
+   */
+   async rollback(instance) {
+    instance.console(`ExampleStep rolling back (${instance.getStepId()})`)
+    const data = instance.getDataAsObject()
+
+    // Do something here
+    //...
+
+    // Time to complete the step and send a result
+    const note = ''
+    instance.succeeded(note, data)
+  }
 }
 
 /**
