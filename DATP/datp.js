@@ -106,6 +106,26 @@ async function initiateTransactionRouteV1(req, res, next) {
 
 export async function initiateTransaction(req, res, next, transactionType, initialData, options) {
 
+  // See what sort of reply is allowed
+  let allowSyncReply = true
+  let webhook = null
+  if (options.reply) {
+    const words = options.reply.split(',')
+    for (let word of words) {
+      word = word.trim()
+      if (word === 'noreply') {
+        allowSyncReply = false
+      } else if (word.startsWith('webhook=')) {
+        webhook = word.substring("webhook=".length).trim()
+      } else if (word === '') {
+        // Ignore this
+      } else {
+        throw new Exception(`Unknown directive in option.noreply [${word}]`)
+      }
+    }
+  }
+
+
   try {//ZZZZZ
     // const transactionType = req.params.transactionType
     // const transactionType = 'remittance-init'
@@ -119,18 +139,23 @@ export async function initiateTransaction(req, res, next, transactionType, initi
     //  1. When we get a response from the pipeline.
     //  2. If we don't get a pipeline result before the timeout.
     const transactionId = await ATP.allocateTransactionId()
-    const syncResponse = {
-      res,
-      next,
-      timestamp: Date.now(),
-      timeoutHandle: null
+
+    let syncResponse = null
+    if (allowSyncReply) {
+      // Remember how we can send an HTTP response
+      syncResponse = {
+        res,
+        next,
+        timestamp: Date.now(),
+        timeoutHandle: null
+      }
+      responsesForSynchronousReturn[transactionId] = syncResponse
     }
-    responsesForSynchronousReturn[transactionId] = syncResponse
 
 
     // Now initiate the transaction
     // const color = 'red'
-    const { inquiryToken } = await ATP.initiateTransaction(transactionId, transactionType, initiatedBy, initialData, API_TRANSACTION_COMPLETION_HANDLER_NAME, color)
+    const { inquiryToken } = await ATP.initiateTransaction(transactionId, transactionType, initiatedBy, initialData, API_TRANSACTION_COMPLETION_HANDLER_NAME, { color })
 
     /*
      * Let's set a timeout. Hopefully we get a result from the pipeline before the
@@ -142,35 +167,39 @@ export async function initiateTransaction(req, res, next, transactionType, initi
      * to the original API call, telling the API client they will need to get the transaction
      * result using one of the asynchronous methods (i.e. Polling or via webhook).
      */
-    const MAX_SYNC_REPLY_WAIT_TIME = 2500 // milliseconds
-    syncResponse.timeoutHandle = setTimeout(() => {
-      // Check that the transaction hasn't completed, and already used 'res' and 'next'
-      try {
-        if (responsesForSynchronousReturn[transactionId]) {
-          // Don't hold onto the reponse any longer
-          delete responsesForSynchronousReturn[transactionId]
-          console.log(`  TIMEOUT IN MAIN REQUEST - WILL NOT REPLY SYNCHRONOUSLY  `.blue.bgYellow.bold)
-          console.log(`responsesForSynchronousReturn is holding ${Object.keys(responsesForSynchronousReturn).length} responses`.dim)
+    if (allowSyncReply) {
+      const MAX_SYNC_REPLY_WAIT_TIME = 2500 // milliseconds
+      syncResponse.timeoutHandle = setTimeout(() => {
+        // Check that the transaction hasn't completed, and already used 'res' and 'next'
+        try {
+          if (responsesForSynchronousReturn[transactionId]) {
+            // Don't hold onto the reponse any longer
+            delete responsesForSynchronousReturn[transactionId]
+            console.log(`  TIMEOUT IN MAIN REQUEST - WILL NOT REPLY SYNCHRONOUSLY  `.blue.bgYellow.bold)
+            console.log(`responsesForSynchronousReturn is holding ${Object.keys(responsesForSynchronousReturn).length} responses`.dim)
 
-          // Send the reply
-          res.send({
-            metadata: {
-              transactionId,
-              responseType: 'poll-for-result',
-              inquiryToken,
-            },
-            data: null
-          })
-          return next(null)
-        } else {
-          // The response record is missing - the transaction must have completed and used it already.
-          console.log(`responsesForSynchronousReturn already removed`.blue.bgYellow.bold)
+            // Send the reply
+            res.send({
+              metadata: {
+                transactionId,
+                responseType: 'poll-for-result',
+                inquiryToken,
+              },
+              data: null
+            })
+            return next(null)
+          } else {
+            // The response record is missing - the transaction must have completed and used it already.
+            console.log(`responsesForSynchronousReturn already removed`.blue.bgYellow.bold)
+          }
+        } catch (e) {
+          console.error(`Exception in response timeout handler.`, e)
         }
-      } catch (e) {
-        console.error(`Exception in response timeout handler.`, e)
-      }
-    }, MAX_SYNC_REPLY_WAIT_TIME)
-    console.log(`RETURNING FROM API FUNCTION (NO res.send() YET, WE'LL LEAVE THAT FOR A TIMEOUT OR FAST PIPELINE RESULT)`.dim)
+      }, MAX_SYNC_REPLY_WAIT_TIME)
+      console.log(`RETURNING FROM API FUNCTION (NO res.send() YET, WE'LL LEAVE THAT FOR A TIMEOUT OR FAST PIPELINE RESULT)`.dim)
+    } else {
+      // No synchronous replies
+    }
 
     // res.send({ transactionId })
     // return next();

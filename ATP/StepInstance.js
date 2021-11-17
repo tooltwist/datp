@@ -253,10 +253,13 @@ export default class StepInstance {
   }
 
   async failed(note, newTx) {
+    if (newTx === null || newTx === undefined) {
+      newTx = { }
+    }
     const myTx = new TxData(newTx)
     const response = myTx.getJson()
     // const response = JSON.stringify(newTx, '', 2)
-    this.console(`Step exiting with fail status [${note}]`)
+    this.console(`Step exiting with fail status: ${note}`)
 
     const status = Step.FAIL
     await dbStep.saveExitStatus(this.#stepId, status, response)

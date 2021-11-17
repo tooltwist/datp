@@ -28,12 +28,14 @@ import DemoStep from './hardcoded-steps/DemoStep'
 import MandatoryFieldsStep from './hardcoded-steps/MandatoryFieldsStep'
 import MapFieldsStep from './hardcoded-steps/MapFieldsStep'
 import ConvertDatesStep from './hardcoded-steps/ConvertDatesStep'
+import RouterStep from './hardcoded-steps/RouterStep'
 
 // Database stuff
 import dbTransactionInstance from '../database/dbTransactionInstance'
 import dbTransactionType from '../database/dbTransactionType'
 import colors from 'colors'
 import Logbook from './Logbook'
+import ChildPipelineCompletionHandler from './hardcoded-steps/ChildPipelineCompletionHandler'
 
 const ANTI_BRUTE_FORCE_DELAY = 2000 // 2 seconds
 
@@ -55,7 +57,7 @@ class AtpTransactionCompletionHandler extends ResultReceiver {
   async haveResult(contextForCompletionHandler, status, note, response) {
     assert(response instanceof TxData)
     console.log(`<<<<    AtpTransactionCompletionHandler.haveResult(${status}, ${note})  `.white.bgBlue.bold)
-    // console.log(`  contextForCompletionHandler=`, JSON.stringify(contextForCompletionHandler, '', 0))
+    console.log(`  contextForCompletionHandler=`, JSON.stringify(contextForCompletionHandler, '', 0))
     // console.log(`  - status=`, status)
     // console.log(`  - response=`, response.toString())
     // Scheduler.dumpSteps(`\nAfter Completion`)
@@ -132,6 +134,9 @@ class AsynchronousTransactionEngine {
     await MandatoryFieldsStep.register()
     await MapFieldsStep.register()
     await ConvertDatesStep.register()
+    await RouterStep.register()
+    await ChildPipelineCompletionHandler.register()
+
 
     await ResultReceiver.register(ATP_TRANSACTION_COMPLETION_HANDLER_NAME, new AtpTransactionCompletionHandler())
 
@@ -151,8 +156,12 @@ class AsynchronousTransactionEngine {
    * @param {String} completionHandlerName
    * @returns
    */
-  async initiateTransaction(transactionId, transactionType, initiatedBy, data, completionHandlerName, color) {
+  async initiateTransaction(transactionId, transactionType, initiatedBy, data, completionHandlerName, options) {
     console.error(`>>>>    initiateTransaction(${transactionType})  `.white.bgBlue.bold)
+
+    if (!options) {
+      options = { }
+    }
 
     // Which pipeline should we use?
     const pipelineDetails = await dbTransactionType.getPipeline(transactionType)
@@ -189,15 +198,16 @@ class AsynchronousTransactionEngine {
     const definition = pipelineName
     const contextForCompletionHandler = {
       txId,
-      userCompletionHandlerName: completionHandlerName
+      userCompletionHandlerName: completionHandlerName,
+      options
     }
     const invokeReply = await Scheduler.invokeStep(txId, parentInstance, fullSequencePrefix, definition, initialTxData, logbook, ATP_TRANSACTION_COMPLETION_HANDLER_NAME, contextForCompletionHandler)
 
     // Update the transaction with details of this top level step
     const rootStepId = invokeReply.stepId
     await transactionIndexEntry.setRootStepId(rootStepId)
-    if (color) {
-      await transactionIndexEntry.setColor(color)
+    if (options.color) {
+      await transactionIndexEntry.setColor(options.color)
     }
 
     // Display the Scheduler

@@ -18,6 +18,7 @@ import resultReceiverRegister from './ATP/ResultReceiverRegister'
 import scheduler from './ATP/Scheduler'
 import healthcheck from './restify/healthcheck'
 import juice from '@tooltwist/juice-client'
+import { RouterStep as RouterStepInternal } from './ATP/hardcoded-steps/RouterStep'
 
 
 export const Step = step
@@ -27,6 +28,7 @@ export const FormsAndFields = formsAndFields
 export const ResultReceiver = resultReceiver
 export const ResultReceiverRegister = resultReceiverRegister
 export const Scheduler = scheduler
+export const RouterStep = RouterStepInternal
 
 export const query = dbQuery
 
@@ -74,6 +76,7 @@ export default {
   // These are here for convenience for external applications.
   Step,
   StepTypes,
+  RouterStep,
   ConversionHandler,
   FormsAndFields,
   ResultReceiver,
@@ -82,4 +85,5 @@ export default {
   addRoute,
   initiateTransaction,
   getTransactionResult,
+  RouterStep,
 }
