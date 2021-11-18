@@ -2,6 +2,7 @@ import Step from '../Step'
 import StepTypeRegister from '../StepTypeRegister'
 import Scheduler from '../Scheduler'
 import TxData from '../TxData'
+import ChildPipelineCompletionHandler from './ChildPipelineCompletionHandler'
 
 const VERBOSE = true
 
@@ -30,6 +31,28 @@ export class RouterStep extends Step {
       this.#defaultPipeline = null
     }
   }//- contructor
+
+
+  async invoke(instance) {
+    if (VERBOSE) {
+      // instance.console(`*****`)
+      instance.console(`RouterStep::invoke(${instance.getStepId()})`)
+    }
+    instance.log(``)
+    instance.console()
+    instance.console(`kycInitiateRouterStep initiating child pipeline`)
+    instance.console()
+
+    // See which child pipeline to call.
+    const pipelineName = await this.choosePipeline(instance)
+    console.log(`pipelineName=`, pipelineName)
+    if (!pipelineName) {
+      return await instance.failed(`Unknown value for selection field`, { status: 'error', error: 'Invalid selector field'})
+    }
+
+    // Start the child pipeline
+    return await this.invokeChildPipeline(instance, pipelineName, null)
+  }//- invoke
 
   /**
    * Use the definition to determine the mapping, if the following are present:
@@ -69,6 +92,11 @@ export class RouterStep extends Step {
         return row.pipeline
       }
     }
+    if (typeof(value) === 'undefined') {
+      instance.console(`Field missing [${this.#field}]`)
+    } else {
+      instance.console(`Unknown value for field [${this.#field}]`)
+    }
 
     // No mapping found
     if (this.#defaultPipeline) {
@@ -77,7 +105,7 @@ export class RouterStep extends Step {
     return null
   }
 
-  async invokeChildPipeline(instance, pipelineName) {
+  async invokeChildPipeline(instance, pipelineName, data) {
     if (VERBOSE) {
       // instance.console(`*****`)
       instance.console(`RouterStep::invokeChildPipeline (${pipelineName})`)
@@ -86,6 +114,10 @@ export class RouterStep extends Step {
     instance.console()
     instance.console(`RouterStep initiating child pipeline`)
     instance.console()
+
+    if (!data) {
+      data = await instance.getDataAsObject()
+    }
 
     // Start the child pipeline
     instance.console(`Start child transaction pipeline ${pipelineName}`)

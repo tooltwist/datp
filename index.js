@@ -19,6 +19,7 @@ import scheduler from './ATP/Scheduler'
 import healthcheck from './restify/healthcheck'
 import juice from '@tooltwist/juice-client'
 import { RouterStep as RouterStepInternal } from './ATP/hardcoded-steps/RouterStep'
+import pause from './lib/pause'
 
 
 export const Step = step
@@ -65,8 +66,8 @@ export async function goLive(server) {
   if (serveMondat) {
     await masterServer.serveMondat(server)
   }
-
 }
+
 
 export default {
   restifyMasterServer,
@@ -86,4 +87,5 @@ export default {
   initiateTransaction,
   getTransactionResult,
   RouterStep,
+  pause,
 }
