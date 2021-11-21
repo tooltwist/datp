@@ -241,7 +241,14 @@ export default class StepInstance {
   }
 
   async succeeded(note, newTx) {
-    const myTx = new TxData(newTx)
+    let myTx
+    if (newTx === null || newTx === undefined) {
+      // No output provided - use the input as the output
+      myTx = this.#txdata
+    } else {
+      // Use the provided output
+      myTx = new TxData(newTx)
+    }
     const response = myTx.getJson()
     // const response = JSON.stringify(newTx, '', 2)
     const status = Step.COMPLETED
