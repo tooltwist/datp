@@ -1,0 +1,35 @@
+{
+  "datp": {
+    "name": "master",
+    "description": "Master node",
+
+    "protocol": "http",
+    "host": "localhost",
+    "ZZZhost": "10.10.101.248",
+    "port": 33370,
+    "midiSupported": false,
+    "serveMondat": true
+  },
+  "db": {
+    "host": "localhost",
+    "port": 33350,
+    "user": "root",
+    "password": "",
+    "database": "datp_master"
+  },
+  "xpanse": {
+    "images": {
+      "mode": "file",
+      "path": "/workspace/,images"
+    }
+  },
+  "yoti": {
+    "clientId": "2188454822960230",
+    "clientSdkId": "feaf46c1-9fe6-419f-9b54-c238e5e01bc0",
+    "pemfile": "/workspace/protected-config/yoti/keys/xpanse-testing-access-security.pem",
+    "endpoint": "https://api.yoti.com/idverify/v1"
+  },
+  "zoloz": {
+    "clientId": ""
+  }
+}

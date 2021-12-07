@@ -20,15 +20,15 @@ class ResultReceiverRegister {
     // console.log(`ResultReceiverRegister.register(${name})`)
     // console.log(`resultReceiver=`, resultReceiver)
     // console.log(`typeof(resultReceiver)=`, typeof(resultReceiver))
-    const chType = ResultReceiver.constructor.name
+    // const chType = ResultReceiver.constructor.name
     // console.log(`chType=`, chType)
 
-    if (!(resultReceiver instanceof ResultReceiver)) {
-    // if (typeof(resultReceiver) !== 'function') {
-      const msg = `resultReceiver parameter must be type ResultReceiver`
-      // console.error(msg)
-      throw new Error(msg)
-    }
+    // if (!(resultReceiver instanceof ResultReceiver)) {
+    // // if (typeof(resultReceiver) !== 'function') {
+    //   const msg = `resultReceiver parameter must be type ResultReceiver`
+    //   // console.error(msg)
+    //   throw new Error(msg)
+    // }
     if (typeof(resultReceiver.haveResult) !== 'function') {
       throw new Error(`ResultReceiver (${name}) must implement haveResult()`)
     }

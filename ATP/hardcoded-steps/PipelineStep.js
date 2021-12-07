@@ -58,7 +58,7 @@ class Pipeline extends Step {
     //ZZZZ Should probably create a new TX object
     const txdata = await pipelineInstance.getTxData()
     const metadata = await pipelineInstance.getMetadata()
-    this.initiateChildStep(pipelineInstance, txdata)
+    this.initiateChildStep(pipelineInstance, txdata, metadata)
 
     // logbook.log(id, `DummyStep.invoke()`, {
     //   level: logbook.LEVEL_DEBUG,

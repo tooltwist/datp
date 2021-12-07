@@ -5,6 +5,15 @@
   "main": "index.js",
   "license": "Proprietary intellectual property of Tooltwist",
   "private": true,
+  "scripts": {
+    "dev": "node -r esm server.js",
+    "test": "test/unit/run-test.sh */ava-*",
+    "unit": "ava --serial --verbose --timeout=20000",
+    "modules-coverage": "node test/unit/helpers/modules-coverage.js",
+    "test:watch": "node_modules/.bin/ava --verbose --watch",
+    "cover": "node_modules/.bin/nyc yarn test",
+    "sonar":  "node sonar-project.js"
+  },
   "dependencies": {
     "@tooltwist/juice-client": "^1.0.20",
     "api": "^3.4.2",
@@ -17,5 +26,32 @@
     "restify-cors-middleware": "^1.1.1",
     "semver": "^7.3.5",
     "underscore.string": "^3.3.5"
+  },
+  "devDependencies": {
+    "ava": "^3.10.1",
+    "esm": "^3.2.25",
+    "supertest": "^4.0.2"
+  },
+  "ava": {
+    "require": [
+      "esm"
+    ],
+    "files": [
+      "test/unit/**/ava*",
+      "!test/unit/,ava-*.js",
+      "!test/unit/**/ava-XXXX*.js",
+      "!test/unit/**/ava-zzzz.js",
+      "!test/unit/**/ava-zzzz.js",
+      "!test/unit/**/ava-zzzz.js"
+    ],
+    "timeout": "20s"
+  },
+  "nyc": {
+    "reporter": [
+      "lcov",
+      "text",
+      "html"
+    ]
   }
+
 }

@@ -1,0 +1,186 @@
+import { EVENT, STEP_END } from "./Scheduler2"
+import Worker from "./Worker"
+
+
+export default class StepWorker extends Worker {
+  constructor(id) {
+    super(id, 'step-worker')
+  }
+
+  async processJob(job) {
+  // txId, stepId, parentInstance, definition, metadata, data) {
+    // const txId = this.#input.metadata.txId
+    // const stepId = this.#input.metadata.stepId
+    const input = job.getInput()
+    const data = input.data
+    const metadata = input.metadata
+
+    const txId = input.metadata.txId
+    const stepId = input.metadata.stepId
+
+    console.log(`Step worker start: #${this.getId()} StepWorker.allocate(${txId}, ${stepId})`)
+
+    this.setInUse(true)
+
+    //ZZZZZ Yarp2 Clone the metadata
+    const metadata2 = metadata
+
+    metadata.transactionId
+    metadata.parentInstance
+    metadata.parentStepId
+    metadata.sequence
+    metadata.definition
+    metadata.tx
+    metadata.logbook
+    metadata.resultReceiver
+    metadata.completionHandlerData
+
+
+      // console.log(``)
+      assert(typeof(txId) === 'string')
+      // console.log(`typeof(sequence)=`, typeof(sequence))
+      assert(typeof(sequence) === 'string')
+      // console.log(`${typeof resultReceiver}`)
+      // console.log(`${typeof completionHandlerData}`)
+      assert(tx instanceof TxData)
+      assert(typeof(resultReceiver) === 'string')
+      assert(typeof(completionHandlerData) === 'object')
+
+
+      // if (parentInstance) {
+      //   parentInstance.console(`Scheduler.invokeStep(): ${JSON.stringify(definition, '', 0)}`.yellow.bgBlue)
+      // } else {
+      //   console.log(`Scheduler.invokeStep(): ${JSON.stringify(definition, '', 0)}`.yellow.bgBlue)
+      // }
+
+      let parentId = null
+      let level = 0
+      let fullSequence = `${sequence}`
+      if (parentInstance) {
+        if (!(parentInstance instanceof StepInstance)) {
+          throw new Error(`context parameter must be an instance of StepInstance`)
+        }
+        parentId = parentInstance.getStepId()
+        level = parentInstance.getLevel() + 1
+        // console.log(`parentInstance.fullSequence=`, parentInstance.fullSequence)
+        // console.log(`parentInstance.getSequence()=`, parentInstance.getSequence())
+        // console.log(`sequence=`, sequence)
+        fullSequence = `${parentInstance.getSequence()}.${sequence}`
+
+        const parentTransactionId = await parentInstance.getTransactionId()
+        if (txId !== parentTransactionId) {
+          throw new Error(`Internal error 27811 - txId does not match that of parentInstance`)
+        }
+      }
+      if (typeof(resultReceiver) !== 'string') {
+        throw new Error(`resultReceiver parameter must be a string`)
+      }
+      if (typeof(completionHandlerData) !== 'object') {
+        throw new Error(`completionHandlerData parameter must be an object`)
+      }
+
+      // We pass a "completion token" to the step. It get's passed back and is verified
+      // by this scheduler. This prevents steps from faking the completion of other steps.
+      const token = GenerateHash('token')
+
+
+      /*
+       *  Prepare the context for the step.
+       */
+      const instance = new StepInstance()
+      await instance.materialize({
+        transactionId: txId,
+        parentId,
+        definition,
+        data: tx,
+        metadata: { },
+        level,
+        fullSequence,
+        logbook,
+        // resultReceiver,
+        completionToken: token,
+        // completionHandlerData
+      })
+      // console.log(`About to start step ${fullSequence}`)
+
+
+      /*
+       *  Register this step.
+       */
+      // const gateId = GenerateHash('gate')
+      // console.log(`gateId is ${gateId}`)
+      const schedulerSnapshotOfStepInstance = new StepIndexEntry(
+      //   parentInstance.getStepId(), instance.getStepId())
+      // stepIndex.setStepInstance(instance)
+
+      // const schedulerSnapshotOfStepInstance =
+      {
+        // stepInstance: instance,
+        transactionId: txId,
+        parentStepId: parentId,
+        stepId: instance.getStepId(),
+        fullSequence,
+        stepType: instance.getStepType(),
+        description: '',
+
+        // How to handle completion of this step
+        resultReceiver,
+        completionToken: token, // step completion must quote this
+        completionHandlerData,
+
+        // name,
+
+        //
+        status: Step.WAITING,
+
+        // Information passed to the handler
+        // handler,
+        // payload,
+
+        // ZZZZ Should contain a timeout, or several types of timeout
+      })
+      schedulerSnapshotOfStepInstance.setStepInstance(instance)
+      this.stepIndex[instance.getStepId()] = schedulerSnapshotOfStepInstance
+
+      // this.dumpSteps(`after register`)
+
+      if (VERBOSE) {
+        console.log(`adding step ${instance.getStepId()}`, step)
+      }
+
+      /*
+       *  Prepare for how we are going to return from this step.
+       */
+      // instance.console(`>>>>>>>>>> >>>>>>>>>> >>>>>>>>>> START ${instance.getStepType()}: ${instance.getStepId()} ${token}`)
+      instance.console(`>>>>>>>>>> >>>>>>>>>> >>>>>>>>>> START [${instance.getStepType()}] ${instance.getStepId()}`)
+
+
+      /*
+       *  Start the step, and don't wait for it to complete
+       */
+      const stepObject = instance.getStepObject()
+      const reply = await stepObject.invoke_internal(instance)
+
+      // NOTE: The reply will only be the step reply if the step is hard coded and synchronous.
+      //ZZZZ
+      // if (reply.xyz === SYNCHRONOUS)
+      return reply
+
+
+
+
+
+
+
+    // // Let's wait a while then finish
+    // setTimeout(() => {
+    //   console.log(`Step worker end: #${this.getId()} StepWorker.allocate(${txId}, ${stepId})`)
+    //   await EVENT(STEP_END, {
+    //     txId,
+    //     stepId,
+    //     happy: 'me'
+    //   })
+    //   this.setInUse(false)
+    // }, 5000)
+  }
+}
