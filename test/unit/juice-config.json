@@ -17,6 +17,11 @@
     "password": "",
     "database": "datp_master"
   },
+  "redis": {
+    "host": "localhost",
+    "port": 33390,
+    "Zpassword": ""
+  },
   "xpanse": {
     "images": {
       "mode": "file",

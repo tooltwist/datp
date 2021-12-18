@@ -7,7 +7,7 @@
 import TxData from './TxData'
 import TransactionIndexEntry from './TransactionIndexEntry'
 import Scheduler from './Scheduler'
-import Step from './Step'
+import Step, { STEP_FAILED } from './Step'
 import pause from '../lib/pause'
 import pad from '../lib/pad'
 import statusString from '../lib/statusString'
@@ -20,7 +20,7 @@ import assert from 'assert'
 // Hardcoded steps
 import DummyStep from './hardcoded-steps/DummyStep'
 import SaySomethingStep from './hardcoded-steps/SaySomethingStep'
-import Pipeline from './hardcoded-steps/PipelineStep'
+import PipelineStep from './hardcoded-steps/PipelineStep'
 import MockStep from './hardcoded-steps/MockStep'
 import RandomDelayStep from './hardcoded-steps/RandomDelayStep'
 import ExampleStep from './hardcoded-steps/ExampleStep'
@@ -73,14 +73,14 @@ class AtpTransactionCompletionHandler extends ResultReceiver {
         throw new Error(msg)
       }
       let transactionStatus
-      assert(status !== Step.FAIL) // Should not happen. Pipelines either rollback or abort.
+      assert(status !== STEP_FAILED) // Should not happen. Pipelines either rollback or abort.
       switch (status) {
-        case Step.COMPLETED:
+        case STEP_COMPLETED:
           console.log(`Step is COMPLETED`)
           transactionStatus = TransactionIndexEntry.COMPLETE
           break
 
-        case Step.ABORT:
+        case STEP_ABORTED:
           console.log(`Step is ABORT`)
           transactionStatus = TransactionIndexEntry.TERMINATED
           break
@@ -128,7 +128,7 @@ class AsynchronousTransactionEngine {
     await DummyStep.register()
     await MockStep.register()
     await RandomDelayStep.register()
-    await Pipeline.register()
+    await PipelineStep.register()
     await ExampleStep.register()
     await DemoStep.register()
     await MandatoryFieldsStep.register()
@@ -194,14 +194,14 @@ class AsynchronousTransactionEngine {
 
     // Invoke the step
     const parentInstance = null
-    const fullSequencePrefix = txId.substring(txId.length - 8)
+    const sequenceYARP = txId.substring(txId.length - 8)
     const definition = pipelineName
     const contextForCompletionHandler = {
       txId,
       userCompletionHandlerName: completionHandlerName,
       options
     }
-    const invokeReply = await Scheduler.invokeStep(txId, parentInstance, fullSequencePrefix, definition, initialTxData, logbook, ATP_TRANSACTION_COMPLETION_HANDLER_NAME, contextForCompletionHandler)
+    const invokeReply = await Scheduler.invokeStep(txId, parentInstance, sequenceYARP, definition, initialTxData, logbook, ATP_TRANSACTION_COMPLETION_HANDLER_NAME, contextForCompletionHandler)
 
     // Update the transaction with details of this top level step
     const rootStepId = invokeReply.stepId
@@ -309,7 +309,7 @@ class AsynchronousTransactionEngine {
     for (const txId in this.#transactionIndex) {
       const txEntry = this.#transactionIndex[txId]
       const status = await txEntry.getStatus()
-      if (status === Step.COMPLETED && !includeCompleted) {
+      if (status === STEP_COMPLETED && !includeCompleted) {
         continue
       }
       const sortTime = (await txEntry.getStartTime()).getTime()

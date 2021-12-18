@@ -23,7 +23,7 @@ class SaySomething extends Step {
     setTimeout(() => {
       data.said = this.msg
       const note = `Said "${this.msg}"`
-      instance.finish(Step.COMPLETED, note, data)
+      instance.finish(STEP_COMPLETED, note, data)
     }, 1000)
   }
 

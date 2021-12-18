@@ -10,41 +10,53 @@ import { STEP_TYPE_PIPELINE } from './StepTypeRegister'
 
 const VERBOSE = false
 
-export default class Step {
+/**
+ * Step is queued for running
+ */
+export const STEP_QUEUED = 'queued'
 
-  // Statuses
-  static RUNNING = 'running'
-  static WAITING = 'waiting'
-  // static ERROR = 'error'
+/**
+ * Step is currently running
+ */
+export const STEP_RUNNING = 'running'
+// static ERROR = 'error'
 
-  /**
-   * The step ran for more than the permitted amount of time.
-   */
-  static TIMEOUT = 'timeout'
+/**
+ * Step completed without error.
+ */
+export const STEP_SUCCESS = 'success'
 
-  /**
-   * Step completed without error.
-   */
-  static COMPLETED = 'completed'
+/**
+ * Pipeline step failed - attempt rollback.
+ */
+export const STEP_FAILED = 'failed'
 
-  /**
-   * Error related to pipeline definition.
-   */
-  static INTERNAL_ERROR = 'internal-error'
+/**
+ * Do not try to rollback.
+ */
+export const STEP_ABORTED = 'aborted'
 
-  /**
-   * Pipeline step failed - attempt rollback.
-   */
-  static FAIL = 'fail'
+/**
+ * Step is sleeping, until either a certain time, of an external "nudge".
+ */
+export const STEP_SLEEPING = 'sleeping'
 
-  /**
-   * Do not try to rollback.
-   */
-  static ABORT = 'abort'
+/**
+ * The step ran for more than the permitted amount of time.
+ */
+export const STEP_TIMEOUT = 'timeout'
+
+/**
+ * Error related to pipeline definition.
+ */
+export const STEP_INTERNAL_ERROR = 'internal-error'
 
   // static TERMINATED,
   // static ERROR,
   // static OFFLINE,
+
+export default class Step {
+
 
 
   constructor(definition) {
@@ -78,7 +90,7 @@ export default class Step {
         // const data = {
         //   error: `Exception`
         // }
-        // instance.finish(Step.INTERNAL_ERROR, note, data)
+        // instance.finish(STEP_INTERNAL_ERROR, note, data)
       }
     }, 0)
       // let reply = this.invoke(instance) // Provided by the step implementation
@@ -88,7 +100,7 @@ export default class Step {
 
     return {
       stepId: instance.getStepId(),
-      status: Step.WAITING,
+      status: STEP_SLEEPING,
     }
   }
 

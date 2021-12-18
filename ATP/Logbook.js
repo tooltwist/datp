@@ -16,8 +16,8 @@ const VERBOSE = false
 class Logbook {
   #transactionId
   // #pipelineId
-  #sequencePrefix
-  #sequence
+  // #sequencePrefix
+  #sequenceYARP
   #autoPersist
 
   constructor(options) {
@@ -40,16 +40,16 @@ class Logbook {
       // Remember the options
       this.#transactionId = options.transactionId
       // this.pipelineId = options.pipelineId
-      if (options.sequencePrefix) {
-        this.#sequencePrefix = options.sequencePrefix
+      if (options.sequenceYARP) {
+        this.#sequenceYARP = options.sequenceYARP
       } else {
-        this.#sequencePrefix = ''
+        this.#sequenceYARP = ''
       }
       if (options.autoPersist) {
         // Persist every log entry
         this.#autoPersist = true
       }
-      this.#sequence = 0
+      this.#sequenceYARP = 0
       if (options.description) {
         this.description = options.description
       }

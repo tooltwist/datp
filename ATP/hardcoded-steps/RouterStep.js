@@ -124,7 +124,7 @@ export class RouterStep extends Step {
     const parentInstance = instance
     const parentStepId = await parentInstance.getStepId()
     const txId = await parentInstance.getTransactionId()
-    const fullSequencePrefix = txId.substring(txId.length - 8)
+    const sequenceYARP = txId.substring(txId.length - 8)
     const definition = pipelineName
     const contextForCompletionHandler = {
       txId,
@@ -133,7 +133,7 @@ export class RouterStep extends Step {
     const childData = new TxData(data)
     const logbook = instance.getLogbook()
     const completionHandler = ChildPipelineCompletionHandler.CHILD_PIPELINE_COMPLETION_HANDLER_NAME
-    return await Scheduler.invokeStep(txId, parentInstance, fullSequencePrefix, definition, childData, logbook, completionHandler, contextForCompletionHandler)
+    return await Scheduler.invokeStep(txId, parentInstance, sequenceYARP, definition, childData, logbook, completionHandler, contextForCompletionHandler)
   }//- invoke
 }//- class
 

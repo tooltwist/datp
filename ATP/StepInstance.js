@@ -4,44 +4,60 @@
  * rights reserved. No warranty, explicit or implicit, provided. In no event shall
  * the author or owner be liable for any claim or damages.
  */
-import GenerateHash from "./GenerateHash"
 import Logbook from './Logbook'
 import StepTypes from './StepTypeRegister'
-import Step from './Step'
-import StepTypeRegister from './StepTypeRegister'
-import Scheduler from './Scheduler'
+import Step, { STEP_ABORTED, STEP_FAILED, STEP_INTERNAL_ERROR, STEP_RUNNING, STEP_SUCCESS } from './Step'
 import dbStep from "../database/dbStep";
 import dbPipelines from "../database/dbPipelines";
 import TxData from "./TxData";
 import dbArtifact from "../database/dbArtifact";
 import { STEP_TYPE_PIPELINE } from './StepTypeRegister'
+import Scheduler2, { DEFAULT_QUEUE } from "./Scheduler2/Scheduler2";
+import TransactionCache from "./Scheduler2/TransactionCache";
+import indentPrefix from '../lib/indentPrefix'
+import assert from 'assert'
 
+const VERBOSE = 0
 
 export default class StepInstance {
-  #transactionId
-  #parentId
+  #txId
+  #nodeId
+  #nodeGroup
   #stepId
-  #definition
-  #completionToken
+  // #parentNodeId
+  #parentStepId
+  #stepDefinition
   #logbook
   #txdata
   #metadata
   #logSequence
+  #fullSequenceYARP
+
+  #level
+  #indent
+
+  // What to do after the step completes {nodeId, completionToken}
+  #onComplete
 
   constructor() {
+    // console.log(`StepInstance.materialize()`, options)
+
+    this.#nodeGroup = null
+    this.#nodeId = null
     // Definition
-    this.#parentId = null
+    // this.#parentNodeId = null
+    this.#parentStepId = null
     this.#stepId = null
-    this.#definition = { stepType: null}
+    this.#stepDefinition = { stepType: null}
     // Transaction data
     this.#txdata = null
     // Private data for use within step
-    this.privateData = { }
+    // this.privateData = { }
     // Debug stuff
-    this.level = 0
-    this.fullSequence = ''
+    this.#level = 0
+    this.#fullSequenceYARP = ''
     // Step completion handling
-    this.#completionToken = null
+    this.#onComplete = null
     // Children
     // this.childStep = 0
 
@@ -59,9 +75,37 @@ export default class StepInstance {
   }
 
 
-  async materialize(options) {
+  async materialize(options, tx) {
     // console.log(``)
-    console.log(`-----------------------------------------------------------------------------------------------------`)
+console.log(`-----------------------------------------------------------------------------------------------------`)
+// console.log(`StepInstance.materialize options=`, options)
+    const txData = tx.txData()
+    // console.log(`txData=`, txData)
+    const stepData = tx.stepData(options.stepId)
+    // console.log(`stepData=`, stepData)
+
+
+
+    assert (typeof(options.txId) === 'string')
+    assert (typeof(options.nodeGroup) === 'string')
+    assert (typeof(options.nodeId) === 'string')
+    assert (typeof(options.stepId) === 'string')
+    // assert (typeof(options.parentNodeId) === 'string')
+    assert (typeof(stepData.parentStepId) === 'string')
+    assert (typeof(stepData.sequenceYARP) === 'string')
+    assert (typeof(stepData.stepDefinition) !== 'undefined')
+    assert (typeof(stepData.stepInput) === 'object')
+    assert (typeof(txData.metadata) === 'object')
+    assert (typeof(stepData.level) === 'number')
+
+    assert (typeof(options.onComplete) === 'object')
+    assert (typeof(options.onComplete.nodeGroup) === 'string')
+    assert (typeof(options.onComplete.completionToken) === 'string')
+
+    // const txData = tx.txData()
+    this.#parentStepId = stepData.parentStepId
+
+
     // console.log(``)
     // console.log(`StepInstance.materialize()`)
     // console.log(`options.data=`, options.data)
@@ -71,49 +115,52 @@ export default class StepInstance {
     // this.pipelineStack = [ ]
 
 
-    this.#transactionId = options.transactionId
-    this.#parentId = options.parentId
-    this.#stepId = GenerateHash('step')
-    //this.#definition set below
-    this.#txdata = new TxData(options.data)
-    this.#metadata = options.metadata
-    // this.privateData
-    // this.indentLevel
-    this.level = options.level
-    this.fullSequence = options.fullSequence
-    this.#completionToken = options.completionToken
+    this.#txId = options.txId
+    this.#nodeGroup = options.nodeGroup
+    this.#nodeId = options.nodeId
+    this.#stepId = options.stepId
+    // this.#parentNodeId = options.parentNodeId
+    this.#parentStepId = stepData.parentStepId
+    //this.#stepDefinition set below
+    this.#txdata = new TxData(stepData.stepInput)
+    this.#metadata = txData.metadata
+    this.#level = stepData.level
+    this.#fullSequenceYARP = stepData.sequenceYARP
+
+    this.#onComplete = options.onComplete
+    // this.#completionToken = options.completionToken
 
     // Log this step being materialized
-    this.#logbook = options.logbook
+    // this.#logbook = options.logbook
+    //ZZZZZ
+    this.#logbook = new Logbook.cls({
+      transactionId: this.#txId,
+      description: `Pipeline logbook`
+    })
     await this.log(Logbook.LEVEL_TRACE, `Start step ${this.#stepId}`)
 
 
-    // this.indentLevel = parentContext ? (parentContext.indentLevel + 1) : 1
-    this.indentStr()
-    // console.log(`StepInstance.constructor() 9`, this)
+    // Prepare an indent string to prepend to messages
+    this.#indent = indentPrefix(this.#level)
 
-    // Remember the current step
-    // this.sequence = 0
-
-    // this.parentStepId = parentStepId
 
     /*
      *  Load the definition of the step (which is probably a pipeline)
      */
     // console.log(`typeof(options.definition)=`, typeof(options.definition))
     let jsonDefinition
-    switch (typeof(options.definition)) {
+    switch (typeof(stepData.stepDefinition)) {
       case 'string':
-        // console.log(`Loading definition for ${options.definition}`)
-        // jsonDefinition = fs.readFileSync(`./pipeline-definitions/${options.definition}.json`)
-        const arr = options.definition.split(':')
+        // console.log(`Loading definition for ${options.stepDefinition}`)
+        // jsonDefinition = fs.readFileSync(`./pipeline-definitions/${options.stepDefinition}.json`)
+        const arr = stepData.stepDefinition.split(':')
         // console.log(`arr=`, arr)
         let pipelineName = arr[0]
         let version = (arr.length > 0) ? arr[1] : null
         const list = await dbPipelines.getPipelines(pipelineName, version)
         // console.log(`list=`, list)
         if (list.length < 1) {
-          throw new Error(`Unknown pipeline (${options.definition})`)
+          throw new Error(`Unknown pipeline (${stepData.stepDefinition})`)
         }
         const pipeline = list[list.length - 1]
         //ZZZZ Check that it is active
@@ -122,46 +169,61 @@ export default class StepInstance {
         const steps = JSON.parse(jsonDefinition)
         // console.log(`jsonDefinition=`, jsonDefinition)
 
-        this.#definition = {
+        this.#stepDefinition = {
           stepType: STEP_TYPE_PIPELINE,
           description,
           steps,
         }
-        // console.log(`this.#definition=`, this.#definition)
+        // console.log(`this.#stepDefinition=`, this.#stepDefinition)
         break
 
     case 'object':
       // console.log(`already have definition`)
-      this.#definition = options.definition
-      jsonDefinition = JSON.stringify(this.#definition, '', 2)
+      this.#stepDefinition = stepData.stepDefinition
+      jsonDefinition = JSON.stringify(this.#stepDefinition, '', 2)
       break
 
     default:
-      throw new Error(`Invalid value for parameter definition (${typeof(options.definition)})`)
+      throw new Error(`Invalid value for parameter stepDefinition (${typeof(stepData.stepDefinition)})`)
     }
-    // console.log(`this.#definition=`, this.#definition)
 
     // Instantiate the step object
-    const stepType = this.#definition.stepType
-    this.stepObject = await StepTypes.factory(stepType, this.#definition)
+    const stepType = this.#stepDefinition.stepType
+    this.stepObject = await StepTypes.factory(stepType, this.#stepDefinition)
     if (!(this.stepObject instanceof Step)) {
       throw Error(`Factory for ${stepType} did not return a step`)
     }
 
-    // Persist this step
-    await dbStep.startStep(this.#stepId, this.#definition.stepType, this.#transactionId, this.#parentId, this.fullSequence, jsonDefinition)
+    // console.log(`END OF MATRIALIZE, txdata IS ${this.#txdata.getJson()}`.magenta)
   }
 
+  getTxId() {
+    return this.#txId
+  }
+
+  // deprecate this
   getTransactionId() {
-    return this.#transactionId
+    return this.#txId
+  }
+
+  getNodeId() {
+    return this.#nodeId
   }
 
   getStepId() {
     return this.#stepId
   }
 
+  // getParentNodeId() {
+  //   return this.#parentNodeId
+  // }
+
+  // getParentStepId() {
+  //   return this.#parentStepId
+  // }
+
   getStepType() {
-    return this.#definition.stepType
+    return this.#stepDefinition.stepType
   }
 
   getStepObject() {
@@ -169,7 +231,7 @@ export default class StepInstance {
   }
 
   getLevel() {
-    return this.level
+    return this.#level
   }
 
   /**
@@ -194,7 +256,7 @@ export default class StepInstance {
   }
 
   getSequence() {
-    return this.fullSequence
+    return this.fullSequenceYARP
   }
 
   /**
@@ -222,56 +284,163 @@ export default class StepInstance {
    * Step return functions
    */
 
-  async finish(status, note, newTx) {
-    // console.log(`StepInstance.finish(${status}, ${note}, newTx):`, newTx)
-    // console.log(`StepInstance.finish(${status}, ${note}, newTx)`)
-    // console.log(`StepInstance.finish(${status}, ${note}, newTx):`, newTx)
-    if (!newTx) {
-      newTx = this.getDataAsObject()
-    }
-    const myTx = new TxData(newTx)
-    // console.log('YARP', myTx)
-    // console.log(`StepInstance.finish(${status}, ${note}). newTx:`, newTx)
-    const response = myTx.getJson()
-    await dbStep.saveExitStatus(this.#stepId, status, response)
+  // async finish(status, note, newTx) {
+  //   // console.log(`StepInstance.finish(${status}, ${note}, newTx):`, newTx)
+  //   // console.log(`StepInstance.finish(${status}, ${note}, newTx)`)
+  //   // console.log(`StepInstance.finish(${status}, ${note}, newTx):`, newTx)
+  //   if (!newTx) {
+  //     newTx = this.getDataAsObject()
+  //   }
+  //   const myTx = new TxData(newTx)
+  //   // console.log('YARP', myTx)
+  //   // console.log(`StepInstance.finish(${status}, ${note}). newTx:`, newTx)
+  //   const response = myTx.getJson()
+  //   await dbStep.saveExitStatus(this.#stepId, status, response)
 
-    // Return the promise
-    // console.log(`   -> stepId=${this.#stepId}, completionToken=${this.#completionToken}`)
-    return Scheduler.stepFinished(this.#stepId, this.#completionToken, status, note, myTx)
-  }
+  //   const tx = await TransactionCache.findTransaction(this.#txId)
 
-  async succeeded(note, newTx) {
-    let myTx
-    if (newTx === null || newTx === undefined) {
+  //   // Return the promise
+  //   // console.log(`   -> stepId=${this.#stepId}, completionToken=${this.#completionToken}`)
+  //   // return Scheduler.stepFinished(this.#stepId, this.#completionToken, status, note, myTx)
+
+  //   const queueToParentNodeRunningParent = Scheduler2.standardQueueName(parentNodeId, '')
+  //   await Scheduler2.enqueue_StepCompleted(queueToParentNodeRunningParent, {
+  //     txId,
+  //     stepId,
+  //     status,
+  //     stepOutput: { from: 'misc/ping3'}
+  //   })
+
+  // }
+
+  _sanitizedOutput(stepOutput) {
+    // Sanitize the output to an object (not TXData, not null)
+    let myStepOutput // TtxData
+    if (stepOutput === null || stepOutput === undefined) {
       // No output provided - use the input as the output
-      myTx = this.#txdata
-    } else {
-      // Use the provided output
-      myTx = new TxData(newTx)
+      stepOutput = this.#txdata
     }
-    const response = myTx.getJson()
-    // const response = JSON.stringify(newTx, '', 2)
-    const status = Step.COMPLETED
-    await dbStep.saveExitStatus(this.#stepId, status, response)
 
-    // Return the promise
-    // console.log(`   -> stepId=${this.stepId}, completionToken=${this.completionToken}`)
-    return Scheduler.stepFinished(this.#stepId, this.#completionToken, status, note, myTx)
+    if (stepOutput === null || stepOutput === undefined) {
+      myStepOutput = { }
+    } else if (stepOutput instanceof TxData) {
+      myStepOutput = stepOutput.getData()
+    } else if (typeof(stepOutput) === 'object') {
+      // Use the provided output
+      myStepOutput = stepOutput
+    } else {
+      throw new Error(`Invalid stepOutput parameter. Must be null, object or TXData`)
+    }
+    return myStepOutput
   }
 
-  async failed(note, newTx) {
-    if (newTx === null || newTx === undefined) {
-      newTx = { }
+  async succeeded(note, stepOutput) {
+    if (VERBOSE) console.log(`StepInstance.succeeded(note=${note}, ${typeof stepOutput})`, stepOutput)
+
+    const myStepOutput = this._sanitizedOutput(stepOutput)
+    console.log(`succeeded: step out is `.magenta, myStepOutput)
+
+
+    // Quick sanity check - make sure this step is actually running, and has not already exited.
+    // console.log(`yarp getting tx ${this.#txId}`)
+    const tx = await TransactionCache.findTransaction(this.#txId, false)
+    // console.log(`tx=`, tx)
+    const stepData = tx.stepData(this.#stepId)
+    if (stepData.status !== STEP_RUNNING) {
+      //ZZZ Write to the log
+      const description = `Step status is not ${STEP_RUNNING}. Has this step already exited? [${this.#stepId}]`
+      console.log(description)
+      throw new Error(description)
     }
-    const myTx = new TxData(newTx)
-    const response = myTx.getJson()
-    // const response = JSON.stringify(newTx, '', 2)
-    this.console(`Step exiting with fail status: ${note}`)
 
-    const status = Step.FAIL
-    await dbStep.saveExitStatus(this.#stepId, status, response)
+    // Persist the result and new status
+    tx.delta(this.#stepId, {
+      status: STEP_SUCCESS,
+      note,
+      stepOutput: myStepOutput
+    })
 
-    return Scheduler.stepFinished(this.#stepId, this.#completionToken, status, note, myTx)
+    // Tell the parent we've completed.
+    // console.log(`replying to `, this.#onComplete)
+    const queueName = Scheduler2.standardQueueName(this.#onComplete.nodeGroup, DEFAULT_QUEUE)
+    await Scheduler2.enqueue_StepCompleted(queueName, {
+      txId: this.#txId,
+      stepId: this.#stepId,
+      completionToken: this.#onComplete.completionToken,
+    })
+
+  }
+
+  async aborted(note, stepOutput) {
+    if (VERBOSE) console.log(`StepInstance.aborted(note=${note}, ${typeof stepOutput})`, stepOutput)
+
+    const myStepOutput = this._sanitizedOutput(stepOutput)
+    console.log(`failed: step out is `.magenta, myStepOutput)
+
+
+    // Quick sanity check - make sure this step is actually running, and has not already exited.
+    // console.log(`yarp getting tx ${this.#txId}`)
+    const tx = await TransactionCache.findTransaction(this.#txId, false)
+    // console.log(`tx=`, tx)
+    const stepData = tx.stepData(this.#stepId)
+    if (stepData.status !== STEP_RUNNING) {
+      //ZZZ Write to the log
+      const description = `Step status is not ${STEP_RUNNING}. Has this step already exited? [${this.#stepId}]`
+      console.log(description)
+      throw new Error(description)
+    }
+
+    // Persist the result and new status
+    tx.delta(this.#stepId, {
+      status: STEP_ABORTED,
+      note,
+      stepOutput: myStepOutput
+    })
+
+    // Tell the parent we've completed.
+    // console.log(`replying to `, this.#onComplete)
+    const queueName = Scheduler2.standardQueueName(this.#onComplete.nodeGroup, DEFAULT_QUEUE)
+    await Scheduler2.enqueue_StepCompleted(queueName, {
+      txId: this.#txId,
+      stepId: this.#stepId,
+      completionToken: this.#onComplete.completionToken,
+    })
+  }
+
+  async failed(note, stepOutput) {
+    if (VERBOSE) console.log(`StepInstance.failed(note=${note}, ${typeof stepOutput})`, stepOutput)
+
+    const myStepOutput = this._sanitizedOutput(stepOutput)
+    console.log(`failed: step out is `.magenta, myStepOutput)
+
+
+    // Quick sanity check - make sure this step is actually running, and has not already exited.
+    // console.log(`yarp getting tx ${this.#txId}`)
+    const tx = await TransactionCache.findTransaction(this.#txId, false)
+    // console.log(`tx=`, tx)
+    const stepData = tx.stepData(this.#stepId)
+    if (stepData.status !== STEP_RUNNING) {
+      //ZZZ Write to the log
+      const description = `Step status is not ${STEP_RUNNING}. Has this step already exited? [${this.#stepId}]`
+      console.log(description)
+      throw new Error(description)
+    }
+
+    // Persist the result and new status
+    tx.delta(this.#stepId, {
+      status: STEP_FAILED,
+      note,
+      stepOutput: myStepOutput
+    })
+
+    // Tell the parent we've completed.
+    // console.log(`replying to `, this.#onComplete)
+    const queueName = Scheduler2.standardQueueName(this.#onComplete.nodeGroup, DEFAULT_QUEUE)
+    await Scheduler2.enqueue_StepCompleted(queueName, {
+      txId: this.#txId,
+      stepId: this.#stepId,
+      completionToken: this.#onComplete.completionToken,
+    })
   }
 
   async badDefinition(msg) {
@@ -283,19 +452,19 @@ export default class StepInstance {
     // Write to the transaction / step
     this.console(msg)
     await this.log(Logbook.LEVEL_TRACE, `Step reported bad definition [${msg}]`)
-    await this.artifact('badStepDefinition', this.#definition)
+    await this.artifact('badStepDefinition', this.#stepDefinition)
 
     // Finish the step
-    const status = Step.INTERNAL_ERROR
+    const status = STEP_INTERNAL_ERROR
     const data = {
       error: `Internal error: bad pipeline definition. Please notify system administrator.`,
-      transactionId: this.#transactionId,
+      transactionId: this.#txId,
       stepId: this.#stepId
     }
     await dbStep.saveExitStatus(this.#stepId, status, data)
 
     const note = `Bad step definition: ${msg}`
-    return Scheduler.stepFinished(this.#stepId, this.#completionToken, status, note, new TxData(data))
+    return Scheduler.stepFinished(this.#stepId, this.#onComplete.completionToken, status, note, new TxData(data))
   }
 
   async exceptionInStep(e) {
@@ -318,48 +487,27 @@ export default class StepInstance {
     await this.artifact('exception', trace)
 
     // Finish the step
-    const status = Step.INTERNAL_ERROR
+    const status = STEP_INTERNAL_ERROR
     const data = {
       error: `Internal error: exception in step. Please notify system administrator.`,
-      transactionId: this.#transactionId,
+      transactionId: this.#txId,
       stepId: this.#stepId
     }
     await dbStep.saveExitStatus(this.#stepId, status, data)
 
     const note = `Exception in step`
-    return Scheduler.stepFinished(this.#stepId, this.#completionToken, status, note, new TxData(data))
+    return Scheduler.stepFinished(this.#stepId, this.#onComplete.completionToken, status, note, new TxData(data))
   }
 
-  // pushPipeline (pipelineStep) {
-  //   this.log(Logbook.LEVEL_TRACE, `Start pipeline ${pipelineStep.#stepId}`)
-
-  //   this.pipelineStack.push({
-  //     pipelineStep,
-  //     threadId: GenerateHash('thread-')
-  //   })
-  //   this.indentLevel++
-  //   this.indentStr()
-  // }
-
-  // currentPipeline () {
-  //   return this.pipelineStack[0]
-  // }
-
-  // popPipeline () {
-  //   this.log(Logbook.LEVEL_TRACE, `End pipeline`)
-  //   this.pipelineStack.pop()
-  //   this.indentLevel--
-  //   this.indentStr()
-  // }
 
   console(msg, p2) {
     if (!msg) {
       msg = ''
     }
     if (p2) {
-      console.log(`${this.indent} ${msg}`, p2)
+      console.log(`${this.#indent} ${msg}`, p2)
     } else {
-      console.log(`${this.indent} ${msg}`)
+      console.log(`${this.#indent} ${msg}`)
     }
   }
 
@@ -375,7 +523,7 @@ export default class StepInstance {
         break
 
       default:
-        console.log(this.indent, obj)
+        console.log(this.#indent, obj)
       }
   }
 
@@ -390,17 +538,6 @@ export default class StepInstance {
     return this.#logbook
   }
 
-  indentStr() {
-    let s = ''
-    // s += `${this.level}  `
-    for (let i = 0; i < this.level; i++) {
-      s += '    '
-    }
-    s += `${this.level}  `
-// console.log(`----------------------->${s}`)
-    this.indent = s
-  }
-
   // getChildStep() {
   //   return this.childStep
   // }
@@ -409,7 +546,7 @@ export default class StepInstance {
   //   this.childStep = index
   // }
 
-  // fullSequence() {
+  // fullSequenceYARP() {
   //   if (this.parentContext) {
   //     return `${this.parentContext.sequenceNo()}.${this.sequence}`
   //   }
@@ -419,9 +556,9 @@ export default class StepInstance {
   // Add into to toString() when debugging
   // See https://stackoverflow.com/questions/42886953/whats-the-recommended-way-to-customize-tostring-using-symbol-tostringtag-or-ov
   get [Symbol.toStringTag]() {
-    let s = `${this.#definition.stepType}, ${this.#stepId}`
-    if (this.#parentId) {
-      s += `, parent=${this.#parentId}`
+    let s = `${this.#stepDefinition.stepType}, ${this.#stepId}`
+    if (this.#parentStepId) {
+      s += `, parent=${this.#parentStepId}`
     } else {
       s += `, no parent`
     }

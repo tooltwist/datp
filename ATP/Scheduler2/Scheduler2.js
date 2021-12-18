@@ -1,86 +1,110 @@
-import { Queue } from './Queue'
-import { Event } from './Event'
+// import { Queue } from './Queue'
 import dbTransactionType from '../../database/dbTransactionType'
-import TxData from '../TxData'
-import TransactionCache from './TransactionCache'
-import TransactionIndexEntry from '../TransactionIndexEntry'//ZZZZ YARP2 replace this
-import StepWorker from './StepWorker'
-import { Job } from './Job'
-import CallbackRegister from './CallbackRegister'
 import GenerateHash from '../GenerateHash'
+import TransactionIndexEntry from '../TransactionIndexEntry'
+import TxData from '../TxData'
+import CallbackRegister from './CallbackRegister'
+import { getQueueConnection } from './queuing/Queue2'
+import { ROOT_STEP_COMPLETE_CALLBACK } from './rootStepCompleteCallback'
+import TransactionCache from './TransactionCache'
+import Worker2 from './Worker2'
+import assert from 'assert'
+import { STEP_QUEUED } from '../Step'
 
-export const TICK_INTERVAL = 10
+// Debug related
+const VERBOSE = 0
+require('colors')
 
 
-const ROOT_STEP_COMPLETE_CALLBACK = `rootStepComplete`
-CallbackRegister.register(ROOT_STEP_COMPLETE_CALLBACK, async (data) => {
-  // console.log(`*** Callback ${stepCallbackName}()`)
-  // console.log(`data=`, data)
+export const DEFAULT_QUEUE = ''
 
-  // Pass control back to the Transaction
-  await EVENT(TX_END, { txId: data.txId })
-
-  // const tx = await TransactionCache.findTransaction(data.getTxId(), true)
-  // console.log(`tx=`, tx.toString())
-  // const obj = tx.asObject()
-  // console.log(`obj=`, obj)
-
-  // // Call the transaction's callback
-  // await obj.callback(obj.callbackContext)
-})
-
-class Scheduler2 {
+export default class Scheduler2 {
   #debugLevel
 
   /*
    *  External code only interacts with the scheduler via events.
    */
-  #eventQueue // Queue<Event>
+  #nodeGroup // Group of this node
+  #fullQueueName // Name of the queue
 
-  /*
-   *  Jobs (Transaction / Steps)
-   */
-  #running  // Currently running transactions (txId -> Job)
-  #sleeping // Transactiions waiting for something (txId -> Job)
-  #waitingToRun // Ready to run (Queue of Job)
-
-  // /*
-  //  *  The transaction cache holds transaction details, but only for a while.
-  //  *  txId -> TransactionIndexEntry ZZZZ????
-  //  */
-  // #transactionCache
+  #myQueue
 
   // Worker threads
+  #requiredWorkers
   #workers
 
   // Timeout handler for each clock tick
-  #timeout
-  #tickCounter
-  #shutdown
+  // #timeout
+  // #tickCounter
+  #state
+
+  // Scheduler states
+  static STOPPED = 'stopped'
+  static RUNNING = 'running'
+  static SHUTTING_DOWN = 'shutting-down'
+
+  // Event types
+  static NULL_EVENT = 'no-op'
+  // static TRANSACTION_START_EVENT = 'tx-start'
+  // static TRANSACTION_PROGRESS_EVENT = 'tx-progress' //ZZZZZ Is this used ???
+  static TRANSACTION_COMPLETED_EVENT = 'tx-completed'
+  static STEP_START_EVENT = 'step-start'
+  static STEP_COMPLETED_EVENT = 'step-end'
+  static LONG_POLL = 'long-poll'
+
 
   /**
    * Remember the response object for if the user wants long polling.
    */
   #responsesForSynchronousReturn //ZZZZ Separate this out
 
-  constructor() {
+  constructor(groupName, queueName=null, options= { }) {
+    if (VERBOSE) console.log(`Scheduler2.constructor(${groupName}, ${queueName})`)
+
     this.#debugLevel = 0
-    this.#eventQueue = new Queue()
-    this.#running = [ ]
-    this.#sleeping = [ ]
-    this.#waitingToRun = new Queue()
-    // this.#transactionCache = [ ]
+
+    this.#nodeGroup = groupName
+    this.#fullQueueName = Scheduler2.standardQueueName(groupName, queueName)
+    this.#myQueue = null
 
     // Allocate some StepWorkers
+    this.#requiredWorkers = (options.numWorkers ? options.numWorkers : 1)
     this.#workers = [ ]
-    const numWorkers = 1
-    for (let i = 0; i < numWorkers; i++) {
-      this.#workers.push(new StepWorker(`${i}`))
-    }
 
-    this.#timeout = null
-    this.#tickCounter = 1
-    this.#shutdown = false
+    // this.#timeout = null
+    // this.#tickCounter = 1
+    this.#state = Scheduler2.STOPPED
+  }
+
+  async _checkConnectedToQueue() {
+    // console.log(`_checkConnectedToQueue`)
+    if (!this.#myQueue) {
+      if (VERBOSE) console.log(`Getting a new connection`)
+      // Get a connection to my queue
+      this.#myQueue = await getQueueConnection()
+    }
+    if (VERBOSE) console.log(`this.#myQueue=`, this.#myQueue)
+  }
+
+  async start() {
+    if (VERBOSE) console.log(`Scheduler2.start(${this.#fullQueueName})`)
+    await this._checkConnectedToQueue()
+
+    if (this.#state === Scheduler2.RUNNING) {
+      if (VERBOSE) console.log(`  - already running`)
+      return
+    }
+    this.#state = Scheduler2.RUNNING
+
+    // Allocate and start workers
+    if (VERBOSE) console.log(`Creating ${this.#requiredWorkers} workers`)
+    while (this.#workers.length < this.#requiredWorkers) {
+      const id = this.#workers.length
+      const worker = new Worker2(id, this.#nodeGroup, this.#fullQueueName)
+      this.#workers.push(worker)
+      await worker.start()
+    }
+    // console.log(`  - created ${this.#workers.length} workers`)
   }
 
   /**
@@ -91,433 +115,505 @@ class Scheduler2 {
     this.#debugLevel = level
   }
 
+
   /**
+   *
+   * @param {TxData} input
+   * @returns
+   */
+   static async startTransaction(input) {
+    assert (typeof(input.metadata) === 'object')
+    assert (typeof(input.metadata.owner) === 'string')
+    assert (typeof(input.metadata.nodeId) === 'string')
+    assert (typeof(input.metadata.externalId) === 'string')
+    assert (typeof(input.metadata.transactionType) === 'string')
+    assert (typeof(input.metadata.callback) === 'string')
+    assert (typeof(input.metadata.callbackContext) === 'object')
+    assert (typeof(input.data) === 'object')
+
+
+
+    try {
+      const metadata = input.metadata
+      const trace = (typeof(metadata.traceLevel) === 'number') && (metadata.traceLevel > 0)
+      if (VERBOSE||trace) console.log(`*** Scheduler2.startTransaction()`.bgYellow.black, input)
+      if (VERBOSE||trace) console.log(`*** Scheduler2.startTransaction() - transaction type is ${input.metadata.transactionType}`.bgYellow.black, input)
+
+      // Sanitize the input data by convering it to JSON and back
+      const initialData = JSON.parse(JSON.stringify(input.data))
+
+      /*
+      *  Two transaction types are provided for testing.
+      */
+      if (metadata.transactionType === 'ping1') {
+        const description = 'ping1 - Scheduler2.startTransaction() immediately invoked the callback, without processing'
+        if (VERBOSE||trace) {console.log(description.bgBlue.white)}
+        const fakeTransactionOutput = {
+          status: 'pinged',
+          transactionOutput: { foo: 'bar', description }
+        }
+        await CallbackRegister.call(metadata.callback, metadata.callbackContext, fakeTransactionOutput)
+        return
+      }
+
+      if (metadata.transactionType === 'ping2') {
+        // Bounce back via a normal TRANSACTION_COMPLETE_EVENT
+        const description = 'ping2 - Scheduler.startTransaction() returning without processing step'
+        if (VERBOSE||trace) console.log(description.bgBlue.white)
+
+        // Create a new transaction
+        const tx = await TransactionCache.newTransaction(metadata.owner, metadata.externalId)
+        // console.log(`tx=`, tx)
+        tx.delta(null, {
+          onComplete: {
+            callback: metadata.callback,
+            context: metadata.callbackContext
+          },
+          status: 'pinged',
+          transactionOutput: { whoopee: 'doo', description }
+        })
+        // console.log(`tx=`, (await tx).toString())
+        const txId = tx.getTxId()
+        const queueName = Scheduler2.standardQueueName(input.metadata.nodeId, DEFAULT_QUEUE)
+        Scheduler2.enqueue_TransactionCompleted(queueName, {
+          txId,
+        })
+        return
+      }
+
+      // Create a version of the metadata that can be passed to steps
+      const metadataCopy = JSON.parse(JSON.stringify(metadata))
+      // console.log(`metadataCopy 1=`, metadataCopy)
+      delete metadataCopy['transactionType']
+      delete metadataCopy['owner']
+      delete metadataCopy['externalId']
+      delete metadataCopy['nodeId']
+      delete metadataCopy['callback']
+      delete metadataCopy['callbackContext']
+      // console.log(`metadataCopy 2=`, metadataCopy)
+
+      // Which pipeline should we use?
+      if (VERBOSE||trace) console.log(`Scheduler2.startTransaction() - looking for pipeline for transactionType '${metadata.transactionType}'.`)
+      const pipelineDetails = await dbTransactionType.getPipeline(metadata.transactionType)
+      // console.log(`initiateTransaction() - pipelineDetails:`, pipelineDetails)
+      if (VERBOSE||trace) console.log(`Scheduler2.startTransaction() - pipelineDetails:`, pipelineDetails)
+      if (!pipelineDetails) {
+        throw new Error(`Unknown transaction type ${metadata.transactionType}`)
+      }
+
+      const pipelineName = pipelineDetails.pipelineName
+      if (VERBOSE||trace) console.log(`Scheduler2.startTransaction() - pipelineName:`.bgYellow.black, input, pipelineName)
+      // console.log(`pipelineName=`, pipelineName)
+      //ZZZZ How about the version?  Should we use name:version ?
+
+
+      // Persist the transaction details
+      const tx = await TransactionCache.newTransaction(metadata.owner, metadata.externalId)
+      tx.delta(null, {
+        transactionType: metadata.transactionType,
+        nodeId: metadata.nodeId,
+        pipelineName,
+        status: TransactionIndexEntry.RUNNING,//ZZZZ
+        metadata: metadataCopy,
+        transactionInput: initialData,
+        onComplete: {
+          callback: metadata.callback,
+          context: metadata.callbackContext,
+        }
+      })
+      // console.log(`txData=`, tx.txData())
+
+
+      // console.log(`tx=`, tx.toString())
+
+      // tx.persist() //YARP2
+
+      // Remember the transaction
+      // const transactionIndexEntry = new TransactionIndexEntry(txId, transactionType, status, initiatedBy, initialTxData)
+      // const txId = await transactionIndexEntry.getTxId()
+
+      // Persist the transaction
+      // const inquiryToken = await dbTransactionInstance.persist(transactionIndexEntry, pipelineName)
+      // console.log(`inquiryToken=`, inquiryToken)//YARP2
+      // this.#transactionIndex[txId] = transactionIndexEntry
+
+
+      // Create a logbook for this transaction/pipeline
+      // const logbook = new Logbook.cls({
+      //   txId: txId,
+      //   description: `Pipeline logbook`
+      // })
+
+      // Generate a new ID for this step
+      const txId = tx.getTxId()
+      const stepId = GenerateHash('s')
+
+      // Get the name of the queue to the node where this pipeline will run
+      const nodeGroupWherePipelineRuns = metadata.nodeId
+      const queueToPipelineNode = Scheduler2.standardQueueName(nodeGroupWherePipelineRuns, DEFAULT_QUEUE)
+
+      // console.log(`metadataCopy=`, metadataCopy)
+      // console.log(`data=`, data)
+      if (VERBOSE||trace) console.log(`Scheduler2.startTransaction() - adding to queue ${queueToPipelineNode}`)
+      await Scheduler2.enqueue_StepStart(queueToPipelineNode, {
+        txId,
+        stepId,
+        parentNodeId: metadata.nodeId,
+        parentStepId: '',
+        sequenceYARP: txId.substring(txId.length - 8),
+        stepDefinition: pipelineName,
+        metadata: metadataCopy,
+        data: initialData,
+        level: 0,
+
+        onComplete: {
+          callback: ROOT_STEP_COMPLETE_CALLBACK,
+          context: { txId, stepId },
+          nodeGroup: metadata.nodeId,
+        }
+      })
+
+      return tx
+    } catch (e) {
+      console.log(`DATP internal error in startTransaction()`, e)
+    }
+  }//- TRANSACTION_START
+
+
+
+
+  /**
+   * How replying works
+   * ------------------
+   * In this function we persist these fields to the step:
+   *    callback          // A callback name, registered with CallbackRegister.js
+   *    callbackContext   // Everything the callback needs to work
+   *    completionToken   // A random generated hash
+   *
+   * To the child we send:
+   *    callbackNodeGroup  // Where to send the completion event
+   *    txId
+   *    stepId
+   *    completionToken
+   *    -- other info --
+   *
+   * Using these details the child step can send a completion event back to the
+   * node group that called it, containing it's stepId and the completionToken.
+   * The worker that handles the event looks up the persisted step details and
+   * then (1) checks the completionToken matches (to prevent hack events) and
+   * then (2) calls the callback function with the callbackContext and the
+   * child details.
+   *
+   * The callback function should then have all the information it needs to do
+   * whatever it needs to do. In the case of a pipeline it may run another step
+   * or return. If this is the root pipeline, the rootStepCompletionHandler will
+   * complete the transaction.
    *
    * @param {string} eventType
    * @param {object} data
    */
-  async event(eventType, data) {
-    if (this.#debugLevel > 1) {
-      console.log(`\nQUEUE EVENT(${eventType})`, data)
-    } else if (this.#debugLevel > 0) {
-      console.log(`\nQUEUE EVENT(${eventType})`)
+  static async enqueue_StepStart(queueName, data) {
+    if (VERBOSE) {
+      console.log(`\n<<< enqueueStepStart EVENT(${queueName})`.green, data)
+      console.log(new Error(`TRACE ONLY 1`).stack.magenta)
+
     }
 
+    assert(typeof(queueName) === 'string')
     let obj
     if (data instanceof TxData) {
       obj = data.getData()
     } else if (typeof(data) === 'object') {
       obj = data
     } else {
-      throw new Error('Scheduler2.event() - data parameter must be TxData or object')
+      throw new Error('enqueueStepStart() - data parameter must be TxData or object')
     }
 
-    // Validate the event data before adding the event to the queue.
-    switch (eventType) {
-      case TX_START:
-        if (typeof(obj.metadata) !== 'object') throw new Error(`TX_START requires data.metadata`)
-        if (typeof(obj.metadata.owner) !== 'string') { throw new Error(`Invalid metadata.owner`) }
-        if (typeof(obj.metadata.nodeId) !== 'string') { throw new Error(`Invalid metadata.nodeId`) }
-        if (typeof(obj.metadata.externalId) !== 'string') { throw new Error(`Invalid metadata.externalId`) }
-        if (typeof(obj.metadata.transactionType) !== 'string') { throw new Error(`Invalid metadata.transactionType`) }
-        if (typeof(obj.metadata.callback) !== 'string') { throw new Error(`Invalid metadata.callback`) }
-        if (typeof(obj.metadata.callbackContext) !== 'object') { throw new Error(`Invalid metadata.callbackContext`) }
-        if (typeof(obj.data) !== 'object') throw new Error(`TX_START requires data.data`)
-        break
+    // Verify the event data
+    assert (typeof(obj.txId) === 'string')
+    assert (typeof(obj.stepId) === 'string')
 
-      case TX_END:
-        if (typeof(obj.txId) !== 'string') { throw new Error(`Invalid txId`) }
-        // if (typeof(obj.callback) !== 'string') { throw new Error(`Invalid callback`) }
-        // if (typeof(obj.callbackContext) !== 'object') { throw new Error(`Invalid callbackContext`) }
-        break
+    assert (typeof(obj.sequenceYARP) === 'string')
+    assert (typeof(obj.stepDefinition) !== 'undefined')
+    assert (typeof(obj.data) === 'object')
+    assert (typeof(obj.metadata) === 'object')
+    assert (typeof(obj.level) === 'number')
 
-      case STEP_START:
-        if (typeof(obj.txId) !== 'string') throw new Error(`STEP_START requires data.txId`)
-        if (typeof(obj.stepId) !== 'string') throw new Error(`STEP_START requires data.stepId`)
-        if (typeof(obj.parentStepId) !== 'string') throw new Error(`STEP_START requires data.parentStepId`)
-        if (typeof(obj.fullSequencePrefix) !== 'string') throw new Error(`STEP_START requires data.fullSequencePrefix`)
-        if (typeof(obj.definition) !== 'string') throw new Error(`STEP_START requires data.definition`)
-        if (typeof(obj.callback) !== 'string') throw new Error(`STEP_START requires data.callback`)
-        if (typeof(obj.callbackContext) !== 'object') throw new Error(`STEP_START requires data.callbackContext`)
-        break
+    // How to reply when complete
+    assert (typeof(obj.onComplete) === 'object')
+    assert (typeof(obj.onComplete.nodeGroup) === 'string')
+    assert (typeof(obj.onComplete.callback) === 'string')
+    assert (typeof(obj.onComplete.context) === 'object')
 
-      case STEP_END:
-        if (typeof(obj.txId) !== 'string') throw new Error(`STEP_END requires data.txId`)
-        if (typeof(obj.stepId) !== 'string') throw new Error(`STEP_END requires data.stepId`)
-        break
-    }
+    // Add a completionToken to the event, so we can check that the return EVENT is legitimate
+    obj.onComplete.completionToken = GenerateHash('ctok')
+
+    // Remember the callback details, and do not pass to the step
+    const tx = await TransactionCache.findTransaction(obj.txId, false)
+    // console.log(`tx=`, tx)
+    tx.delta(null, {
+      nextStepId: obj.stepId, //ZZZZZ Choose a better field name
+    })
+    tx.delta(obj.stepId, {
+      // Used on return from the step.
+      onComplete: {
+        nodeGroup: obj.onComplete.nodeGroup,
+        callback: obj.onComplete.callback,
+        context: obj.onComplete.context,
+        completionToken: obj.onComplete.completionToken,
+      },
+
+      // Other information about the step
+      parentStepId: obj.parentStepId, // Is this needed?
+      sequenceYARP: obj.sequenceYARP,
+      stepDefinition: obj.stepDefinition,
+      stepInput: obj.data,
+      level: obj.level,
+      status: STEP_QUEUED
+    })
+    // delete obj.onComplete.callback
+    // delete obj.onComplete.context
+    // delete obj.metadata
+    // delete obj.data
 
     // Add to the event queue
-    const event = new Event(eventType, obj)
-    this.#eventQueue.enqueue(event)
+    const queue = await getQueueConnection()
+    // obj.eventType = Scheduler2.STEP_START_EVENT
+    // console.log(`Adding ${obj.eventType} event to queue ${queueName}`.brightGreen)
+    await queue.enqueue(queueName, {
+      // Just what we need
+      eventType: this.STEP_START_EVENT,
+      txId: obj.txId,
+      stepId: obj.stepId,
+      onComplete: obj.onComplete,
+      // completionToken: obj.onComplete.completionToken
+
+    })
+  }//- enqueueStepStart
+
+
+  /**
+   *
+   * @param {string} queueName
+   * @param {object} event
+   */
+   static async enqueue_StepCompleted(queueName, event) {
+    if (VERBOSE) {
+      console.log(`\n<<< enqueue_StepCompleted(${queueName})`.green, event)
+    }
+    // Validate the event data
+    assert(typeof(queueName) == 'string')
+    assert(typeof(event) == 'object')
+    assert (typeof(event.txId) === 'string')
+    // assert (typeof(event.parentStepId) === 'string')
+    assert (typeof(event.stepId) === 'string')
+    assert (typeof(event.completionToken) === 'string')
+
+    // DO NOT try to reply stuff
+    assert (typeof(event.status) === 'undefined')
+    assert (typeof(event.stepOutput) === 'undefined')
+
+    // Add the event to the queue
+    event.eventType = Scheduler2.STEP_COMPLETED_EVENT
+    // console.log(`Adding ${event.eventType} event to queue ${queueName}`.brightGreen)
+    const queue = await getQueueConnection()
+    await queue.enqueue(queueName, event)
+  }//- enqueue_StepCompleted
+
+
+  /**
+   *
+   * @param {string} queueName
+   * @param {object} event
+   */
+  static async enqueue_TransactionCompleted(queueName, event) {
+    if (VERBOSE) {
+      console.log(`\n<<< enqueue_TransactionCompleted(${queueName})`.green, event)
+    }
+
+    if (!queueName) {
+      throw new Error(`enqueue_TransactionCompleted() requires queueName parameter`)
+    }
+    // Validate the event data
+    assert(typeof(queueName) == 'string')
+    assert(typeof(event) == 'object')
+    assert (typeof(event.txId) === 'string')
+    assert (typeof(event.transactionOutput) === 'undefined')
+    // assert (typeof(event.transactionOutput) === 'object')
+    // if (typeof(event.callback) !== 'string') { throw new Error(`Invalid callback`) }
+    // if (typeof(event.callbackContext) !== 'object') { throw new Error(`Invalid callbackContext`) }
+
+    // Add to the event queue
+    event.eventType = Scheduler2.TRANSACTION_COMPLETED_EVENT
+    // console.log(`Adding ${event.eventType} event to queue ${queueName}`.brightGreen)
+    const queue = await getQueueConnection()
+    await queue.enqueue(queueName, event)
+  }//- enqueue_TransactionCompleted
+
+
+  /**
+   *
+   * @param {string} eventType
+   * @param {object} data
+   */
+  static async enqueue_NoOperation(queueName) {
+    if (VERBOSE) {
+      console.log(`\n<<< enqueue_NoOperation(${queueName})`.green)
+    }
+
+    assert(typeof(queueName) === 'string')
+
+    // Add to the event queue
+    const event = { eventType: Scheduler2.NULL_EVENT }
+    // console.log(`Adding ${event.eventType} event to queue ${queueName}`.brightGreen)
+    const queue = await getQueueConnection()
+    await queue.enqueue(queueName, event)
+  }//- enqueue_NoOperation
+
+
+
+
+
+
+
+
+  async queueLength() {
+    await this._checkConnectedToQueue()
+    return await this.#myQueue.queueLength(this.#fullQueueName)
+  }
+
+  async drainQueue() {
+    await this._checkConnectedToQueue()
+    return await this.#myQueue.drainQueue(this.#fullQueueName)
   }
 
   /**
    *
-   * @returns
+   * @param {String} nodeGroup
+   * @param {String} queue
+   * @returns The standard queue for a DATP node
    */
-  async tick() {
-    if (this.#debugLevel > 0) {
-      console.log(``)
-      console.log(``)
-      console.log(`tick ${this.#tickCounter++}`)
+  static standardQueueName(nodeGroup, queue=null) {
+    if (!nodeGroup) {
+      throw new Error(`standardQueueName(): invalid nodeGroup [${nodeGroup}]`)
     }
-
-    // Prevent double-running
-    if (this.#timeout) {
-      clearTimeout(this.#timeout)
-      this.#timeout = null
+    let name = `${nodeGroup}`
+    if (queue) {
+      name += `:${queue}`
     }
-    if (this.#shutdown) {
-      console.log(`Scheduler2.tick() - scheduler already shut down`)
-      return
-    }
-
-    // Now run a scheduler "clock tick"
-    try {
-      // Read events and update our queues and transaction register
-      for ( ; ; ) {
-        const event = this.#eventQueue.dequeue()
-        if (!event) {
-          break
-        }
-        const type = event.getType()
-        switch (type) {
-          case TX_START:
-            if (this.#debugLevel > 0) {
-              console.log(`*** PROCESS EVENT: TX_START - create a step event`)
-            }
-            await this.tx_start_event(event.getData())
-            break
-
-          case TX_END:
-            if (this.#debugLevel > 0) {
-              console.log(`*** PROCESS EVENT: TX_END - use the transaction's callback`)
-            }
-            await this.tx_end_event(event.getData())
-            break
-
-          case STEP_START:
-            if (this.#debugLevel > 0) {
-              console.log(`*** PROCESS EVENT: STEP_START - add to ready to run queue`)
-            }
-            await this.step_start_event(event.getData())
-            break
-
-          case STEP_END:
-            if (this.#debugLevel > 0) {
-              console.log(`*** PROCESS EVENT: STEP_END - call the step's callback`)
-            }
-            await this.step_end_event(event.getData())
-            break
-
-          // case
-          default:
-            throw new Error(`Unknown event type ${type}`)
-        }
-        break
-      }
-    } catch (e) {
-      console.log(`Scheduler2: Fatal error processing event queue`, e)
-    }
-
-    // Look for waiting steps now ready to run - add them to the run queue
-
-    // Delete old items in the transaction cache
-
-    // Feed the workers
-    try {
-      for (let i = 0; i < this.#workers.length; i++) {
-        const worker = this.#workers[i]
-        if (!worker.inUse()) {
-          switch (worker.getType()) {
-            case 'step-worker':
-              const job = this.#waitingToRun.dequeue()
-              if (job) {
-                console.log(`*** ALLOCATE JOB TO STEP WORKER`)
-                worker.processJob(job)
-              }
-              break
-
-            default:
-              throw new Error(`Unknown worker type [${worker.getType()}`)
-          }
-        }
-      }
-    } catch (e) {
-      console.log(`Scheduler2: Fatal error feeding workers`, e)
-    }
-
-    // Show debug stuff
-    // await this.dump()
-    // console.log(``)
-    // console.log(``)
-
-    // Wait a while, then check again
-    // console.log(`Wait before next tick`)
-    if (!this.#shutdown) {
-      this.#timeout = setTimeout(() => {
-        this.#timeout = null
-        this.tick()
-      }, TICK_INTERVAL)
-    }
-
-  }//- tick()
-
+    // console.log(`list=`, list)
+    return name
+  }
 
   /**
    * Stop the scheduler from processing ticks.
    */
-  async shutdown() {
+  async stop() {
     if (this.#debugLevel > 0) {
       console.log(`Scheduler2.shutdown()`)
     }
-    this.#shutdown = true
-    if (this.#shutdown) {
-      clearTimeout(this.#shutdown)
-      this.#shutdown = null
+    this.#state = Scheduler2.STOPPED
+
+    // Set all the workers to "shutting down" mode.
+    // When they finish their next event they'll stop looking at the queue.
+    for (const worker of this.#workers) {
+      await worker.stop()
+    }
+
+    // There is a problem, in that the workers won't have noticed they have been
+    // stopped yet, because they will be blocking on a read of the event queue. They
+    // will need to read (and process) an event before they can go to standby mode
+    // again, and this won't happen if there are no events in the queue.
+    // To help them clear out we'll send a bunch of null events down the queue.
+    for (const worker of this.#workers) {
+      // console.log(`Sending null event`)
+      await Scheduler2.enqueue_NoOperation(this.#fullQueueName)
     }
   }
 
-  /**
-   *
-   * @param {TxData} input
-   * @returns
-   */
-  async tx_start_event(input) {
-    if (this.#debugLevel > 1) {
-      console.log(`*** tx_start_event()`, input)
-    }
-    const metadata = input.metadata
-    const data = input.data
-    const initialTxData = new TxData(data)
-
-    /*
-     *  Two transaction types are provided for testing.
-     */
-    if (metadata.transactionType === 'ping1') {
-      // console.log(`Scheduler - TX_START for ping1`)
-      await CallbackRegister.call(metadata.callback, metadata.callbackContext)
-      return
+  async destroy() {
+    if (this.#debugLevel > 0) {
+      console.log(`Scheduler2.destroy(${this.#fullQueueName})`)
     }
 
-    if (metadata.transactionType === 'ping2') {
-      // console.log(`Scheduler - TX_START for ping2`)
+    // Ask all the workers to disconnect from queues
+    for (const worker of this.#workers) {
+      await worker.destroy()
+    }
+    this.#workers = [ ] // Free them up
 
-      // Create a new transaction
-      // metadata.pipeline = '---' // Never gets used
-      const tx = await TransactionCache.newTransaction(metadata.owner, metadata.externalId)
-      // console.log(`tx=`, tx)
-      tx.delta(null, {
-        callback: metadata.callback,
-        callbackContext: metadata.callbackContext,
-      })
-      // console.log(`tx=`, (await tx).toString())
-      this.event(TX_END, { txId: tx.getTxId() })
-      return
+    if (this.#myQueue) {
+      this.#myQueue.close()
     }
 
-    // Create a version of the metadata that can be passed to steps
-    const metadataCopy = JSON.parse(JSON.stringify(metadata))
-    // console.log(`metadataCopy 1=`, metadataCopy)
-    delete metadataCopy['transactionType']
-    delete metadataCopy['owner']
-    delete metadataCopy['externalId']
-    delete metadataCopy['nodeId']
-    delete metadataCopy['callback']
-    delete metadataCopy['callbackContext']
-    // console.log(`metadataCopy 2=`, metadataCopy)
-
-    // Which pipeline should we use?
-    const pipelineDetails = await dbTransactionType.getPipeline(metadata.transactionType)
-    // console.log(`initiateTransaction() - pipelineDetails:`, pipelineDetails)
-    if (!pipelineDetails) {
-      throw new Error(`Unknown transaction type ${transactionType}`)
-    }
-
-    const pipelineName = pipelineDetails.pipelineName
-    // console.log(`pipelineName=`, pipelineName)
-    //ZZZZ How about the version?  Should we use name:version ?
-
-
-
-    const tx = await TransactionCache.newTransaction(metadata.owner, metadata.externalId)
-    tx.delta(null, {
-      transactionType: metadata.transactionType,
-      nodeId: metadata.nodeId,
-      pipelineName,
-      status: TransactionIndexEntry.RUNNING,//ZZZZ
-      callback: metadata.callback,
-      callbackContext: metadata.callbackContext,
-      metadata: metadataCopy,
-      data: initialTxData,
-    })
-    // console.log(`tx=`, (await tx).toString())
-
-
-    // console.log(`tx=`, tx.toString())
-
-    // tx.persist() //YARP2
-
-    // Remember the transaction
-    // const transactionIndexEntry = new TransactionIndexEntry(txId, transactionType, status, initiatedBy, initialTxData)
-    // const txId = await transactionIndexEntry.getTxId()
-
-    // Persist the transaction
-    // const inquiryToken = await dbTransactionInstance.persist(transactionIndexEntry, pipelineName)
-    // console.log(`inquiryToken=`, inquiryToken)//YARP2
-    // this.#transactionIndex[txId] = transactionIndexEntry
-
-
-    // Create a logbook for this transaction/pipeline
-    // const logbook = new Logbook.cls({
-    //   txId: txId,
-    //   description: `Pipeline logbook`
-    // })
-    const txId = tx.getTxId()
-    const stepId = GenerateHash('s')
-
-    await EVENT(STEP_START, {
-      txId,
-      stepId,
-      parentStepId: '',
-      fullSequencePrefix: txId.substring(txId.length - 8),
-      definition: pipelineName,
-      callback: ROOT_STEP_COMPLETE_CALLBACK,
-      callbackContext: { txId, stepId }
-    })
-  }
-
-
-  /**
-   *
-   * @param {TxData} input
-   * @returns
-   */
-   async tx_end_event(input) {
-    if (this.#debugLevel > 1) {
-      console.log(`*** tx_end_event()`, input)
-    }
-    const tx = await TransactionCache.findTransaction(input.txId, true)
-    const transactionData = tx.transactionData()
-    await CallbackRegister.call(transactionData.callback, transactionData.callbackContext)
-    return
-  }
-
-
-  /**
-   *
-   * @param {TxData} input
-   */
-  async step_start_event(input) {
-    if (this.#debugLevel > 1) {
-      console.log(`*** step_start_event()`, input)
-    }
-
-    const txId = input.txId
-    // console.log(`txId=`, txId)
-    const stepId = input.stepId
-    const parentStepId = input.parentStepId
-    const fullSequencePrefix = input.fullSequencePrefix
-    const definition = input.definition
-    // console.log(`definition=`, definition)
-    const callback = input.callback
-    const callbackContext = input.callbackContext
-
-    const tx = await TransactionCache.findTransaction(txId, true)
-    await tx.delta(stepId, {
-      parentStepId,
-      fullSequencePrefix,
-      definition,
-      callback,
-      callbackContext,
-    })
-
-    // Start the step
-    if (definition === 'misc/ping3') {
-      // console.log(`Step definition is misc/ping3 - return without calling a step`)
-      await EVENT(STEP_END, { txId, stepId })
-      return
-    }
-
-    //ZZZZZZ
-    console.log(`DO NOT KNOW HOW TO START A STEP YET`)
-    // // console.log(`tx=`, tx)
-
-
-    // // Add a Job to the ready queue
-
-    // const job = new Job(input)
-    // this.#waitingToRun.enqueue(job)
-  }
-
-  async step_end_event(input) {
-    if (this.#debugLevel > 1) {
-      console.log(`*** step_end_event()`, input)
-    }
-
-    const txId = input.txId
-    const stepId = input.stepId
-    const tx = await TransactionCache.findTransaction(txId, true)
-    // const obj = tx.asObject()
-    // console.log(`obj=`, obj)
-
-    // const step = obj.steps[stepId]
-    // console.log(`step=`, step)
-    const stepData = tx.stepData(stepId)
-
-    // Call the callback
-    await CallbackRegister.call(stepData.callback, stepData.callbackContext)
+    // Make this scheduler unusable
+    this.#state = Scheduler2.DESTROYED
   }
 
   async getStatus() {
-    return {
-      // bull: 'frog',
-      events: this.#eventQueue.size(),
-      waiting: this.#waitingToRun.size(),
+    // console.log(`Scheduler2.getStatus()`)
+    await this._checkConnectedToQueue()
+
+    const obj = {
+      events: {
+        waiting: await this.#myQueue.queueLength(this.#fullQueueName),
+        processing: 0
+      },
+      workers: {
+        total: this.#workers.length,
+        running: 0,
+        waiting: 0,
+        shuttingDown: 0,
+        standby: 0
+      }
     }
+
+    // Check the status of the workers
+    for (const worker of this.#workers) {
+      // console.log(`yah yarp 2`, worker)
+      switch (await worker.getState()) {
+        case Worker2.INUSE:
+          obj.workers.running++
+          obj.events.processing++
+          break
+
+        case Worker2.WAITING:
+          obj.workers.waiting++
+          break
+
+        case Worker2.SHUTDOWN:
+          obj.workers.shuttingDown++
+          break
+
+        case Worker2.STANDBY:
+          obj.workers.standby++
+          break
+      }
+    }
+    // console.log(`yah yarp 2`, obj)
+    return obj
   }
 
   async dump() {
+    await this._checkConnectedToQueue()
     // console.log(``)
     // console.log(``)
-    // console.log(``)
-    console.log(`---------`)
+    console.log(``)
+    console.log(`DUMP (${this.#fullQueueName}):`)
     // console.log(`SCHEDULER`)
     // console.log(`---------`)
-    console.log(`${this.#eventQueue.size()} incoming events:`)
-    for (const event of this.#eventQueue.items()) {
-      console.log(`    - ${event.getType()}`)
-    }
-    console.log(`${this.#waitingToRun.size()} steps waiting to run:`)
-    for (const job of this.#waitingToRun.items()) {
-      console.log(`    - ${job.getInput()}`)
-    }
-    console.log(`Workers:`)
+    console.log(`  - ${await this.#myQueue.queueLength(this.#fullQueueName)} waiting events.`)
+
+    // console.log(`${this.#waitingToRun.size()} steps waiting to run:`)
+    // for (const job of this.#waitingToRun.items()) {
+    //   console.log(`    - ${job.getInput()}`)
+    // }
+    console.log(`  - ${this.#workers.length} workers:`)
     for (let i = 0; i < this.#workers.length; i++) {
       let worker = this.#workers[i]
-      console.log(`    worker #${worker.getId()}: ${worker.inUse() ? 'BUSY' : 'waiting'}`)
+      console.log(`    worker #${worker.getId()}: ${worker.getState()}`)
     }
     // console.log(`Transaction cache:`)
-    TransactionCache.dump()
+    // TransactionCache.dump()
   }
-}
-
-
-const scheduler = new Scheduler2()
-export default scheduler
-
-export const TX_START = 'tx-start'
-export const TX_PROGRESS = 'tx-progress'
-export const TX_END = 'tx-end'
-export const STEP_START = 'step-start'
-export const STEP_END = 'step-end'
-export const LONG_POLL = 'long-poll'
-
-
-export const EVENT = (eventType, data) => scheduler.event(eventType, data)
-
-// Only while debugging
-export const TICK = () => scheduler.tick()
-export const DUMP = () => scheduler.dump()
-export const SHUTDOWN = () => scheduler.shutdown()
+}//- Scheduler2

@@ -1,4 +1,4 @@
-import { EVENT, STEP_END } from "./Scheduler2"
+//import { EVENT, STEP_COMPLETED_EVENT } from "./Scheduler2"
 import Worker from "./Worker"
 
 
@@ -38,8 +38,8 @@ export default class StepWorker extends Worker {
 
       // console.log(``)
       assert(typeof(txId) === 'string')
-      // console.log(`typeof(sequence)=`, typeof(sequence))
-      assert(typeof(sequence) === 'string')
+      // console.log(`typeof(sequenceYARP)=`, typeof(sequenceYARP))
+      assert(typeof(sequenceYARP) === 'string')
       // console.log(`${typeof resultReceiver}`)
       // console.log(`${typeof completionHandlerData}`)
       assert(tx instanceof TxData)
@@ -131,7 +131,7 @@ export default class StepWorker extends Worker {
         // name,
 
         //
-        status: Step.WAITING,
+        status: STEP_SLEEPING,
 
         // Information passed to the handler
         // handler,
@@ -175,7 +175,7 @@ export default class StepWorker extends Worker {
     // // Let's wait a while then finish
     // setTimeout(() => {
     //   console.log(`Step worker end: #${this.getId()} StepWorker.allocate(${txId}, ${stepId})`)
-    //   await EVENT(STEP_END, {
+    //   await EVENT(STEP_COMPLETED_EVENT, {
     //     txId,
     //     stepId,
     //     happy: 'me'

@@ -4,6 +4,7 @@
  * rights reserved. No warranty, explicit or implicit, provided. In no event shall
  * the author or owner be liable for any claim or damages.
  */
+
 export const STEP_TYPE_PIPELINE = 'hidden/pipeline'
 
 

@@ -98,7 +98,7 @@ class ConvertDatesStep extends Step {
 
     // Time to complete the step and send a result
     console.log(`data=`, data)
-    return instance.finish(Step.COMPLETED, '', data)
+    return instance.finish(STEP_COMPLETED, '', data)
   }
 }
 

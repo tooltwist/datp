@@ -49,7 +49,7 @@ class RandomDelayStep extends Step {
       // console.log(`instance=`, instance)
     }
 
-    const data = instance.getDataAsObject()
+    const output = instance.getDataAsObject()
     const range = (this.#maxDelay - this.#minDelay)
     const delay = this.#minDelay + Math.floor(Math.random() * range)
     if (VERBOSE) {
@@ -64,8 +64,8 @@ class RandomDelayStep extends Step {
     setTimeout(() => {
       instance.console(`Delay complete`)
       const note = `${delay}ms`
-      data.delayTime = note
-      instance.finish(Step.COMPLETED, note, data)
+      output.delayTime = note
+      instance.succeeded(note, output)
     }, delay)
   }//- invoke
 

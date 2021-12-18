@@ -5,7 +5,7 @@
  * the author or owner be liable for any claim or damages.
  */
 import GenerateHash from './GenerateHash'
-import Step from './Step'
+import Step, { STEP_SLEEPING } from './Step'
 import StepInstance from './StepInstance'
 import StepIndexEntry from './StepIndexEntry'
 import pad from '../lib/pad'
@@ -35,8 +35,8 @@ class Scheduler {
   async invokeStep(transactionId, parentInstance, sequence, definition, tx, logbook, resultReceiver, completionHandlerData) {
     // console.log(``)
     assert(typeof(transactionId) === 'string')
-    // console.log(`typeof(sequence)=`, typeof(sequence))
-    assert(typeof(sequence) === 'string')
+    // console.log(`typeof(sequenceYARP)=`, typeof(sequenceYARP))
+    assert(typeof(sequenceYARP) === 'string')
     // console.log(`${typeof resultReceiver}`)
     // console.log(`${typeof completionHandlerData}`)
     assert(tx instanceof TxData)
@@ -50,14 +50,14 @@ class Scheduler {
     //   console.log(`Scheduler.invokeStep(): ${JSON.stringify(definition, '', 0)}`.yellow.bgBlue)
     // }
 
-    let parentId = null
+    let parentStepId = null
     let level = 0
     let fullSequence = `${sequence}`
     if (parentInstance) {
       if (!(parentInstance instanceof StepInstance)) {
         throw new Error(`context parameter must be an instance of StepInstance`)
       }
-      parentId = parentInstance.getStepId()
+      parentStepId = parentInstance.getStepId()
       level = parentInstance.getLevel() + 1
       // console.log(`parentInstance.fullSequence=`, parentInstance.fullSequence)
       // console.log(`parentInstance.getSequence()=`, parentInstance.getSequence())
@@ -128,7 +128,7 @@ class Scheduler {
       // name,
 
       //
-      status: Step.WAITING,
+      status: STEP_SLEEPING,
 
       // Information passed to the handler
       // handler,
@@ -268,8 +268,8 @@ class Scheduler {
       // console.log(`-> ${schedulerSnapshotOfStepInstance.step.id}`)
       const status = await schedulerSnapshotOfStepInstance.getStatus()
       const txId = await schedulerSnapshotOfStepInstance.getTransactionId()
-      // console.log(`-> ${status}, ${txId} vs ${Step.COMPLETED}`)
-      if (status === Step.COMPLETED && !includeCompleted) {
+      // console.log(`-> ${status}, ${txId} vs ${STEP_COMPLETED}`)
+      if (status === STEP_COMPLETED && !includeCompleted) {
         // console.log(`  dud status`)
         continue
       }

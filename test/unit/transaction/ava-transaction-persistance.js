@@ -250,7 +250,7 @@ test.serial('find hibernated transaction', async t => {
 })
 
 
-test.serial.skip('persist transaction values changed by a delta', async t => {
+test.serial.only('persist transaction values changed by a delta', async t => {
   const { tx, txId, externalId, owner } = await createTestTransaction()
 
   // Add some tx and step deltas
@@ -276,32 +276,27 @@ test.serial.skip('persist transaction values changed by a delta', async t => {
 
   tx2 = await TransactionCache.findTransaction(txId, true)
   t.truthy(tx2)
-
   // console.log(`tx 2=`, tx2.toString())
 
   // Check the returned object
   const obj = tx2.asObject()
+  // console.log(`obj=`, obj)
   t.truthy(obj)
-  t.is(Object.keys(obj).length, 8)
+  t.is(Object.keys(obj).length, 5)
   t.is(typeof(obj.owner), 'string')
   t.is(typeof(obj.txId), 'string')
-  t.is(typeof(obj.nodeId), 'string')
   t.is(typeof(obj.externalId), 'string')
-  t.is(typeof(obj.type), 'string')
-  t.is(typeof(obj.pipeline), 'string')
   t.is(typeof(obj.transactionData), 'object')
   t.is(typeof(obj.steps), 'object')
-
-  // console.log(`obj.data=`, obj.data)
-  // console.log(`obj.steps=`, obj.steps)
 
   const data = obj.transactionData
   const steps = obj.steps
 
 
   // Check the data
-  t.is(Object.keys(data).length, 3)
+  t.is(Object.keys(data).length, 4)
   // console.log(`data=`, data)
+  t.is(data.status, 'running')
   t.is(data.a, 'value-a')
   t.is(data.happy, 'days')
   t.is(data.sun, 'set')

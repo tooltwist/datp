@@ -1,5 +1,5 @@
 import test from 'ava'
-import { deepCopy } from '../../../ATP/Scheduler2/Transaction'
+import { deepCopy } from '../../../lib/deepCopy'
 
 // https://github.com/avajs/ava/blob/master/docs/01-writing-tests.md
 test.beforeEach(async t => {

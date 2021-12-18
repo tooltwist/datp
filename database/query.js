@@ -9,7 +9,7 @@ import juice from '@tooltwist/juice-client'
 
 const VERBOSE = false
 const SHOW_PROGRESS = false
-const SHOW_CONNECTION_DETAILS = true
+const SHOW_CONNECTION_DETAILS = false
 
 let promisePool = null
 

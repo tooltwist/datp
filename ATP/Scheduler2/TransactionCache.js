@@ -33,7 +33,7 @@ class TransactionCache {
    * @param {string} txId
    * @param {boolean} loadIfNecessary If true, load the memory from persistant
    * storage, if it is there
-   * @returns A Transaction if it is found, or null if it is not in the cache,
+   * @returns {Promise<Transaction>} A Transaction if it is found, or null if it is not in the cache,
    * and is also not in persistant storage if loadIfNecessary is true.
    */
   async findTransaction(txId, loadIfNecessary = false) {

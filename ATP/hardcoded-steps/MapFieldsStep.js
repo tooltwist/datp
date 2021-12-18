@@ -108,7 +108,7 @@ class MapFieldsStep extends Step {
     })
 
     // Time to complete the step and send a result
-    return instance.finish(Step.COMPLETED, '', newData)
+    return instance.finish(STEP_COMPLETED, '', newData)
   }
 }
 

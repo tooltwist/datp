@@ -1,4 +1,4 @@
-import Step from '../Step'
+import Step, { STEP_FAILED } from '../Step'
 import Scheduler from '../Scheduler'
 import TxData from '../TxData'
 import ResultReceiver from '../ResultReceiver'
@@ -36,13 +36,13 @@ class ChildPipelineCompletionHandler extends ResultReceiver {
       const parentInstance = await parentIndexEntry.getStepInstance()
 
       // Complete the parent step, based on what the child pipline returned.
-      assert(status !== Step.FAIL) // Should not happen. Pipelines either rollback or abort.
+      assert(status !== STEP_FAILED) // Should not happen. Pipelines either rollback or abort.
       switch (status) {
-        case Step.COMPLETED:
+        case STEP_COMPLETED:
           console.log(`Child pipeline is COMPLETED`)
           return await parentInstance.succeeded(note, response)
 
-        case Step.ABORT:
+        case STEP_ABORTED:
           console.log(`Child pipeline is ABORT`)
           return await parentInstance.failed(note, response)
 

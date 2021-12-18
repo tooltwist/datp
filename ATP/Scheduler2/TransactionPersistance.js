@@ -102,7 +102,11 @@ export default class TransactionPersistance {
 
   }
 
-
+  /**
+   *
+   * @param {string} txId Transaction ID
+   * @returns Promise<Transaction>
+   */
   static async reconstructTransaction(txId) {
     const sql = `SELECT * from atp_transaction2 WHERE transaction_id=?`
     const params = [ txId ]

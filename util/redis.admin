@@ -1,0 +1,17 @@
+#!/bin/bash
+#
+#	Run the REDIS CLI inside the Docker container running REDIS
+#
+
+
+# Display message
+COMPOSE_PROJECT_NAME=datp-xpanse-dev_devcontainer
+CONTAINER_NAME=${COMPOSE_PROJECT_NAME}_redis_1
+echo ''
+echo '  CONTAINER_NAME='${CONTAINER_NAME}
+echo ''
+
+
+# Run the REDIS CLI inside the container
+echo '$' docker exec -it ${CONTAINER_NAME} redis-cli
+         docker exec -it ${CONTAINER_NAME} redis-cli

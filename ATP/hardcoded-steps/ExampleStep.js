@@ -35,15 +35,29 @@ class ExampleStep extends Step {
    */
   async invoke(instance) {
     instance.console(`ExampleStep (${instance.getStepId()})`)
-    instance.console(`"${this.someValue}"`)
-    const data = instance.getDataAsObject()
+    // const data = instance.getDataAsObject()
 
     // Do something here
-    //...
+    const input = instance.getDataAsObject()
+    const instruction = input.instruction
+    instance.console(`input.instruction is [${instruction}]`)
+
+    switch (instruction) {
+      case 'fail':
+        const note = 'Hello World'
+        const output = { ...input, foo: 'bar', info: 'I failed!' }
+        return await instance.failed(note, output)
+
+      case 'abort':
+        const note2 = 'Golly Damn Gosh'
+        const output2 = { ...input, foo: 'bar', alert: 'Catastrophic failure!' }
+        return await instance.aborted(note2, output2)
+    }
 
     // Time to complete the step and send a result
-    const note = ''
-    instance.succeeded(note, data)
+    const note = 'Hello World'
+    const output = { ...input, foo: 'bar' }
+    await instance.succeeded(note, output)
   }
 
   /**

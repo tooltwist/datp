@@ -1,5 +1,5 @@
 
-import Scheduler, { DUMP, EVENT, STEP_START, TICK, TX_START } from './Scheduler2'
+//import Scheduler, { DUMP, EVENT, STEP_START_EVENT, TICK, TRANSACTION_START_EVENT } from './Scheduler2'
 
 const TRANSACTION_COMPLETION_HANDLER_NAME = 'tx_end_CH'
 
@@ -7,7 +7,7 @@ async function main() {
 
   // Add a transactions to the scheduler
   const txId = 't-90872645906258976'
-  await EVENT(TX_START, {
+  await EVENT(TRANSACTION_START_EVENT, {
     metadata: {
       txId,
       transactionType: 'example',
@@ -31,7 +31,7 @@ async function main() {
   // await pause(6)
 
   // Add a task to the scheduler and see what happens
-  // await EVENT(STEP_START, {
+  // await EVENT(STEP_START_EVENT, {
   //   metadata: {
   //     txId: 't-123',
   //     stepId: 's-456',
@@ -51,7 +51,7 @@ async function main() {
 
 
 
-  // await EVENT(TX_START, {
+  // await EVENT(TRANSACTION_START_EVENT, {
   //   tx: '2'
   //   // metadata: {
   //   //   mdYarp: 'abc'

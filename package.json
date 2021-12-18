@@ -10,9 +10,9 @@
     "test": "test/unit/run-test.sh */ava-*",
     "unit": "ava --serial --verbose --timeout=20000",
     "modules-coverage": "node test/unit/helpers/modules-coverage.js",
-    "test:watch": "node_modules/.bin/ava --verbose --watch",
+    "test:watch": "JUICE_CONFIG=file:::$(pwd)/test/unit/juice-config.json node_modules/.bin/ava --verbose --watch",
     "cover": "node_modules/.bin/nyc yarn test",
-    "sonar":  "node sonar-project.js"
+    "sonar": "node sonar-project.js"
   },
   "dependencies": {
     "@tooltwist/juice-client": "^1.0.20",
@@ -21,6 +21,7 @@
     "esm": "^3.2.25",
     "figlet": "^1.5.2",
     "hot-shots": "^8.5.2",
+    "ioredis": "^4.28.2",
     "mysql2": "^2.3.0",
     "restify": "^8.5.1",
     "restify-cors-middleware": "^1.1.1",
@@ -53,5 +54,4 @@
       "html"
     ]
   }
-
 }

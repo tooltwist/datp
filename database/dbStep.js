@@ -4,7 +4,7 @@
  * rights reserved. No warranty, explicit or implicit, provided. In no event shall
  * the author or owner be liable for any claim or damages.
  */
-import Step from '../ATP/Step'
+import Step, { STEP_RUNNING } from '../ATP/Step'
 import query from './query'
 
 export default {
@@ -47,7 +47,7 @@ async function updateStatus(stepId, status, progress, percentage) {
   // Update the status now
   let sql = `UPDATE atp_step_instance SET status=?, status_time=NOW(3), progress=?, percentage_complete=?`
   let params = [ status, progress, percentage ]
-  if (status === Step.COMPLETED) {
+  if (status === STEP_COMPLETED) {
     sql += `, status_time=NOW(3)`
   }
   sql += ` WHERE step_id=?`
@@ -75,7 +75,7 @@ async function saveExitStatus(stepId, status, response) {
     console.trace(msg)
     throw new Error(msg)
   }
-  if (result1[0].status !== Step.RUNNING) {
+  if (result1[0].status !== STEP_RUNNING) {
      const msg = `Trying to set exist status of non-running step ${stepId}.`
      console.trace(msg)
      throw new Error(msg)

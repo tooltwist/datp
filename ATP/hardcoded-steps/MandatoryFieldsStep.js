@@ -227,7 +227,7 @@ class MandatoryFieldsStep extends Step {
       return await instance.failed('Invalid request', errors)
     }
     instance.console(`Step success`)
-    return await instance.finish(Step.COMPLETED, '', data)
+    return await instance.finish(STEP_COMPLETED, '', data)
   }
 }
 

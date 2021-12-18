@@ -28,7 +28,7 @@ class DummyStep extends Step {
     setTimeout(() => {
       data.said = 'nothing'
       const note = this.msg
-      instance.finish(Step.COMPLETED, note, data)
+      instance.finish(STEP_COMPLETED, note, data)
     }, 1000)
   }//- invoke
 
