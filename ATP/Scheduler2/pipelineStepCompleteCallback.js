@@ -42,16 +42,18 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
   const pipelineStepId = callbackContext.parentStepId
   const pipelineSteps = pipelineStep.pipelineSteps
   // console.log(`pipelineSteps=`, pipelineSteps)
-  const childStepIndex = pipelineStep.childStepIndex
+  const childStepIds = pipelineStep.childStepIds
+  // console.log(`childStepIds=`, childStepIds)
+  const indexOfCurrentChildStep = pipelineStep.indexOfCurrentChildStep
   const childStatus = childStep.status
   if (childStatus === STEP_SUCCESS) {
     // Do we have any steps left
     // console.log(`yarp D - ${this.stepNo}`)
-    const nextStepNo = childStepIndex + 1
+    const nextStepNo = indexOfCurrentChildStep + 1
     // // const currentStepNo = contextForCompletionHandler.stepNo
-    // pipelineInstance.privateData.childStepIndex = nextStepNo
+    // pipelineInstance.privateData.indexOfCurrentChildStep = nextStepNo
 
-    // const stepNo = ++pipelineInstance.privateData.childStepIndex
+    // const stepNo = ++pipelineInstance.privateData.indexOfCurrentChildStep
     // console.log(`yarp E - ${this.stepNo}`)
     // if (nextStepNo >= pipelineInstance.privateData.numSteps) {
     if (PIPELINES_VERBOSE) console.log(`Which step?  ${nextStepNo} of [0...${pipelineSteps.length - 1}]`)
@@ -84,11 +86,11 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
 
       // Remember that we'ree moving on to the next step
       await tx.delta(pipelineStepId, {
-        childStepIndex: nextStepNo,
+        indexOfCurrentChildStep: nextStepNo,
       })
 
 
-      const childStepId = GenerateHash('s')
+      const childStepId = childStepIds[nextStepNo]
       const metadataForNewStep = txData.metadata
       const inputForNewStep = childStep.stepOutput
       // const childNodeId = nodeInfo.nodeGroup // Child runs in same node as the pipeline step

@@ -69,7 +69,9 @@ class Pipeline extends Step {
     if (this.#steps.length < 1) {
       throw new Error(`Pipeline contains no steps [${pipelineInstance.getStepId()}]`)
     }
-    const childStepIndex = 0
+
+
+    const indexOfCurrentChildStep = 0
     const childStepDefinition = this.#steps[0].definition
 
     const txId = pipelineInstance.getTransactionId()//ZZZZ rename
@@ -83,16 +85,22 @@ class Pipeline extends Step {
     const tx = await TransactionCache.findTransaction(txId, true)
     const txData = tx.txData()
     // console.log(`In invoke() tx=`, tx.asObject())
-    const stepId = pipelineInstance.getStepId()
-    // console.log(`stepId=`, stepId)
-    await tx.delta(stepId, {
+    const pipelineStepId = pipelineInstance.getStepId()
+    // console.log(`pipelineStepId=`, pipelineStepId)
+    const childStepIds = [ ]
+    for (let i = 0; i < this.#steps.length; i++) {
+      const childStepId = GenerateHash('s')
+      childStepIds[i] = childStepId
+    }
+    await tx.delta(pipelineStepId, {
       pipelineSteps: this.#steps,
-      childStepIndex,
+      indexOfCurrentChildStep,
+      childStepIds,
       // metadata,
       // stepInput: txdata.getData()
     })
     await tx.delta(null, {
-      nextStepId: stepId,
+      nextStepId: pipelineStepId,
     })
 
 //     // console.log(`tx.asObject()=`.cyan, tx.asObject())
@@ -101,10 +109,10 @@ class Pipeline extends Step {
 //     // // We'll save the responses from the steps
 //     // pipelineInstance.privateData.responses = [ ]
 //     // pipelineInstance.privateData.numSteps = this.#steps.length
-//     // pipelineInstance.privateData.childStepIndex = 0
+//     // pipelineInstance.privateData.indexOfCurrentChildStep = 0
 
 //     //ZZZZ Should probably create a new TX object
-//     this.initiateChildStep(pipelineInstance, childStepIndex, childStepDefinition, txdata, metadata)
+//     this.initiateChildStep(pipelineInstance, indexOfCurrentChildStep, childStepDefinition, txdata, metadata)
 
 //     // logbook.log(id, `DummyStep.invoke()`, {
 //     //   level: logbook.LEVEL_DEBUG,
@@ -114,19 +122,19 @@ class Pipeline extends Step {
 
 // //ZZZZZ Join these together ^^^^^ vvvvv
 
-//   async initiateChildStep(pipelineInstance, childStepIndex, childStepDefinition, txdata, metadata) {
+//   async initiateChildStep(pipelineInstance, indexOfCurrentChildStep, childStepDefinition, txdata, metadata) {
 //     assert(pipelineInstance instanceof StepInstance)
     // assert(txdata instanceof XData)
     pipelineInstance.log(``)
-    // const stepNo = pipelineInstance.privateData.childStepIndex
+    // const stepNo = pipelineInstance.privateData.indexOfCurrentChildStep
     if (PIPELINES_VERBOSE) {
       console.log(`PipelineStep.initiateChildStep()`)
       console.log(`********************************`)
-      console.log(`Pipeline.initiateChildStep(${childStepIndex})`)
+      console.log(`Pipeline.initiateChildStep(${indexOfCurrentChildStep})`)
     }
 
     pipelineInstance.console()
-    pipelineInstance.console(`Pipeline initiating child step #${childStepIndex}:`)
+    pipelineInstance.console(`Pipeline initiating child step #${indexOfCurrentChildStep}:`)
     pipelineInstance.console()
     // // console.log(`tx=`, tx)
     // // console.log(`pipelineInstance=`, pipelineInstance)
@@ -151,7 +159,8 @@ class Pipeline extends Step {
       // console.log(`parentStepId=`, parentStepId)
       const parentNodeId = pipelineInstance.getNodeId()
       // console.log(`parentNodeId=`, parentNodeId)
-      const childStepId = GenerateHash('s')
+      // const childStepId = GenerateHash('s')
+      const childStepId = childStepIds[0]
       const childNodeId = parentNodeId
 
       // The child will run in the same node as this pipeline.
@@ -213,13 +222,13 @@ class Pipeline extends Step {
 //     const pipelineInstance = await pipelineIndexEntry.getStepInstance()
 
 //     // Double check the step number
-//     if (contextForCompletionHandler.stepNo != pipelineInstance.privateData.childStepIndex) {
-//       throw new Error(`Internal Error 882659: invalid step number {${contextForCompletionHandler.stepNo} vs ${pipelineInstance.privateData.childStepIndex}}`)
+//     if (contextForCompletionHandler.stepNo != pipelineInstance.privateData.indexOfCurrentChildStep) {
+//       throw new Error(`Internal Error 882659: invalid step number {${contextForCompletionHandler.stepNo} vs ${pipelineInstance.privateData.indexOfCurrentChildStep}}`)
 //     }
 
 //     // Remember the reply
 //     //ZZZZZ Really needed?
-//     const currentStepNo = pipelineInstance.privateData.childStepIndex
+//     const currentStepNo = pipelineInstance.privateData.indexOfCurrentChildStep
 //     pipelineInstance.privateData.responses[currentStepNo] = { status, newTx }
 //     // console.log(`yarp C - ${this.stepNo}`)
 
@@ -228,9 +237,9 @@ class Pipeline extends Step {
 //       // console.log(`yarp D - ${this.stepNo}`)
 //       const nextStepNo = currentStepNo + 1
 //       // const currentStepNo = contextForCompletionHandler.stepNo
-//       pipelineInstance.privateData.childStepIndex = nextStepNo
+//       pipelineInstance.privateData.indexOfCurrentChildStep = nextStepNo
 
-//       // const stepNo = ++pipelineInstance.privateData.childStepIndex
+//       // const stepNo = ++pipelineInstance.privateData.indexOfCurrentChildStep
 //       // console.log(`yarp E - ${this.stepNo}`)
 //       if (nextStepNo >= pipelineInstance.privateData.numSteps) {
 //         // We've finished this pipeline - return the final respone
