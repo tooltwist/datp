@@ -10,7 +10,7 @@ import StepTypes from '../StepTypeRegister'
 import ResultReceiver from '../ResultReceiver'
 import ResultReceiverRegister from '../ResultReceiverRegister'
 import defaultATE from '../ATP'
-import TxData from '../TxData'
+import XData from '../XData'
 import assert from 'assert'
 import StepInstance from '../StepInstance'
 import Scheduler2, { DEFAULT_QUEUE } from '../Scheduler2/Scheduler2'
@@ -85,13 +85,13 @@ class Pipeline extends Step {
     // console.log(`In invoke() tx=`, tx.asObject())
     const stepId = pipelineInstance.getStepId()
     // console.log(`stepId=`, stepId)
-    tx.delta(stepId, {
+    await tx.delta(stepId, {
       pipelineSteps: this.#steps,
       childStepIndex,
       // metadata,
       // stepInput: txdata.getData()
     })
-    tx.delta(null, {
+    await tx.delta(null, {
       nextStepId: stepId,
     })
 
@@ -116,7 +116,7 @@ class Pipeline extends Step {
 
 //   async initiateChildStep(pipelineInstance, childStepIndex, childStepDefinition, txdata, metadata) {
 //     assert(pipelineInstance instanceof StepInstance)
-    // assert(txdata instanceof TxData)
+    // assert(txdata instanceof XData)
     pipelineInstance.log(``)
     // const stepNo = pipelineInstance.privateData.childStepIndex
     if (PIPELINES_VERBOSE) {
@@ -199,7 +199,7 @@ class Pipeline extends Step {
 //     super()
 //   }
 //   async haveResult(contextForCompletionHandler, status, note, newTx) {
-//     assert(newTx instanceof TxData)
+//     assert(newTx instanceof XData)
 //     // console.log(`PipelineChildStepCompletionHandler.haveResult(status=${status})`, newTx.toString())
 //     // console.log(`PipelineChildStepCompletionHandler.haveResult(status=${status})`)
 //     // console.log(`newTx=`, newTx)

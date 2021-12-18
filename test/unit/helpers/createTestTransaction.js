@@ -1,5 +1,5 @@
 import TransactionCache from "../../../ATP/Scheduler2/TransactionCache"
-import TxData from "../../../ATP/TxData"
+import XData from "../../../ATP/XData"
 
 export default async function createTestTransaction () {
   const num = Math.round(Math.random() * 100000000000)
@@ -10,7 +10,7 @@ export default async function createTestTransaction () {
   const nodeId = `n-${num2}`
   const pipeline = 'demo/example'
 
-  const input = new TxData({
+  const input = new XData({
     metadata: {
       externalId,
       transactionType,

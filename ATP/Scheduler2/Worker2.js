@@ -1,5 +1,5 @@
 import StepInstance from "../StepInstance"
-import TxData from "../TxData"
+import XData from "../XData"
 import CallbackRegister from "./CallbackRegister"
 import { getQueueConnection } from "./queuing/Queue2"
 import Scheduler2, { DEFAULT_QUEUE } from "./Scheduler2"
@@ -210,7 +210,7 @@ export default class Worker2 {
 
   /**
    *
-   * @param {TxData} event
+   * @param {XData} event
    */
   async processEvent_StepStart(event) {
 
@@ -241,7 +241,7 @@ export default class Worker2 {
         // Boounce back via STEP_COMPLETION_EVENT, after creating fake transaction data.
         const description = 'processEvent_StepStart() - util.ping3 - returning via STEP_COMPLETED, without processing step'
         if (trace || this.#debugLevel > 0) console.log(description.bgBlue.white)
-        tx.delta(stepId, {
+        await tx.delta(stepId, {
           status: STEP_SUCCESS,
           stepOutput: {
             happy: 'dayz',
@@ -263,10 +263,11 @@ export default class Worker2 {
       event.nodeId = this.#nodeGroup
       event.nodeGroup = this.#nodeGroup
       const instance = new StepInstance()
+      console.log(`------------------------------ ${this.#nodeGroup} materialize ${tx.getTxId()}`)
       await instance.materialize(event, tx)
       if (trace || this.#debugLevel > 0) console.log(`>>>>>>>>>> >>>>>>>>>> >>>>>>>>>> START [${instance.getStepType()}] ${instance.getStepId()}`, tx.stepData(stepId))
 
-      tx.delta(stepId, {
+      await tx.delta(stepId, {
         status: STEP_RUNNING
       })
 
@@ -326,7 +327,7 @@ export default class Worker2 {
       // console.log(`txObj=`, txObj)
       // assert(stepId === txObj.transactionData.nextStepId)// Have we come where the Scheduler intended?
       // console.log(`processEvent_StepStart: setting tx.currentStepId`.cyan.bold)
-      // tx.delta(null, {
+      // await tx.delta(null, {
       //   currentStepId: stepId
       // })
       // tx.delta
@@ -452,7 +453,7 @@ export default class Worker2 {
 
   /**
    *
-   * @param {TxData} event
+   * @param {XData} event
    * @returns
    */
    async processEvent_TransactionCompleted(event) {

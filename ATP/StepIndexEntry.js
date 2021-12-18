@@ -6,7 +6,7 @@
  */
 import ResultReceiverRegister from './ResultReceiverRegister'
 import assert from 'assert'
-import TxData from './TxData'
+import XData from './XData'
 
 
 export default class StepIndexEntry {
@@ -93,7 +93,7 @@ export default class StepIndexEntry {
     // console.log(`callCompletionHandler(${token}, status=${status}, note=${note})`, newTx)
     // assert(token instanceof String)  ZZZZZ
     // assert(status instanceof String) ZZZZZ
-    assert(newTx instanceof TxData)
+    assert(newTx instanceof XData)
     // console.log(`StepIndexEntry.callCompletionHandler(${token}, ${status}, ${note})`, newTx.toString())
     await this.validateToken(token)
     const completionHandlerObj = await ResultReceiverRegister.getHandler(this.#resultReceiver)

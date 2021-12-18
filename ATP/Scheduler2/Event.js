@@ -7,7 +7,7 @@ export class Event extends QueueItem {
   /**
    *
    * @param {string} eventType
-   * @param {TxData} data
+   * @param {XData} data
    */
   constructor(eventType, data) {
     super()

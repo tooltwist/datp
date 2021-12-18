@@ -42,7 +42,7 @@ export default class StepWorker extends Worker {
       assert(typeof(sequenceYARP) === 'string')
       // console.log(`${typeof resultReceiver}`)
       // console.log(`${typeof completionHandlerData}`)
-      assert(tx instanceof TxData)
+      assert(tx instanceof XData)
       assert(typeof(resultReceiver) === 'string')
       assert(typeof(completionHandlerData) === 'object')
 

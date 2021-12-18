@@ -6,18 +6,18 @@
  */
 import GenerateHash from "./GenerateHash"
 
-export default class TxData {
+export default class XData {
   #data
   #json
 
   constructor(initialData) {
-    // console.log(`TxData.constructor()`, initialData)
+    // console.log(`XData.constructor()`, initialData)
     // this.#id = GenerateHash('tx')
     if (initialData === null) {
       initialData = { }
     }
-    if (initialData instanceof TxData) {
-      // console.log(`YARP cloning TxData`)
+    if (initialData instanceof XData) {
+      // console.log(`YARP cloning XData`)
       initialData = initialData.getJson() // Will clone via parsing
       // console.log(`initialData becomes`, initialData)
     }
@@ -33,7 +33,7 @@ export default class TxData {
         this.#data = initialData
         break
       default:
-        throw new Error(`TxData.constructor() must be passed JSON or an Object.`)
+        throw new Error(`XData.constructor() must be passed JSON or an Object.`)
     }
     // console.log(`this=`, this)
   }
@@ -58,9 +58,9 @@ export default class TxData {
   // See https://stackoverflow.com/questions/42886953/whats-the-recommended-way-to-customize-tostring-using-symbol-tostringtag-or-ov
   get [Symbol.toStringTag]() {
     if (this.#json) {
-      return "TxData with JSON"
+      return "XData with JSON"
     }
-    return "TxData with Object"
+    return "XData with Object"
   }
   toString() {
     if (this.#json) {
@@ -71,6 +71,6 @@ export default class TxData {
 
 }
 
-// TxData.prototype.toString = function() {
+// XData.prototype.toString = function() {
 //   return 'ZEYARP'
 // }

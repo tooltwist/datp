@@ -4,7 +4,7 @@
  * rights reserved. No warranty, explicit or implicit, provided. In no event shall
  * the author or owner be liable for any claim or damages.
  */
-import TxData from './TxData'
+import XData from './XData'
 import TransactionIndexEntry from './TransactionIndexEntry'
 import Scheduler from './Scheduler'
 import Step, { STEP_FAILED } from './Step'
@@ -55,7 +55,7 @@ class AtpTransactionCompletionHandler extends ResultReceiver {
     super()
   }
   async haveResult(contextForCompletionHandler, status, note, response) {
-    assert(response instanceof TxData)
+    assert(response instanceof XData)
     console.log(`<<<<    AtpTransactionCompletionHandler.haveResult(${status}, ${note})  `.white.bgBlue.bold)
     console.log(`  contextForCompletionHandler=`, JSON.stringify(contextForCompletionHandler, '', 0))
     // console.log(`  - status=`, status)
@@ -174,7 +174,7 @@ class AsynchronousTransactionEngine {
     //ZZZZ How about the version?  Should we use name:version ?
 
     const status = TransactionIndexEntry.RUNNING
-    const initialTxData = new TxData(data)
+    const initialTxData = new XData(data)
 
     // Remember the transaction
     const transactionIndexEntry = new TransactionIndexEntry(transactionId, transactionType, status, initiatedBy, initialTxData)

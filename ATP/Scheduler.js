@@ -11,7 +11,7 @@ import StepIndexEntry from './StepIndexEntry'
 import pad from '../lib/pad'
 import statusString from '../lib/statusString'
 import assert from 'assert'
-import TxData from './TxData'
+import XData from './XData'
 import dbStep from '../database/dbStep'
 
 const VERBOSE = false
@@ -39,7 +39,7 @@ class Scheduler {
     assert(typeof(sequenceYARP) === 'string')
     // console.log(`${typeof resultReceiver}`)
     // console.log(`${typeof completionHandlerData}`)
-    assert(tx instanceof TxData)
+    assert(tx instanceof XData)
     assert(typeof(resultReceiver) === 'string')
     assert(typeof(completionHandlerData) === 'object')
 
@@ -166,7 +166,7 @@ class Scheduler {
   }//- invokeStep
 
   async stepFinished(stepId, token, status, note, newTx) {
-    assert(newTx instanceof TxData)
+    assert(newTx instanceof XData)
     // console.log(`Scheduler.stepFinished(stepId=${stepId}, token=${token}, status=${status}, note=${note}) newTx=`, newTx.toString())
     // console.log(`Scheduler.stepFinished(stepId=${stepId}, token=${token}, status=${status}, note=${note})`)
 

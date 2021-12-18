@@ -9,7 +9,7 @@ import StepTypes from './StepTypeRegister'
 import Step, { STEP_ABORTED, STEP_FAILED, STEP_INTERNAL_ERROR, STEP_RUNNING, STEP_SUCCESS } from './Step'
 import dbStep from "../database/dbStep";
 import dbPipelines from "../database/dbPipelines";
-import TxData from "./TxData";
+import XData from "./XData";
 import dbArtifact from "../database/dbArtifact";
 import { STEP_TYPE_PIPELINE } from './StepTypeRegister'
 import Scheduler2, { DEFAULT_QUEUE } from "./Scheduler2/Scheduler2";
@@ -77,7 +77,6 @@ export default class StepInstance {
 
   async materialize(options, tx) {
     // console.log(``)
-console.log(`-----------------------------------------------------------------------------------------------------`)
 // console.log(`StepInstance.materialize options=`, options)
     const txData = tx.txData()
     // console.log(`txData=`, txData)
@@ -122,7 +121,7 @@ console.log(`-------------------------------------------------------------------
     // this.#parentNodeId = options.parentNodeId
     this.#parentStepId = stepData.parentStepId
     //this.#stepDefinition set below
-    this.#txdata = new TxData(stepData.stepInput)
+    this.#txdata = new XData(stepData.stepInput)
     this.#metadata = txData.metadata
     this.#level = stepData.level
     this.#fullSequenceYARP = stepData.sequenceYARP
@@ -236,7 +235,7 @@ console.log(`-------------------------------------------------------------------
 
   /**
    *
-   * @returns TxData
+   * @returns XData
    */
   getTxData() {
     return this.#txdata
@@ -291,7 +290,7 @@ console.log(`-------------------------------------------------------------------
   //   if (!newTx) {
   //     newTx = this.getDataAsObject()
   //   }
-  //   const myTx = new TxData(newTx)
+  //   const myTx = new XData(newTx)
   //   // console.log('YARP', myTx)
   //   // console.log(`StepInstance.finish(${status}, ${note}). newTx:`, newTx)
   //   const response = myTx.getJson()
@@ -323,7 +322,7 @@ console.log(`-------------------------------------------------------------------
 
     if (stepOutput === null || stepOutput === undefined) {
       myStepOutput = { }
-    } else if (stepOutput instanceof TxData) {
+    } else if (stepOutput instanceof XData) {
       myStepOutput = stepOutput.getData()
     } else if (typeof(stepOutput) === 'object') {
       // Use the provided output
@@ -354,7 +353,7 @@ console.log(`-------------------------------------------------------------------
     }
 
     // Persist the result and new status
-    tx.delta(this.#stepId, {
+    await tx.delta(this.#stepId, {
       status: STEP_SUCCESS,
       note,
       stepOutput: myStepOutput
@@ -391,7 +390,7 @@ console.log(`-------------------------------------------------------------------
     }
 
     // Persist the result and new status
-    tx.delta(this.#stepId, {
+    await tx.delta(this.#stepId, {
       status: STEP_ABORTED,
       note,
       stepOutput: myStepOutput
@@ -427,7 +426,7 @@ console.log(`-------------------------------------------------------------------
     }
 
     // Persist the result and new status
-    tx.delta(this.#stepId, {
+    await tx.delta(this.#stepId, {
       status: STEP_FAILED,
       note,
       stepOutput: myStepOutput
@@ -464,7 +463,7 @@ console.log(`-------------------------------------------------------------------
     await dbStep.saveExitStatus(this.#stepId, status, data)
 
     const note = `Bad step definition: ${msg}`
-    return Scheduler.stepFinished(this.#stepId, this.#onComplete.completionToken, status, note, new TxData(data))
+    return Scheduler.stepFinished(this.#stepId, this.#onComplete.completionToken, status, note, new XData(data))
   }
 
   async exceptionInStep(e) {
@@ -496,7 +495,7 @@ console.log(`-------------------------------------------------------------------
     await dbStep.saveExitStatus(this.#stepId, status, data)
 
     const note = `Exception in step`
-    return Scheduler.stepFinished(this.#stepId, this.#onComplete.completionToken, status, note, new TxData(data))
+    return Scheduler.stepFinished(this.#stepId, this.#onComplete.completionToken, status, note, new XData(data))
   }
 
 

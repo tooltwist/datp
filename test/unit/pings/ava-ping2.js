@@ -2,6 +2,7 @@ import test from 'ava'
 import Scheduler2 from '../../../ATP/Scheduler2/Scheduler2'
 import CallbackRegister from '../../../ATP/Scheduler2/CallbackRegister'
 import pause from '../../../lib/pause'
+import { STEP_SUCCESS } from '../../../ATP/Step'
 
 /*
  *  We need to use a different node name for each test file, as they run in different
@@ -62,7 +63,7 @@ test.serial('Call ping2 test transaction', async t => {
   t.truthy(returnedContext)
   t.is(returnedContext.wallace, 'grommet')
   t.truthy(status)
-  t.is(status, 'pinged')
+  t.is(status, STEP_SUCCESS)
   t.truthy(transactionOutput)
   t.is(transactionOutput.whoopee, 'doo')
   t.is(transactionOutput.description, 'ping2 - Scheduler.startTransaction() returning without processing step')

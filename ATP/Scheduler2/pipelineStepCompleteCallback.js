@@ -27,7 +27,7 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
   // console.log(`childStep=`, childStep)
 
   // Tell the transaction we're back from the child, back to this pipeline.
-  tx.delta(null, {
+  await tx.delta(null, {
     currentStepId: callbackContext.parentStepId
   })
 
@@ -62,7 +62,7 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
       if (PIPELINES_VERBOSE) console.log(indent + `<<<<    PIPELINE COMPLETED ${pipelineStepId}  `.blue.bgGreen.bold)
 
       // Save the child status and output as our own
-      tx.delta(pipelineStepId, {
+      await tx.delta(pipelineStepId, {
         stepOutput: childStep.stepOutput,
         status: childStep.status
       })
@@ -83,7 +83,7 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
 
 
       // Remember that we'ree moving on to the next step
-      tx.delta(pipelineStepId, {
+      await tx.delta(pipelineStepId, {
         childStepIndex: nextStepNo,
       })
 
@@ -133,7 +133,7 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
     // console.log(``)
     // return Scheduler.haveResult(pipelineStepId, pipelineInstance.getCompletionToken(), STEP_COMPLETED, stepOutput)
     // pipelineInstance.finish(STEP_ABORTED, `Step ${currentStepNo} failed`, stepOutput)
-    tx.delta(pipelineStepId, {
+    await tx.delta(pipelineStepId, {
       stepOutput: childStep.stepOutput,
       status: childStep.status
     })

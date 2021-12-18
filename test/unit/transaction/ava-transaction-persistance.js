@@ -51,18 +51,18 @@ test.serial('allocate new transaction', async t => {
 test.serial('persist transaction details', async t => {
   const { tx, txId, externalId } = await createTestTransaction()
 
-  tx.delta(null, {
+  await tx.delta(null, {
     chicken: 'soup',
     wallace: 'grommet'
   })
-  tx.delta(null, {
+  await tx.delta(null, {
     value1: 'aaa',
   })
-  tx.delta(null, {
+  await tx.delta(null, {
     value2: 'bbb',
   })
 
-  await TransactionCache.persist(txId)
+  // await TransactionCache.persist(txId)
 
   // Check the database
   const sql = `SELECT * FROM atp_transaction_delta WHERE transaction_id=?`
@@ -106,18 +106,18 @@ test.serial('reconstruct transaction details', async t => {
   // Add some tx and step deltas
   const stepId1 = 'yarp-1'
   const stepId2 = 'yarp-2'
-  tx.delta(null, { a: 'value-a' })
-  tx.delta(stepId1, { b: 123 })
-  tx.delta(stepId1, { c: 'value-c' })
-  tx.delta(null, { happy: 'days' })
-  tx.delta(null, { sun: 'set' })
-  tx.delta(stepId2, { fast: 'chicken' })
-  tx.delta(stepId1, { small: 0.0001 })
-  tx.delta(stepId2, { nested: { more: { andmore: { value: 'abc' }}} })
-  tx.delta(stepId1, { big: 999999999.999 })
+  await tx.delta(null, { a: 'value-a' })
+  await tx.delta(stepId1, { b: 123 })
+  await tx.delta(stepId1, { c: 'value-c' })
+  await tx.delta(null, { happy: 'days' })
+  await tx.delta(null, { sun: 'set' })
+  await tx.delta(stepId2, { fast: 'chicken' })
+  await tx.delta(stepId1, { small: 0.0001 })
+  await tx.delta(stepId2, { nested: { more: { andmore: { value: 'abc' }}} })
+  await tx.delta(stepId1, { big: 999999999.999 })
 
 
-  await TransactionCache.persist(txId)
+  // await TransactionCache.persist(txId)
 
   const tx2 = await TransactionPersistance.reconstructTransaction(txId)
 
@@ -180,24 +180,26 @@ test.serial('find hibernated transaction', async t => {
   // Add some tx and step deltas
   const stepId1 = 'yarp-1'
   const stepId2 = 'yarp-2'
-  tx.delta(null, { a: 'value-a' })
-  tx.delta(stepId1, { b: 123 })
-  tx.delta(stepId1, { c: 'value-c' })
-  tx.delta(null, { happy: 'days' })
-  tx.delta(null, { sun: 'set' })
-  tx.delta(stepId2, { fast: 'chicken' })
-  tx.delta(stepId1, { small: 0.0001 })
-  tx.delta(stepId2, { nested: { more: { andmore: { value: 'abc' }}} })
-  tx.delta(stepId1, { big: 999999999.999 })
+  await tx.delta(null, { a: 'value-a' })
+  await tx.delta(stepId1, { b: 123 })
+  await tx.delta(stepId1, { c: 'value-c' })
+  await tx.delta(null, { happy: 'days' })
+  await tx.delta(null, { sun: 'set' })
+  await tx.delta(stepId2, { fast: 'chicken' })
+  await tx.delta(stepId1, { small: 0.0001 })
+  await tx.delta(stepId2, { nested: { more: { andmore: { value: 'abc' }}} })
+  await tx.delta(stepId1, { big: 999999999.999 })
 
-  // Persist the transaction
-  await TransactionCache.persist(txId)
+  // Check it is in the cache
+  let tx2 = await TransactionCache.findTransaction(txId, true)
+  t.truthy(tx2)
 
-  // Check it is no longer in the cache
-  let tx2 = await TransactionCache.findTransaction(txId, false)
+  // Remove the from the cache and check it is no longer in the cache
+  await TransactionCache.removeFromCache(txId)
+  tx2 = await TransactionCache.findTransaction(txId, false)
   t.falsy(tx2)
 
-
+  // Check it gets put back in the cache
   tx2 = await TransactionCache.findTransaction(txId, true)
   t.truthy(tx2)
 
@@ -250,24 +252,25 @@ test.serial('find hibernated transaction', async t => {
 })
 
 
-test.serial.only('persist transaction values changed by a delta', async t => {
+test.serial('persist transaction values changed by a delta', async t => {
   const { tx, txId, externalId, owner } = await createTestTransaction()
 
   // Add some tx and step deltas
   const stepId1 = 'yarp-1'
   const stepId2 = 'yarp-2'
-  tx.delta(null, { a: 'value-a' })
-  tx.delta(stepId1, { b: 123 })
-  tx.delta(stepId1, { c: 'value-c' })
-  tx.delta(null, { happy: 'days' })
-  tx.delta(null, { sun: 'set' })
-  tx.delta(stepId2, { fast: 'chicken' })
-  tx.delta(stepId1, { small: 0.0001 })
-  tx.delta(stepId2, { nested: { more: { andmore: { value: 'abc' }}} })
-  tx.delta(stepId1, { big: 999999999.999 })
+  await tx.delta(null, { a: 'value-a' })
+  await tx.delta(stepId1, { b: 123 })
+  await tx.delta(stepId1, { c: 'value-c' })
+  await tx.delta(null, { happy: 'days' })
+  await tx.delta(null, { sun: 'set' })
+  await tx.delta(stepId2, { fast: 'chicken' })
+  await tx.delta(stepId1, { small: 0.0001 })
+  await tx.delta(stepId2, { nested: { more: { andmore: { value: 'abc' }}} })
+  await tx.delta(stepId1, { big: 999999999.999 })
 
   // Persist the transaction
-  await TransactionCache.persist(txId)
+  // await TransactionCache.persist(txId)
+  TransactionCache.removeFromCache(txId)
 
   // Check it is no longer in the cache
   let tx2 = await TransactionCache.findTransaction(txId, false)

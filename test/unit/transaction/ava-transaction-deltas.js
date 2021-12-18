@@ -44,7 +44,7 @@ test.serial('stream - empty', async t => {
 test.serial('stream - simple tx values', async t => {
   // const tx = new Transaction(t.context.txId)
   const { tx, txId } = await createTestTransaction()
-  tx.delta(null, {
+  await tx.delta(null, {
     a: 'aaa',
     b: 123,
     c: {
@@ -74,14 +74,14 @@ test.serial('stream - simple tx values', async t => {
 test.serial('stream - overwrite tx values', async t => {
   const { tx, txId } = await createTestTransaction()
 
-  tx.delta(null, {
+  await tx.delta(null, {
     a: 'aaa',
     b: 123,
     c: {
       d: 'ddd'
     }
   })
-  tx.delta(null, {
+  await tx.delta(null, {
     a: 'zzz',
     b: 999,
     c: {
@@ -120,7 +120,7 @@ test.serial('stream - overwrite tx values', async t => {
 
 test.serial('stream - delete simple tx value', async t => {
   const { tx, txId } = await createTestTransaction()
-  tx.delta(null, {
+  await tx.delta(null, {
     a: 'aaa',
     b: 123,
     c: {
@@ -128,7 +128,7 @@ test.serial('stream - delete simple tx value', async t => {
       e: 'eee'
     }
   })
-  tx.delta(null, {
+  await tx.delta(null, {
     '-a': null,
   })
 
@@ -154,7 +154,7 @@ test.serial('stream - delete simple tx value', async t => {
 
 test.serial('stream - delete nested tx value', async t => {
   const { tx, txId } = await createTestTransaction()
-  tx.delta(null, {
+  await tx.delta(null, {
     a: 'aaa',
     b: 123,
     c: {
@@ -162,7 +162,7 @@ test.serial('stream - delete nested tx value', async t => {
       e: 'eee'
     }
   })
-  tx.delta(null, {
+  await tx.delta(null, {
     c: {
       '-d': null,
     }
@@ -195,7 +195,7 @@ test.serial('stream - simple step', async t => {
   const { tx, txId } = await createTestTransaction()
 
   const stepId = 'yarp'
-  tx.delta(stepId, {
+  await tx.delta(stepId, {
     a: 'aaa',
     b: 123,
     c: {
@@ -239,14 +239,14 @@ test.serial('stream - overwrite step values', async t => {
   const { tx, txId } = await createTestTransaction()
 
   const stepId = 'yarp'
-  tx.delta(stepId, {
+  await tx.delta(stepId, {
     a: 'aaa',
     b: 123,
     c: {
       d: 'ddd'
     }
   })
-  tx.delta(stepId, {
+  await tx.delta(stepId, {
     a: 'zzz',
     b: 999,
     c: {
@@ -292,7 +292,7 @@ test.serial('stream - delete step values', async t => {
   const { tx, txId } = await createTestTransaction()
 
   const stepId = 'yarp'
-  tx.delta(stepId, {
+  await tx.delta(stepId, {
     a: 'aaa',
     b: 123,
     c: {
@@ -300,7 +300,7 @@ test.serial('stream - delete step values', async t => {
       e: 'eee'
     }
   })
-  tx.delta(stepId, {
+  await tx.delta(stepId, {
     '-a': null,
     c: {
       '-e': null
@@ -348,15 +348,15 @@ test.serial('stream - build up values', async t => {
 
   const stepId1 = 'yarp-1'
   const stepId2 = 'yarp-2'
-  tx.delta(null, { a: 'value-a' })
-  tx.delta(stepId1, { b: 123 })
-  tx.delta(stepId1, { c: 'value-c' })
-  tx.delta(null, { happy: 'days' })
-  tx.delta(null, { sun: 'set' })
-  tx.delta(stepId2, { fast: 'chicken' })
-  tx.delta(stepId1, { small: 0.0001 })
-  tx.delta(stepId2, { nested: { more: { andmore: { value: 'abc' }}} })
-  tx.delta(stepId1, { big: 999999999.999 })
+  await tx.delta(null, { a: 'value-a' })
+  await tx.delta(stepId1, { b: 123 })
+  await tx.delta(stepId1, { c: 'value-c' })
+  await tx.delta(null, { happy: 'days' })
+  await tx.delta(null, { sun: 'set' })
+  await tx.delta(stepId2, { fast: 'chicken' })
+  await tx.delta(stepId1, { small: 0.0001 })
+  await tx.delta(stepId2, { nested: { more: { andmore: { value: 'abc' }}} })
+  await tx.delta(stepId1, { big: 999999999.999 })
 
   // Check the returned object
   const obj = tx.asObject()

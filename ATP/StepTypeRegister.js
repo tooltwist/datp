@@ -7,6 +7,7 @@
 
 export const STEP_TYPE_PIPELINE = 'hidden/pipeline'
 
+const VERBOSE = 0
 
 /**
  * This module maintains a list of step types.
@@ -18,7 +19,7 @@ class StepTypeRegister {
   }
 
   async register(stepModule, type, description = '') {
-    console.log(`- Registering step type ${type}`)
+    if (VERBOSE) console.log(`- Registering step type ${type}`)
     if (!stepModule) {
       const msg = `StepTypeRegister.register(${type}) - stepModule is null`
       console.log(msg)

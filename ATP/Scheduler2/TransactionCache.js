@@ -1,5 +1,5 @@
 import GenerateHash from '../GenerateHash'
-import TxData from '../TxData'
+import XData from '../XData'
 import Transaction from './Transaction'
 import TransactionPersistance from './TransactionPersistance'
 
@@ -12,7 +12,7 @@ class TransactionCache {
 
   /**
    *
-   * @param {TxData} input Input data for the new transaction.
+   * @param {XData} input Input data for the new transaction.
    * @returns
    */
   async newTransaction(owner, externalId) {

@@ -11,7 +11,7 @@ import apiVersions from '../lib/apiVersions'
 // import { monitorMidi } from '../mondat/midi'
 import errors from 'restify-errors';
 import assert from 'assert'
-import TxData from '../ATP/TxData'
+import XData from '../ATP/XData'
 import providerAndServiceRoutes from '../CONVERSION/providerAndServiceRoutes'
 import currencies_routes from '../CONVERSION/restify/currencies'
 import countries_routes from '../CONVERSION/restify/countries'
@@ -32,7 +32,7 @@ class ApiTransactionCompletionHandler extends ResultReceiver {
     super()
   }
   async haveResult(contextForCompletionHandler, status, note, response) {
-    assert(response instanceof TxData)
+    assert(response instanceof XData)
     console.log(`<<<<    ApiTransactionCompletionHandler.haveResult()  `.white.bgRed.bold)
     // console.log(`  contextForCompletionHandler=`, JSON.stringify(contextForCompletionHandler, '', 0))
     // console.log(`  status=`, status)

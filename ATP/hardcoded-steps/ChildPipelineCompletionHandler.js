@@ -1,6 +1,6 @@
 import Step, { STEP_FAILED } from '../Step'
 import Scheduler from '../Scheduler'
-import TxData from '../TxData'
+import XData from '../XData'
 import ResultReceiver from '../ResultReceiver'
 import ResultReceiverRegister from '../ResultReceiverRegister'
 
@@ -20,7 +20,7 @@ class ChildPipelineCompletionHandler extends ResultReceiver {
     super()
   }
   async haveResult(contextForCompletionHandler, status, note, response) {
-    assert(response instanceof TxData)
+    assert(response instanceof XData)
     console.log(`<<<<    ChildPipelineCompletionHandler.haveResult(${status}, ${note})  `.white.bgBlue.bold)
 
     try {

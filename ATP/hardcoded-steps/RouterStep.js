@@ -1,7 +1,7 @@
 import Step from '../Step'
 import StepTypeRegister from '../StepTypeRegister'
 import Scheduler from '../Scheduler'
-import TxData from '../TxData'
+import XData from '../XData'
 import ChildPipelineCompletionHandler from './ChildPipelineCompletionHandler'
 
 const VERBOSE = true
@@ -130,7 +130,7 @@ export class RouterStep extends Step {
       txId,
       parentStepId
     }
-    const childData = new TxData(data)
+    const childData = new XData(data)
     const logbook = instance.getLogbook()
     const completionHandler = ChildPipelineCompletionHandler.CHILD_PIPELINE_COMPLETION_HANDLER_NAME
     return await Scheduler.invokeStep(txId, parentInstance, sequenceYARP, definition, childData, logbook, completionHandler, contextForCompletionHandler)

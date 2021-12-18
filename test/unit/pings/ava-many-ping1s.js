@@ -16,7 +16,7 @@ const NODE_ID = 'many-ping1'
 test.beforeEach(async t => { })
 
 
-test.serial.only('Large number of ping1 transactions, single worker', async t => {
+test.serial('Large number of ping1 transactions, single worker', async t => {
 
   // Prepare a list of transactions to run
   const NUM = 100

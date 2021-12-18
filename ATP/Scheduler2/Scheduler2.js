@@ -2,14 +2,14 @@
 import dbTransactionType from '../../database/dbTransactionType'
 import GenerateHash from '../GenerateHash'
 import TransactionIndexEntry from '../TransactionIndexEntry'
-import TxData from '../TxData'
+import XData from '../XData'
 import CallbackRegister from './CallbackRegister'
 import { getQueueConnection } from './queuing/Queue2'
 import { ROOT_STEP_COMPLETE_CALLBACK } from './rootStepCompleteCallback'
 import TransactionCache from './TransactionCache'
 import Worker2 from './Worker2'
 import assert from 'assert'
-import { STEP_QUEUED } from '../Step'
+import { STEP_QUEUED, STEP_SUCCESS } from '../Step'
 
 // Debug related
 const VERBOSE = 0
@@ -118,7 +118,7 @@ export default class Scheduler2 {
 
   /**
    *
-   * @param {TxData} input
+   * @param {XData} input
    * @returns
    */
    static async startTransaction(input) {
@@ -149,7 +149,7 @@ export default class Scheduler2 {
         const description = 'ping1 - Scheduler2.startTransaction() immediately invoked the callback, without processing'
         if (VERBOSE||trace) {console.log(description.bgBlue.white)}
         const fakeTransactionOutput = {
-          status: 'pinged',
+          status: STEP_SUCCESS,
           transactionOutput: { foo: 'bar', description }
         }
         await CallbackRegister.call(metadata.callback, metadata.callbackContext, fakeTransactionOutput)
@@ -164,12 +164,12 @@ export default class Scheduler2 {
         // Create a new transaction
         const tx = await TransactionCache.newTransaction(metadata.owner, metadata.externalId)
         // console.log(`tx=`, tx)
-        tx.delta(null, {
+        await tx.delta(null, {
           onComplete: {
             callback: metadata.callback,
             context: metadata.callbackContext
           },
-          status: 'pinged',
+          status: STEP_SUCCESS,
           transactionOutput: { whoopee: 'doo', description }
         })
         // console.log(`tx=`, (await tx).toString())
@@ -209,7 +209,7 @@ export default class Scheduler2 {
 
       // Persist the transaction details
       const tx = await TransactionCache.newTransaction(metadata.owner, metadata.externalId)
-      tx.delta(null, {
+      await tx.delta(null, {
         transactionType: metadata.transactionType,
         nodeId: metadata.nodeId,
         pipelineName,
@@ -321,12 +321,12 @@ export default class Scheduler2 {
 
     assert(typeof(queueName) === 'string')
     let obj
-    if (data instanceof TxData) {
+    if (data instanceof XData) {
       obj = data.getData()
     } else if (typeof(data) === 'object') {
       obj = data
     } else {
-      throw new Error('enqueueStepStart() - data parameter must be TxData or object')
+      throw new Error('enqueueStepStart() - data parameter must be XData or object')
     }
 
     // Verify the event data
@@ -351,10 +351,10 @@ export default class Scheduler2 {
     // Remember the callback details, and do not pass to the step
     const tx = await TransactionCache.findTransaction(obj.txId, false)
     // console.log(`tx=`, tx)
-    tx.delta(null, {
+    await tx.delta(null, {
       nextStepId: obj.stepId, //ZZZZZ Choose a better field name
     })
-    tx.delta(obj.stepId, {
+    await tx.delta(obj.stepId, {
       // Used on return from the step.
       onComplete: {
         nodeGroup: obj.onComplete.nodeGroup,

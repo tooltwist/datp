@@ -22,7 +22,7 @@ export async function rootStepCompleteCallback (callbackContext, nodeInfo) {
   const stepStatus = stepData.status
 
   // Save this output and status as the transaction's result
-  tx.delta(null, {
+  await tx.delta(null, {
     status: stepStatus,
     transactionOutput: stepOutput
   })
