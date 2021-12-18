@@ -117,12 +117,7 @@ test.serial('reconstruct transaction details', async t => {
   await tx.delta(stepId1, { big: 999999999.999 })
 
 
-  // await TransactionCache.persist(txId)
-
   const tx2 = await TransactionPersistance.reconstructTransaction(txId)
-
-  // const tx2
-  // console.log(`tx 2=`, tx2.toString())
 
   // Check the returned object
   const obj = tx2.asObject()

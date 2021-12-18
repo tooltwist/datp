@@ -39,7 +39,7 @@ test.serial('allocate then fetch tx', async t => {
 
 
 test.serial('fetch a non-existant transaction', async t => {
-  const tx = await TransactionCache.findTransaction(t.context.txId, false)
+  const tx = await TransactionCache.findTransaction('xyz123', false)
   t.is(tx, null)
 })
 

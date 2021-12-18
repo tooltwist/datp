@@ -9,8 +9,8 @@ import pause from '../../../lib/pause'
  *  then they draw from the same queue, but the worker might not know the callback handler.
  */
 const OWNER = 'fred'
-const NODE_ID = 'many-ping1'
-const NUM_TESTS = 10000
+const NODE_ID = 'many-ping3'
+const NUM_TESTS = 100
 
 
 // https://github.com/avajs/ava/blob/master/docs/01-writing-tests.md
@@ -26,7 +26,7 @@ test.serial('Warm up', async t => {
   }
 
   // Define a callback
-  const handlerName = `test-callback-many-ping1-a-${Math.random()}`
+  const handlerName = `test-callback-many-ping3-a-${Math.random()}`
   await CallbackRegister.register(handlerName, (context, transactionOutput) => {
     // Do nothing
   })
@@ -44,7 +44,7 @@ test.serial('Warm up', async t => {
         owner: OWNER,
         nodeId: NODE_ID,
         externalId: `extref-${Math.random()}`,
-        transactionType: 'ping1',
+        transactionType: 'ping3',
         callback: handlerName,
         callbackContext: tx
       },
@@ -60,7 +60,7 @@ test.serial('Warm up', async t => {
 })
 
 
-test.serial('Large number of ping1 transactions, single worker', async t => {
+test.serial('Large number of ping3 transactions, single worker', async t => {
 
   // Prepare a list of transactions to run
   const transactionList = [ ]
@@ -77,9 +77,9 @@ test.serial('Large number of ping1 transactions, single worker', async t => {
   let endTime = 0
 
   // Define a callback
-  const handlerName = `test-callback-many-ping1-a-${Math.random()}`
+  const handlerName = `test-callback-many-ping3-a-${Math.random()}`
   await CallbackRegister.register(handlerName, (context, transactionOutput) => {
-    // console.log(`- ping1 callback:`, context, transactionOutput)
+    // console.log(`- ping3 callback:`, context, transactionOutput)
     transactionList[context.i].completionOrder = completionCounter++
     transactionList[context.i].completed++
 
@@ -101,7 +101,7 @@ test.serial('Large number of ping1 transactions, single worker', async t => {
         owner: OWNER,
         nodeId: NODE_ID,
         externalId: `extref-${Math.random()}`,
-        transactionType: 'ping1',
+        transactionType: 'ping3',
         callback: handlerName,
         callbackContext: tx
       },
@@ -131,13 +131,13 @@ test.serial('Large number of ping1 transactions, single worker', async t => {
   if (endTime) {
     const elapsed = endTime - startTime
     const each = elapsed / NUM_TESTS
-    console.log(`Completed ${NUM_TESTS} ping1 transactions in ${elapsed}ms  (${each}ms per ping, single threaded)`)
+    console.log(`Completed ${NUM_TESTS} ping3 transactions in ${elapsed}ms  (${each}ms per ping, single threaded)`)
   }
 })
 
 
 
-test.serial('Large number of ping1 transactions, multiple workers', async t => {
+test.serial('Large number of ping3 transactions, multiple workers', async t => {
   const NUM_WORKERS = 10
   const transactionList = [ ]
   for (let i = 0; i < NUM_TESTS; i++) {
@@ -153,9 +153,9 @@ test.serial('Large number of ping1 transactions, multiple workers', async t => {
   let endTime
 
   // Define a callback
-  const handlerName = `test-callback-many-ping1-b-${Math.random()}`
+  const handlerName = `test-callback-many-ping3-b-${Math.random()}`
   await CallbackRegister.register(handlerName, (data) => {
-    // console.log(`- ping1 callback:`, data)
+    // console.log(`- ping3 callback:`, data)
     transactionList[data.i].completionOrder = completionCounter++
     transactionList[data.i].completed++
 
@@ -178,7 +178,7 @@ test.serial('Large number of ping1 transactions, multiple workers', async t => {
         owner: OWNER,
         nodeId: NODE_ID,
         externalId: `extref-${Math.random()}`,
-        transactionType: 'ping1',
+        transactionType: 'ping3',
         callback: handlerName,
         callbackContext: tx
       },
@@ -207,5 +207,5 @@ test.serial('Large number of ping1 transactions, multiple workers', async t => {
 
   const elapsed = endTime - startTime
   const each = elapsed / NUM_TESTS
-  console.log(`Completed ${NUM_TESTS} ping1 transactions in ${elapsed}ms  (${each}ms per ping, ${NUM_WORKERS} workers)`)
+  console.log(`Completed ${NUM_TESTS} ping3 transactions in ${elapsed}ms  (${each}ms per ping, ${NUM_WORKERS} workers)`)
 })

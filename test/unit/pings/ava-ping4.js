@@ -17,21 +17,9 @@ const NODE_ID = 'ping4'
 
 // https://github.com/avajs/ava/blob/master/docs/01-writing-tests.md
 test.beforeEach(async t => {
-
-  // Register the hardcoded step types we will use
-  // await SaySomethingStep.register()
-  // await DummyStep.register()
-  // await MockStep.register()
-  // await RandomDelayStep.register()
   await PipelineStep.register()
   await ExampleStep.register()
   await RandomDelayStep.register()
-  // await DemoStep.register()
-  // await MandatoryFieldsStep.register()
-  // await MapFieldsStep.register()
-  // await ConvertDatesStep.register()
-  // await RouterStep.register()
-  // await ChildPipelineCompletionHandler.register()
 })
 
 

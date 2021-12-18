@@ -1,9 +1,7 @@
 import test from 'ava'
-import PipelineStep from '../../../ATP/hardcoded-steps/PipelineStep'
-import ExampleStep from '../../../ATP/hardcoded-steps/ExampleStep'
-import RandomDelayStep from '../../../ATP/hardcoded-steps/RandomDelayStep'
 import { STEP_QUEUED, STEP_RUNNING, STEP_SUCCESS } from '../../../ATP/Step'
 import TransactionCache from '../../../ATP/Scheduler2/TransactionCache'
+import createTestTransaction from '../helpers/createTestTransaction'
 
 /*
  *  We need to use a different node name for each test file, as they run in different
@@ -16,9 +14,6 @@ import TransactionCache from '../../../ATP/Scheduler2/TransactionCache'
 
 // https://github.com/avajs/ava/blob/master/docs/01-writing-tests.md
 test.beforeEach(async t => {
-  // await PipelineStep.register()
-  // await ExampleStep.register()
-  // await RandomDelayStep.register()
 })
 
 
@@ -226,13 +221,3 @@ test.serial('Changing other stuff does not update transaction', async t => {
   t.is(tx2.getSequenceOfUpdate(), 0) // Not changed
   t.is(JSON.stringify(tx2.txData()), '{"status":"running","stuff":"to not save transaction"}')
 })
-
-
-export default async function createTestTransaction () {
-  const num = Math.round(Math.random() * 100000000000)
-  const externalId = `e-${num}`
-  const owner = 'fred'
-  const tx = await TransactionCache.newTransaction(owner, externalId)
-  const txId = tx.getTxId()
-  return { txId, externalId, tx, owner }
-}

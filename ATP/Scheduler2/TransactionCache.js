@@ -1,8 +1,9 @@
+import query from '../../database/query'
 import GenerateHash from '../GenerateHash'
 import XData from '../XData'
 import Transaction from './Transaction'
 import TransactionPersistance from './TransactionPersistance'
-
+import assert from 'assert'
 class TransactionCache {
   #cache
 
@@ -37,6 +38,9 @@ class TransactionCache {
    * and is also not in persistant storage if loadIfNecessary is true.
    */
   async findTransaction(txId, loadIfNecessary = false) {
+    assert(typeof(txId) === 'string')
+    assert(typeof(loadIfNecessary) === 'boolean')
+
     let tx = this.#cache[txId]
     if (tx) {
       return tx
@@ -49,6 +53,32 @@ class TransactionCache {
       }
     }
     return null
+  }
+
+  /**
+   *
+   * @param {string} txId
+   * @param {boolean} loadIfNecessary If true, load the memory from persistant
+   * storage, if it is there
+   * @returns {Promise<Transaction>} A Transaction if it is found, or null if it is not in the cache,
+   * and is also not in persistant storage if loadIfNecessary is true.
+   */
+  async findTransactionByExternalId(owner, externalId, loadIfNecessary = false) {
+    assert(typeof(owner) === 'string')
+    assert(typeof(externalId) === 'string')
+    assert(typeof(loadIfNecessary) === 'boolean')
+
+    const sql = `SELECT transaction_id FROM atp_transaction2 WHERE owner=? AND external_id=?`
+    const params = [ owner, externalId ]
+    // console.log(`sql=`, sql)
+    // console.log(`params=`, params)
+    const rows = await query(sql, params)
+    // console.log(`rows=`, rows)
+    if (rows < 1) {
+      return null
+    }
+
+    return this.findTransaction(rows[0].transaction_id, loadIfNecessary)
   }
 
   /**

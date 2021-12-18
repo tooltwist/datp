@@ -337,7 +337,7 @@ export default class StepInstance {
     if (VERBOSE) console.log(`StepInstance.succeeded(note=${note}, ${typeof stepOutput})`, stepOutput)
 
     const myStepOutput = this._sanitizedOutput(stepOutput)
-    console.log(`succeeded: step out is `.magenta, myStepOutput)
+    if (VERBOSE) console.log(`succeeded: step out is `.magenta, myStepOutput)
 
 
     // Quick sanity check - make sure this step is actually running, and has not already exited.
@@ -374,7 +374,7 @@ export default class StepInstance {
     if (VERBOSE) console.log(`StepInstance.aborted(note=${note}, ${typeof stepOutput})`, stepOutput)
 
     const myStepOutput = this._sanitizedOutput(stepOutput)
-    console.log(`failed: step out is `.magenta, myStepOutput)
+    if (VERBOSE) console.log(`aborted: step out is `.magenta, myStepOutput)
 
 
     // Quick sanity check - make sure this step is actually running, and has not already exited.
@@ -410,7 +410,7 @@ export default class StepInstance {
     if (VERBOSE) console.log(`StepInstance.failed(note=${note}, ${typeof stepOutput})`, stepOutput)
 
     const myStepOutput = this._sanitizedOutput(stepOutput)
-    console.log(`failed: step out is `.magenta, myStepOutput)
+    if (VERBOSE) console.log(`failed: step out is `.magenta, myStepOutput)
 
 
     // Quick sanity check - make sure this step is actually running, and has not already exited.

@@ -263,7 +263,7 @@ export default class Worker2 {
       event.nodeId = this.#nodeGroup
       event.nodeGroup = this.#nodeGroup
       const instance = new StepInstance()
-      console.log(`------------------------------ ${this.#nodeGroup} materialize ${tx.getTxId()}`)
+      if (VERBOSE) console.log(`------------------------------ ${this.#nodeGroup} materialize ${tx.getTxId()}`)
       await instance.materialize(event, tx)
       if (trace || this.#debugLevel > 0) console.log(`>>>>>>>>>> >>>>>>>>>> >>>>>>>>>> START [${instance.getStepType()}] ${instance.getStepId()}`, tx.stepData(stepId))
 
@@ -330,7 +330,7 @@ export default class Worker2 {
       // await tx.delta(null, {
       //   currentStepId: stepId
       // })
-      // tx.delta
+      // await tx.delta
       // await tx.delta(stepId, {
       //   parentStepId,
       //   sequenceYARP,
