@@ -8,8 +8,6 @@ import createTestTransaction from '../helpers/createTestTransaction'
  *  processes (with different CallbackRegisters). If multiple test files have the same nodeId
  *  then they draw from the same queue, but the worker might not know the callback handler.
  */
-// const OWNER = 'fred'
-// const NODE_ID = 'succeed-workflow'
 
 
 // https://github.com/avajs/ava/blob/master/docs/01-writing-tests.md

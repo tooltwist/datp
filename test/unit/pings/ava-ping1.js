@@ -10,7 +10,7 @@ import { STEP_SUCCESS } from '../../../ATP/Step'
  *  then they draw from the same queue, but the worker might not know the callback handler.
  */
 const OWNER = 'fred'
-const NODE_ID = 'ping1'
+const NODE_GROUP = 'ping1'
 
 
 // https://github.com/avajs/ava/blob/master/docs/01-writing-tests.md
@@ -35,7 +35,7 @@ test.serial('Call ping1 test transaction', async t => {
   })
 
   // Start the scheduler and give it time to work
-  const scheduler = new Scheduler2(NODE_ID, null)
+  const scheduler = new Scheduler2(NODE_GROUP, null)
   await scheduler.drainQueue()
   await scheduler.start()
 
@@ -43,12 +43,14 @@ test.serial('Call ping1 test transaction', async t => {
   await Scheduler2.startTransaction({
     metadata: {
       owner: OWNER,
-      nodeId: NODE_ID,
+      nodeGroup: NODE_GROUP,
       externalId: `extref-${Math.random()}`,
       transactionType: 'ping1',
-      callback: handlerName,
-      callbackContext: {
-        ping: 'yippee!'
+      onComplete: {
+        callback: handlerName,
+        context: {
+          ping: 'yippee!'
+        }
       }
     },
     data: {

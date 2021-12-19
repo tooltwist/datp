@@ -10,7 +10,7 @@ import pause from '../../../lib/pause'
  *  then they draw from the same queue, but the worker might not know the callback handler.
  */
 const OWNER = 'fred'
-const NODE_ID = 'ping3'
+const NODE_GROUP = 'ping3'
 
 
 // https://github.com/avajs/ava/blob/master/docs/01-writing-tests.md
@@ -28,7 +28,7 @@ test.serial('Call ping3 test transaction', async t => {
   let endTime = 0
 
   // Define a callback
-  const handlerName = `test-callback-ping3-a-${Math.random()}`
+  const handlerName = `test-callback-${NODE_GROUP}-a-${Math.random()}`
   await CallbackRegister.register(handlerName, (context, data) => {
     // console.log(`Test harness ping3 callback:`, context, data)
     returnedContext = context
@@ -38,19 +38,21 @@ test.serial('Call ping3 test transaction', async t => {
   })
 
   // Prepare the scheduler and ensure the queue is empty
-  const scheduler = new Scheduler2(NODE_ID, null)
+  const scheduler = new Scheduler2(NODE_GROUP, null)
   await scheduler.drainQueue()
 
   // Start the test transaction
   await Scheduler2.startTransaction({
     metadata: {
       owner: OWNER,
-      nodeId: NODE_ID,
+      nodeGroup: NODE_GROUP,
       externalId: `extref-${Math.random()}`,
       transactionType: 'ping3',
-      callback: handlerName,
-      callbackContext: {
-        yarp: 'whammo'
+      onComplete: {
+        callback: handlerName,
+        context: {
+          yarp: 'whammo'
+        }
       },
       traceLevel: 0
     },

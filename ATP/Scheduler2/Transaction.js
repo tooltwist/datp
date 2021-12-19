@@ -12,6 +12,7 @@ import {
 } from "../Step"
 import XData from "../XData"
 import TransactionPersistance from "./TransactionPersistance"
+import Scheduler2, { DEFAULT_QUEUE } from "./Scheduler2"
 
 // Debug stuff
 const VERBOSE = 0
@@ -149,86 +150,102 @@ export default class Transaction {
       // Next sequence number
       this.#deltaCounter++
 
-      // See if any of the core values are changing
+      // See if any of the core transaction values are changing
       let coreValuesChanged = false
-      if (data.status) {
-        // Check the status is valid
-        switch (data.status) {
-          case STEP_QUEUED:
-          case STEP_RUNNING:
-          case STEP_SUCCESS:
-          case STEP_FAILED:
-          case STEP_ABORTED:
-          case STEP_SLEEPING:
-          case STEP_TIMEOUT:
-          case STEP_INTERNAL_ERROR:
-            if (this.#status !== data.status) {
-              if (VERBOSE) console.log(`Setting transaction status to ${data.status}`)
-              coreValuesChanged = true
-              this.#status = data.status
-            }
-            break
+      if (stepId === null) {
+        if (data.status) {
+          // Check the status is valid
+          switch (data.status) {
+            case STEP_QUEUED:
+            case STEP_RUNNING:
+            case STEP_SUCCESS:
+            case STEP_FAILED:
+            case STEP_ABORTED:
+            case STEP_SLEEPING:
+            case STEP_TIMEOUT:
+            case STEP_INTERNAL_ERROR:
+              if (this.#status !== data.status) {
+                if (VERBOSE) console.log(`Setting transaction status to ${data.status}`)
+                coreValuesChanged = true
+                this.#status = data.status
+              }
+              break
 
-          default:
-            throw new Error(`Invalid status [${data.status}]`)
-        }
-      }
-      if (typeof(data.progressReport) !== 'undefined' && this.#progressReport !== data.progressReport) {
-        if (VERBOSE) console.log(`Setting transaction progressReport to ${data.progressReport}`)
-        if (typeof(data.progressReport) !== 'object') {
-          throw new Error('data.progressReport must be an object')
-        }
-        coreValuesChanged = true
-        this.#progressReport = data.progressReport
-      }
-      if (typeof(data.transactionOutput) !== 'undefined' && this.#transactionOutput !== data.transactionOutput) {
-        if (VERBOSE) console.log(`Setting transactionOutput to ${data.transactionOutput}`)
-        if (typeof(data.transactionOutput) !== 'object') {
-          throw new Error('data.transactionOutput must be an object')
-        }
-        coreValuesChanged = true
-        this.#transactionOutput = data.transactionOutput
-      }
-      if (typeof(data.completionTime) !== 'undefined' && this.#completionTime !== data.completionTime) {
-        if (VERBOSE) console.log(`Setting transaction completionTime to ${data.completionTime}`)
-        if (data.completionTime !== null && !(data.completionTime instanceof Date)) {
-          throw new Error('data.completionTime parameter must be of type Date')
-        }
-        coreValuesChanged = true
-        this.#completionTime = data.completionTime
-      }
-
-      // If the core values were changed, update the database
-      if (coreValuesChanged) {
-        this.#sequenceOfUpdate = this.#deltaCounter
-        if (!replayingPastDeltas) {
-          const sql = `UPDATE atp_transaction2 SET
-            status=?,
-            progress_report=?,
-            transaction_output=?,
-            completion_time=?,
-            sequence_of_update=?
-            WHERE transaction_id=? AND owner=?`
-          const params = [
-            this.#status,
-            this.#progressReport,
-            this.#transactionOutput,
-            this.#completionTime,
-            this.#deltaCounter,
-            this.#txId,
-            this.#owner
-          ]
-          // console.log(`sql=`, sql)
-          // console.log(`params=`, params)
-          const response = await query(sql, params)
-          // console.log(`response=`, response)
-          if (response.changedRows !== 1) {
-            // This should never happen.
-            //ZZZZZ What do we do if the transaction was not updated
-            throw new Error(`INTERNAL ERROR: Could not update transaction record`)
+            default:
+              throw new Error(`Invalid status [${data.status}]`)
           }
         }
-      }
+        if (typeof(data.progressReport) !== 'undefined' && this.#progressReport !== data.progressReport) {
+          if (VERBOSE) console.log(`Setting transaction progressReport to ${data.progressReport}`)
+          if (typeof(data.progressReport) !== 'object') {
+            throw new Error('data.progressReport must be an object')
+          }
+          coreValuesChanged = true
+          this.#progressReport = data.progressReport
+        }
+        if (typeof(data.transactionOutput) !== 'undefined' && this.#transactionOutput !== data.transactionOutput) {
+          if (VERBOSE) console.log(`Setting transactionOutput to ${data.transactionOutput}`)
+          if (typeof(data.transactionOutput) !== 'object') {
+            throw new Error('data.transactionOutput must be an object')
+          }
+          coreValuesChanged = true
+          this.#transactionOutput = data.transactionOutput
+        }
+        if (typeof(data.completionTime) !== 'undefined' && this.#completionTime !== data.completionTime) {
+          if (VERBOSE) console.log(`Setting transaction completionTime to ${data.completionTime}`)
+          if (data.completionTime !== null && !(data.completionTime instanceof Date)) {
+            throw new Error('data.completionTime parameter must be of type Date')
+          }
+          coreValuesChanged = true
+          this.#completionTime = data.completionTime
+        }
+
+        // If the core values were changed, update the database
+        if (coreValuesChanged) {
+          this.#sequenceOfUpdate = this.#deltaCounter
+          if (!replayingPastDeltas) {
+            const sql = `UPDATE atp_transaction2 SET
+              status=?,
+              progress_report=?,
+              transaction_output=?,
+              completion_time=?,
+              sequence_of_update=?
+              WHERE transaction_id=? AND owner=?`
+
+              //ZZZZ Check that the transaction hasn't been updateed by someone else.
+              //  AND sequence_of_update=?   [ this.#sequenceOfUpdate ]
+            const params = [
+              this.#status,
+              this.#progressReport,
+              this.#transactionOutput,
+              this.#completionTime,
+              this.#deltaCounter,
+              this.#txId,
+              this.#owner
+            ]
+            // console.log(`sql=`, sql)
+            // console.log(`params=`, params)
+            const response = await query(sql, params)
+            // console.log(`response=`, response)
+            if (response.changedRows !== 1) {
+              // This should never happen.
+              //ZZZZZ What do we do if the transaction was not updated
+              throw new Error(`INTERNAL ERROR: Could not update transaction record`)
+            }
+
+            // Notify any event handler
+            // console.log(`this.#tx=`, this.#tx)
+            if (this.#tx.onChange) {
+              const queueName = Scheduler2.standardQueueName(this.#tx.nodeGroup, DEFAULT_QUEUE)
+              if (VERBOSE) console.log(`Adding a TRANSACTION_CHANGE_EVENT to queue ${queueName}`)
+              await Scheduler2.enqueue_TransactionChange(queueName, {
+                owner: this.#owner,
+                txId: this.#txId
+              })
+            }
+          }//- !replayingPastDeltas
+        }//- coreValuesChanged
+      }//- !stepId
 
       // Save this delta (i.e. like a journal entry)
       const obj = {

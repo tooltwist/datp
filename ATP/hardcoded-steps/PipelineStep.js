@@ -79,7 +79,6 @@ class Pipeline extends Step {
     const stepInput = await pipelineInstance.getTxData().getData()
     // console.log(`stepInput=`, stepInput)
     const metadata = await pipelineInstance.getMetadata()
-    // const parentNodeId = await pipelineInstance.getNodeId()
 
     // Let the transaction know we are here
     const tx = await TransactionCache.findTransaction(txId, true)
@@ -157,24 +156,25 @@ class Pipeline extends Step {
       // const txId = pipelineInstance.getTransactionId()//ZZZZ rename
       const parentStepId = pipelineInstance.getStepId()
       // console.log(`parentStepId=`, parentStepId)
-      const parentNodeId = pipelineInstance.getNodeId()
-      // console.log(`parentNodeId=`, parentNodeId)
+      const parentNodeGroup = pipelineInstance.getNodeGroup()
+      // console.log(`parentNodeGroup=`, parentNodeGroup)
       // const childStepId = GenerateHash('s')
       const childStepId = childStepIds[0]
-      const childNodeId = parentNodeId
+      const childNodeGroup = parentNodeGroup
 
       // The child will run in the same node as this pipeline.
       // const nodeGroupWherePipelineRuns = metadata.nodeId
-      const queueToPipelineNode = Scheduler2.standardQueueName(parentNodeId, DEFAULT_QUEUE)
-      // console.log(`parentNodeId=`, parentNodeId)
+      const queueToPipelineNode = Scheduler2.standardQueueName(parentNodeGroup, DEFAULT_QUEUE)
+      // console.log(`parentNodeGroup=`, parentNodeGroup)
       // console.log(`queueToPipelineNode=`, queueToPipelineNode)
 
       // console.log(`metadata=`, metadata)
       // console.log(`txdata=`, txdata)
-      // console.log(`parentNodeId=`, parentNodeId)
+      // console.log(`parentNodeGroup=`, parentNodeGroup)
       await Scheduler2.enqueue_StepStart(queueToPipelineNode, {
         txId,
-        nodeId: childNodeId,
+        nodeGroup: childNodeGroup,
+        nodeId: childNodeGroup,
         stepId: childStepId,
         // parentNodeId,
         parentStepId,
@@ -184,9 +184,9 @@ class Pipeline extends Step {
         data: stepInput,
         level: pipelineInstance.getLevel() + 1,
         onComplete: {
-          nodeGroup: parentNodeId,
+          nodeGroup: parentNodeGroup,
           callback: PIPELINE_STEP_COMPLETE_CALLBACK,
-          context: { txId, parentNodeId, parentStepId, childStepId }
+          context: { txId, parentNodeGroup, parentStepId, childStepId }
         }
       })
 

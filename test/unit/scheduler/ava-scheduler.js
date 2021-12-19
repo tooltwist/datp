@@ -9,7 +9,7 @@ import pause from '../../../lib/pause'
  *  then they draw from the same queue, but the worker might not know the callback handler.
  */
 const OWNER = 'fred'
-const NODE_ID = 'scheduler'
+const NODE_GROUP = 'scheduler'
 
 
 // https://github.com/avajs/ava/blob/master/docs/01-writing-tests.md
@@ -24,7 +24,7 @@ test.beforeEach(async t => { })
 test.serial('Start and stop scheduler', async t => {
 
   // Start the scheduler and give it time to work
-  const scheduler = new Scheduler2(NODE_ID, null)
+  const scheduler = new Scheduler2(NODE_GROUP, null)
   await scheduler.drainQueue()
   const status0 = await scheduler.getStatus()
   // console.log(`status0=`, status0)
@@ -69,14 +69,14 @@ test.serial('Add event before starting scheduler', async t => {
   let complete = false
 
   // Define a callback
-  const handlerName = `test-callback-scheduler-a-${Math.random()}`
+  const handlerName = `test-callback-${NODE_GROUP}-a-${Math.random()}`
   await CallbackRegister.register(handlerName, (data) => {
     // console.log(`Test harness ping1 callback:`, data)
     complete = true
   })
 
   // Start the scheduler and give it time to work
-  const scheduler = new Scheduler2(NODE_ID, null)
+  const scheduler = new Scheduler2(NODE_GROUP, null)
   await scheduler.drainQueue()
   // await scheduler.dump()
   const status1 = await scheduler.getStatus()
@@ -93,12 +93,14 @@ test.serial('Add event before starting scheduler', async t => {
   await Scheduler2.startTransaction({
     metadata: {
       owner: OWNER,
-      nodeId: NODE_ID,
+      nodeGroup: NODE_GROUP,
       externalId: `extref-${Math.random()}`,
       transactionType: 'ping3',
-      callback: handlerName,
-      callbackContext: {
-        ping: 'yipee!'
+      onComplete: {
+        callback: handlerName,
+        context: {
+          ping: 'yipee!'
+        }
       }
     },
     data: {
@@ -155,7 +157,7 @@ test.serial('Start scheduler before first event', async t => {
   let complete = false
 
   // Define a callback
-  const handlerName = `test-callback-scheduler-b-${Math.random()}`
+  const handlerName = `test-callback-${NODE_GROUP}-b-${Math.random()}`
   await CallbackRegister.register(handlerName, (data) => {
     // console.log(`Test harness ping1 callback:`, data)
     complete = true
@@ -165,7 +167,7 @@ test.serial('Start scheduler before first event', async t => {
   // await Queue2.checkRunning()
 
   // Start the scheduler and give it time to work
-  const scheduler = new Scheduler2(NODE_ID, null)
+  const scheduler = new Scheduler2(NODE_GROUP, null)
   await scheduler.drainQueue()
 
   // await scheduler.dump()
@@ -194,12 +196,14 @@ test.serial('Start scheduler before first event', async t => {
   await Scheduler2.startTransaction({
     metadata: {
       owner: OWNER,
-      nodeId: NODE_ID,
+      nodeGroup: NODE_GROUP,
       externalId: `extref-${Math.random()}`,
       transactionType: 'ping3',
-      callback: handlerName,
-      callbackContext: {
-        ping: 'yipee!'
+      onComplete: {
+        callback: handlerName,
+        context: {
+          ping: 'yipee!'
+        }
       }
     },
     data: {

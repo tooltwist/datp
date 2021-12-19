@@ -118,6 +118,10 @@ export default class Worker2 {
           await this.processEvent_StepCompleted(event)
           break
 
+        case Scheduler2.TRANSACTION_CHANGE_EVENT:
+          await this.processEvent_TransactionChanged(event)
+          break
+
         case Scheduler2.TRANSACTION_COMPLETED_EVENT:
           await this.processEvent_TransactionCompleted(event)
           break
@@ -271,126 +275,12 @@ export default class Worker2 {
         status: STEP_RUNNING
       })
 
-
-
-
       /*
-       *  Start the step, and don't wait for it to complete
+       *  Start the step - we don't wait for it to complete
        */
       const stepObject = instance.getStepObject()
       await stepObject.invoke_internal(instance)
 
-      // Let it return, but we don't return the transaction reply via here.
-
-
-
-      // // Check the event. This should match the assertions in enqueue_StepStart()
-      // assert (typeof(event.txId) === 'string')
-      // assert (typeof(event.stepId) === 'string')
-
-      // // assert (typeof(obj.parentStepId) === 'string')
-      // // assert (typeof(obj.parentNodeId) === 'string')
-      // assert (typeof(event.sequenceYARP) === 'string')
-      // assert (typeof(event.stepDefinition) !== 'undefined')
-      // assert (typeof(event.inputData) === 'object')
-      // assert (typeof(event.metadata) === 'object')
-      // assert (typeof(event.level) === 'number')
-
-      // // How to reply when complete
-      // assert (typeof(event.onComplete) === 'object')
-      // assert (typeof(event.onComplete.nodeGroup) === 'string')
-      // assert (typeof(event.onComplete.callback) === 'string')
-      // assert (typeof(event.onComplete.context) === 'object')
-
-
-      // const txId = event.txId
-      // console.log(`txId=`, txId)
-      // const stepId = event.stepId
-      // console.log(`stepId=`, stepId)
-      // // const parentStepId = event.parentStepId
-      // // const parentNodeId = event.parentNodeId
-      // const sequenceYARP = event.sequenceYARP
-      // const stepDefinition = event.stepDefinition
-      // const inputData = event.inputData
-      // const metadata = event.metadata
-      // const level = event.level
-      // const completionToken = event.onComplete
-      // // console.log(`stepDefinition=`, stepDefinition)
-
-      // console.log(`completionToken=`, completionToken)
-
-
-      // // Save the step details
-      // //ZZZ Shouldn't this be done in the parent?
-      // const tx = await TransactionCache.findTransaction(txId, true)
-      // const txObj = tx.asObject()
-      // console.log(`txObj=`, txObj)
-      // assert(stepId === txObj.transactionData.nextStepId)// Have we come where the Scheduler intended?
-      // console.log(`processEvent_StepStart: setting tx.currentStepId`.cyan.bold)
-      // await tx.delta(null, {
-      //   currentStepId: stepId
-      // })
-      // await tx.delta
-      // await tx.delta(stepId, {
-      //   parentStepId,
-      //   sequenceYARP,
-      //   stepDefinition,
-      //   metadata: event.metadata,
-      //   stepInput: event.data
-      // })
-
-      // //ZZZZZZ
-      // // console.log(`DO NOT KNOW HOW TO START A STEP YET`)
-      // console.log(`STARTING STEP`.bgWhite.blue)
-      // // // console.log(`tx=`, tx)
-
-      // console.log(`tx=`, tx)
-
-      // event.nodeId = this.#nodeGroup
-      // event.nodeGroup = this.#nodeGroup
-      // //+++++++++++++ START OLD STUFF +++++++++++++++
-      // /*
-      // *  Prepare the context for the step.
-      // */
-      // const instance = new StepInstance()
-      // await instance.materialize(event)
-      // //   {
-      // //   txId,
-      // //   nodeId: this.#nodeGroup,
-      // //   stepId,
-      // //   parentNodeId,
-      // //   parentStepId,//ZZZZZ Make consistent naming
-      // //   stepDefinition,
-      // //   data,
-      // //   metadata,
-      // //   level,
-      // //   fullSequence: sequenceYARP,//ZZZZZ Make consistent naming
-      // //   // logbook,
-      // //   // resultReceiver,
-      // //   completionToken,
-      // //   // completionHandlerData
-      // // })
-      // // console.log(`About to start step ${fullSequence}`)
-      // instance.console(`>>>>>>>>>> >>>>>>>>>> >>>>>>>>>> START [${instance.getStepType()}] ${instance.getStepId()}`)
-
-
-      // /*
-      //  *  Start the step, and don't wait for it to complete
-      //  */
-      // const stepObject = instance.getStepObject()
-      // const reply = await stepObject.invoke_internal(instance)
-
-      // // NOTE: The reply will only be the step reply if the step is hard coded and synchronous.
-      // //ZZZZ
-      // // if (reply.xyz === SYNCHRONOUS)
-      // return reply
-
-      // //+++++++++++++ END OLD STUFF +++++++++++++++
-
-      // // // Add a Job to the ready queue
-
-      // // const job = new Job(input)
-      // // this.#waitingToRun.enqueue(job)
     } catch (e) {
       console.log(`DATP internal error: processEvent_StepStart:`, e)
     }
@@ -449,6 +339,52 @@ export default class Worker2 {
       console.log(`DATP internal error`, e)
     }
   }//- processEvent_StepCompleted
+
+
+  /**
+   *
+   * @param {XData} event
+   * @returns
+   */
+   async processEvent_TransactionChanged(event) {
+    if (this.#debugLevel > 1) {
+      console.log(`<<< processEvent_TransactionChanged()`.brightYellow, event)
+    }
+
+    try {
+      const txId = event.txId
+      const tx = await TransactionCache.findTransaction(txId, true)
+      const txData = tx.txData()
+
+      if (this.#debugLevel > 1) {
+        console.log(`processEvent_TransactionChanged txData=`, txData)
+      }
+      const owner = tx.getOwner()
+      const externalId = tx.getExternalId()
+      const status = tx.getStatus()
+      const sequenceOfUpdate = tx.getSequenceOfUpdate()
+
+      const transactionInput = txData.transactionInput
+      const progressReport = tx.getProgressReport()
+      const transactionOutput = tx.getTransactionOutput()
+
+      const extraInfo = {
+        txId,
+        owner,
+        externalId,
+        status,
+        transactionInput,
+        progressReport,
+        transactionOutput,
+        sequenceOfUpdate
+      }
+      await CallbackRegister.call(txData.onChange.callback, txData.onChange.context, extraInfo)
+      return
+    } catch (e) {
+      console.log(`DATP internal error in processEvent_TransactionChanged():`, e)
+      console.log(`event=`, event)
+    }
+  }//- processEvent_TransactionCompleted
 
 
   /**

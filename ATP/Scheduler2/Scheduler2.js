@@ -48,6 +48,7 @@ export default class Scheduler2 {
   // static TRANSACTION_START_EVENT = 'tx-start'
   // static TRANSACTION_PROGRESS_EVENT = 'tx-progress' //ZZZZZ Is this used ???
   static TRANSACTION_COMPLETED_EVENT = 'tx-completed'
+  static TRANSACTION_CHANGE_EVENT = 'tx-changed'
   static STEP_START_EVENT = 'step-start'
   static STEP_COMPLETED_EVENT = 'step-end'
   static LONG_POLL = 'long-poll'
@@ -124,11 +125,17 @@ export default class Scheduler2 {
    static async startTransaction(input) {
     assert (typeof(input.metadata) === 'object')
     assert (typeof(input.metadata.owner) === 'string')
-    assert (typeof(input.metadata.nodeId) === 'string')
+    assert (typeof(input.metadata.nodeGroup) === 'string')
     assert (typeof(input.metadata.externalId) === 'string')
     assert (typeof(input.metadata.transactionType) === 'string')
-    assert (typeof(input.metadata.callback) === 'string')
-    assert (typeof(input.metadata.callbackContext) === 'object')
+    assert (typeof(input.metadata.onComplete) === 'object')
+    assert (typeof(input.metadata.onComplete.callback) === 'string')
+    assert (typeof(input.metadata.onComplete.context) === 'object')
+    if (input.metadata.onChange) {
+      assert (typeof(input.metadata.onChange) === 'object')
+      assert (typeof(input.metadata.onChange.callback) === 'string')
+      assert (typeof(input.metadata.onChange.context) === 'object')
+    }
     assert (typeof(input.data) === 'object')
 
 
@@ -143,7 +150,7 @@ export default class Scheduler2 {
       const initialData = JSON.parse(JSON.stringify(input.data))
 
       /*
-      *  Two transaction types are provided for testing.
+      *  A 'ping1' test transaction returns by immediately calling the callback function.
       */
       if (metadata.transactionType === 'ping1') {
         const description = 'ping1 - Scheduler2.startTransaction() immediately invoked the callback, without processing'
@@ -152,10 +159,13 @@ export default class Scheduler2 {
           status: STEP_SUCCESS,
           transactionOutput: { foo: 'bar', description }
         }
-        await CallbackRegister.call(metadata.callback, metadata.callbackContext, fakeTransactionOutput)
+        await CallbackRegister.call(metadata.onComplete.callback, metadata.onComplete.context, fakeTransactionOutput)
         return
       }
 
+      /*
+       *  A 'ping2' test transaction returns via the TRANSACTION_COMPLETE_EVENT
+       */
       if (metadata.transactionType === 'ping2') {
         // Bounce back via a normal TRANSACTION_COMPLETE_EVENT
         const description = 'ping2 - Scheduler.startTransaction() returning without processing step'
@@ -163,18 +173,17 @@ export default class Scheduler2 {
 
         // Create a new transaction
         const tx = await TransactionCache.newTransaction(metadata.owner, metadata.externalId)
-        // console.log(`tx=`, tx)
         await tx.delta(null, {
           onComplete: {
-            callback: metadata.callback,
-            context: metadata.callbackContext
+            callback: metadata.onComplete.callback,
+            context: metadata.onComplete.context
           },
           status: STEP_SUCCESS,
           transactionOutput: { whoopee: 'doo', description }
         })
         // console.log(`tx=`, (await tx).toString())
         const txId = tx.getTxId()
-        const queueName = Scheduler2.standardQueueName(input.metadata.nodeId, DEFAULT_QUEUE)
+        const queueName = Scheduler2.standardQueueName(input.metadata.nodeGroup, DEFAULT_QUEUE)
         Scheduler2.enqueue_TransactionCompleted(queueName, {
           txId,
         })
@@ -187,9 +196,9 @@ export default class Scheduler2 {
       delete metadataCopy['transactionType']
       delete metadataCopy['owner']
       delete metadataCopy['externalId']
-      delete metadataCopy['nodeId']
-      delete metadataCopy['callback']
-      delete metadataCopy['callbackContext']
+      delete metadataCopy['nodeGroup']
+      delete metadataCopy['onComplete']
+      delete metadataCopy['onChange']
       // console.log(`metadataCopy 2=`, metadataCopy)
 
       // Which pipeline should we use?
@@ -209,18 +218,26 @@ export default class Scheduler2 {
 
       // Persist the transaction details
       const tx = await TransactionCache.newTransaction(metadata.owner, metadata.externalId)
-      await tx.delta(null, {
+      const def = {
         transactionType: metadata.transactionType,
-        nodeId: metadata.nodeId,
+        nodeGroup: metadata.nodeGroup,
+        nodeId: metadata.nodeGroup, //ZZZZ Set to current node
         pipelineName,
         status: TransactionIndexEntry.RUNNING,//ZZZZ
         metadata: metadataCopy,
         transactionInput: initialData,
         onComplete: {
-          callback: metadata.callback,
-          context: metadata.callbackContext,
+          callback: metadata.onComplete.callback,
+          context: metadata.onComplete.context,
         }
-      })
+      }
+      if (input.metadata.onChange) {
+        def.onChange = {
+          callback: input.metadata.onChange.callback,
+          context: input.metadata.onChange.context
+        }
+      }
+      await tx.delta(null, def)
       // console.log(`txData=`, tx.txData())
 
 
@@ -249,7 +266,7 @@ export default class Scheduler2 {
       const stepId = GenerateHash('s')
 
       // Get the name of the queue to the node where this pipeline will run
-      const nodeGroupWherePipelineRuns = metadata.nodeId
+      const nodeGroupWherePipelineRuns = metadata.nodeGroup
       const queueToPipelineNode = Scheduler2.standardQueueName(nodeGroupWherePipelineRuns, DEFAULT_QUEUE)
 
       // console.log(`metadataCopy=`, metadataCopy)
@@ -258,7 +275,7 @@ export default class Scheduler2 {
       await Scheduler2.enqueue_StepStart(queueToPipelineNode, {
         txId,
         stepId,
-        parentNodeId: metadata.nodeId,
+        parentNodeGroup: metadata.nodeGroup,
         parentStepId: '',
         sequenceYARP: txId.substring(txId.length - 8),
         stepDefinition: pipelineName,
@@ -269,7 +286,7 @@ export default class Scheduler2 {
         onComplete: {
           callback: ROOT_STEP_COMPLETE_CALLBACK,
           context: { txId, stepId },
-          nodeGroup: metadata.nodeId,
+          nodeGroup: metadata.nodeGroup,
         }
       })
 
@@ -439,12 +456,36 @@ export default class Scheduler2 {
     assert(typeof(event) == 'object')
     assert (typeof(event.txId) === 'string')
     assert (typeof(event.transactionOutput) === 'undefined')
-    // assert (typeof(event.transactionOutput) === 'object')
-    // if (typeof(event.callback) !== 'string') { throw new Error(`Invalid callback`) }
-    // if (typeof(event.callbackContext) !== 'object') { throw new Error(`Invalid callbackContext`) }
 
     // Add to the event queue
     event.eventType = Scheduler2.TRANSACTION_COMPLETED_EVENT
+    // console.log(`Adding ${event.eventType} event to queue ${queueName}`.brightGreen)
+    const queue = await getQueueConnection()
+    await queue.enqueue(queueName, event)
+  }//- enqueue_TransactionCompleted
+
+
+  /**
+   *
+   * @param {string} queueName
+   * @param {object} event
+   */
+   static async enqueue_TransactionChange(queueName, event) {
+    if (VERBOSE) {
+      console.log(`\n<<< enqueue_TransactionChange(${queueName})`.green, event)
+    }
+
+    if (!queueName) {
+      throw new Error(`enqueue_TransactionChange() requires queueName parameter`)
+    }
+    // Validate the event data
+    assert(typeof(queueName) == 'string')
+    assert(typeof(event) == 'object')
+    assert (typeof(event.txId) === 'string')
+    assert (typeof(event.transactionOutput) === 'undefined')
+
+    // Add to the event queue
+    event.eventType = Scheduler2.TRANSACTION_CHANGE_EVENT
     // console.log(`Adding ${event.eventType} event to queue ${queueName}`.brightGreen)
     const queue = await getQueueConnection()
     await queue.enqueue(queueName, event)

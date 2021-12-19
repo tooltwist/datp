@@ -13,7 +13,7 @@ import { STEP_ABORTED } from '../../../ATP/Step'
  *  then they draw from the same queue, but the worker might not know the callback handler.
  */
 const OWNER = 'fred'
-const NODE_ID = 'abort'
+const NODE_GROUP = 'abort'
 
 
 // https://github.com/avajs/ava/blob/master/docs/01-writing-tests.md
@@ -32,7 +32,7 @@ test.serial('Run a sucessful transaction', async t => {
   let endTime = 0
 
   // Define a callback
-  const handlerName = `test-${NODE_ID}-callback-${Math.random()}`
+  const handlerName = `test-${NODE_GROUP}-callback-${Math.random()}`
   await CallbackRegister.register(handlerName, (context, data) => {
     // console.log(`Test harness ping4 callback:`, context, data)
     returnedContext = context
@@ -42,7 +42,7 @@ test.serial('Run a sucessful transaction', async t => {
   })
 
   // Start the scheduler and give it time to work
-  const scheduler = new Scheduler2(NODE_ID, null)
+  const scheduler = new Scheduler2(NODE_GROUP, null)
   await scheduler.drainQueue()
   await scheduler.start()
 
@@ -50,12 +50,14 @@ test.serial('Run a sucessful transaction', async t => {
   await Scheduler2.startTransaction({
     metadata: {
       owner: OWNER,
-      nodeId: NODE_ID,
+      nodeGroup: NODE_GROUP,
       externalId: `extref-${Math.random()}`,
       transactionType: 'ping4',
-      callback: handlerName,
-      callbackContext: {
-        glee: 'yippee!'
+      onComplete: {
+        callback: handlerName,
+        context: {
+          glee: 'yippee!'
+        }
       }
     },
     data: {

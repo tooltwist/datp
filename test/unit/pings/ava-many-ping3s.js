@@ -9,7 +9,7 @@ import pause from '../../../lib/pause'
  *  then they draw from the same queue, but the worker might not know the callback handler.
  */
 const OWNER = 'fred'
-const NODE_ID = 'many-ping3'
+const NODE_GROUP = 'many-ping3'
 const NUM_TESTS = 100
 
 
@@ -26,13 +26,13 @@ test.serial('Warm up', async t => {
   }
 
   // Define a callback
-  const handlerName = `test-callback-many-ping3-a-${Math.random()}`
+  const handlerName = `test-callback-${NODE_GROUP}-a-${Math.random()}`
   await CallbackRegister.register(handlerName, (context, transactionOutput) => {
     // Do nothing
   })
 
   // Start the scheduler and give it time to work
-  const scheduler = new Scheduler2(NODE_ID, null, { numWorkers: 1 })
+  const scheduler = new Scheduler2(NODE_GROUP, null, { numWorkers: 1 })
   await scheduler.drainQueue()
   await scheduler.start()
 
@@ -42,11 +42,13 @@ test.serial('Warm up', async t => {
     await Scheduler2.startTransaction({
       metadata: {
         owner: OWNER,
-        nodeId: NODE_ID,
+        nodeGroup: NODE_GROUP,
         externalId: `extref-${Math.random()}`,
         transactionType: 'ping3',
-        callback: handlerName,
-        callbackContext: tx
+        onComplete: {
+          callback: handlerName,
+          context: tx
+        }
       },
       data: {
       }
@@ -77,7 +79,7 @@ test.serial('Large number of ping3 transactions, single worker', async t => {
   let endTime = 0
 
   // Define a callback
-  const handlerName = `test-callback-many-ping3-a-${Math.random()}`
+  const handlerName = `test-callback-${NODE_GROUP}-a-${Math.random()}`
   await CallbackRegister.register(handlerName, (context, transactionOutput) => {
     // console.log(`- ping3 callback:`, context, transactionOutput)
     transactionList[context.i].completionOrder = completionCounter++
@@ -89,7 +91,7 @@ test.serial('Large number of ping3 transactions, single worker', async t => {
   })
 
   // Start the scheduler and give it time to work
-  const scheduler = new Scheduler2(NODE_ID, null, { numWorkers: 1 })
+  const scheduler = new Scheduler2(NODE_GROUP, null, { numWorkers: 1 })
   await scheduler.drainQueue()
   await scheduler.start()
 
@@ -99,11 +101,13 @@ test.serial('Large number of ping3 transactions, single worker', async t => {
     await Scheduler2.startTransaction({
       metadata: {
         owner: OWNER,
-        nodeId: NODE_ID,
+        nodeGroup: NODE_GROUP,
         externalId: `extref-${Math.random()}`,
         transactionType: 'ping3',
-        callback: handlerName,
-        callbackContext: tx
+        onComplete: {
+          callback: handlerName,
+          context: tx
+        }
       },
       data: {
       }
@@ -153,7 +157,7 @@ test.serial('Large number of ping3 transactions, multiple workers', async t => {
   let endTime
 
   // Define a callback
-  const handlerName = `test-callback-many-ping3-b-${Math.random()}`
+  const handlerName = `test-callback-${NODE_GROUP}-b-${Math.random()}`
   await CallbackRegister.register(handlerName, (data) => {
     // console.log(`- ping3 callback:`, data)
     transactionList[data.i].completionOrder = completionCounter++
@@ -165,7 +169,7 @@ test.serial('Large number of ping3 transactions, multiple workers', async t => {
   })
 
   // Start the scheduler and give it time to work
-  const scheduler = new Scheduler2(NODE_ID, null, { numWorkers: NUM_WORKERS })
+  const scheduler = new Scheduler2(NODE_GROUP, null, { numWorkers: NUM_WORKERS })
   await scheduler.drainQueue()
   await scheduler.start()
   // await scheduler.dump()
@@ -176,11 +180,13 @@ test.serial('Large number of ping3 transactions, multiple workers', async t => {
     await Scheduler2.startTransaction({
       metadata: {
         owner: OWNER,
-        nodeId: NODE_ID,
+        nodeGroup: NODE_GROUP,
         externalId: `extref-${Math.random()}`,
         transactionType: 'ping3',
-        callback: handlerName,
-        callbackContext: tx
+        onComplete: {
+          callback: handlerName,
+          context: tx
+        }
       },
       data: {
       }

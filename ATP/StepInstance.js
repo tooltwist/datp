@@ -21,8 +21,8 @@ const VERBOSE = 0
 
 export default class StepInstance {
   #txId
-  #nodeId
-  #nodeGroup
+  #nodeGroup  // Cluster of redundant servers, performing the same role
+  #nodeId     // Specific server
   #stepId
   // #parentNodeId
   #parentStepId
@@ -203,6 +203,10 @@ export default class StepInstance {
   // deprecate this
   getTransactionId() {
     return this.#txId
+  }
+
+  getNodeGroup() {
+    return this.#nodeGroup
   }
 
   getNodeId() {

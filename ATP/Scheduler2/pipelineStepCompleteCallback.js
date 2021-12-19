@@ -93,15 +93,14 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
       const childStepId = childStepIds[nextStepNo]
       const metadataForNewStep = txData.metadata
       const inputForNewStep = childStep.stepOutput
-      // const childNodeId = nodeInfo.nodeGroup // Child runs in same node as the pipeline step
 
       // The child will run in the same node as this pipeline.
       const queueToChild = Scheduler2.standardQueueName(nodeInfo.nodeGroup, DEFAULT_QUEUE)
       await Scheduler2.enqueue_StepStart(queueToChild, {
         txId,
-        nodeId: nodeInfo.nodeGroup, // Child runs in same node as the pipeline step
+        nodeGroup: nodeInfo.nodeGroup, // Child runs in same node as the pipeline step
         stepId: childStepId,
-        parentNodeId: nodeInfo.nodeGroup,
+        parentNodeGroup: nodeInfo.nodeGroup,
         parentStepId: pipelineStepId,
         sequenceYARP: txId.substring(txId.length - 8),/// Is this right?
         stepDefinition: pipelineSteps[nextStepNo].definition,
@@ -111,7 +110,7 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
         onComplete: {
           nodeGroup: nodeInfo.nodeGroup,
           callback: PIPELINE_STEP_COMPLETE_CALLBACK,
-          context: { txId, parentNodeId: nodeInfo.nodeGroup, parentStepId: pipelineStepId, childStepId }
+          context: { txId, parentNodeGroup: nodeInfo.nodeGroup, parentStepId: pipelineStepId, childStepId }
         }
       })
 

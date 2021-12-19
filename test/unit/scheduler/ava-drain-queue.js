@@ -8,7 +8,7 @@ import CallbackRegister from '../../../ATP/Scheduler2/CallbackRegister'
  *  then they draw from the same queue, but the worker might not know the callback handler.
  */
 const OWNER = 'fred'
-const NODE_ID = 'drain-queue'
+const NODE_GROUP = 'drain-queue'
 
 
 // https://github.com/avajs/ava/blob/master/docs/01-writing-tests.md
@@ -21,7 +21,7 @@ test.beforeEach(async t => { })
  */
 test.serial('Drain a queue (DANGEROUS OPERATION!!!)', async t => {
 
-  const handlerName = `test-callback-drain-${Math.random()}`
+  const handlerName = `test-callback-${NODE_GROUP}-${Math.random()}`
   await CallbackRegister.register(handlerName, (data) => { })
 
 
@@ -29,11 +29,13 @@ test.serial('Drain a queue (DANGEROUS OPERATION!!!)', async t => {
     await Scheduler2.startTransaction({
       metadata: {
         owner: OWNER,
-        nodeId: NODE_ID,
+        nodeGroup: NODE_GROUP,
         externalId: `extref-${Math.random()}`,
         transactionType: 'ping3',
-        callback: handlerName,
-        callbackContext: { }
+        onComplete: {
+          callback: handlerName,
+          context: { }
+        }
       },
       data: {
       }
@@ -41,7 +43,7 @@ test.serial('Drain a queue (DANGEROUS OPERATION!!!)', async t => {
   }//- addToQueue
 
   // Start the scheduler and give it time to work
-  const scheduler = new Scheduler2(NODE_ID, null)
+  const scheduler = new Scheduler2(NODE_GROUP, null)
 
   await scheduler.drainQueue()
   t.is(await scheduler.queueLength(), 0)
