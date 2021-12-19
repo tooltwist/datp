@@ -10,19 +10,19 @@ export default async function createTestTransaction () {
   const nodeId = `n-${num2}`
   const pipeline = 'demo/example'
 
-  const input = new XData({
-    metadata: {
-      externalId,
-      transactionType,
-      owner,
-      nodeId,
-      pipeline,
-    },
-    data: {
-      value1: 'abc',
-      value9: 'xyz'
-    }
-  })
+  // const input = new XData({
+  //   metadata: {
+  //     externalId,
+  //     transactionType,
+  //     owner,
+  //     nodeId,
+  //     pipeline,
+  //   },
+  //   data: {
+  //     value1: 'abc',
+  //     value9: 'xyz'
+  //   }
+  // })
 
   // console.log(`input 111=`, input)
   const tx = await TransactionCache.newTransaction(owner, externalId)

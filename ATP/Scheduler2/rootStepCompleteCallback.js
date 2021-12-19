@@ -19,11 +19,13 @@ export async function rootStepCompleteCallback (callbackContext, nodeInfo) {
   const stepData = tx.stepData(callbackContext.stepId)
   // console.log(`stepData=`, stepData)
   const stepOutput = stepData.stepOutput
+  const stepNote = stepData.note
   const stepStatus = stepData.status
 
   // Save this output and status as the transaction's result
   await tx.delta(null, {
     status: stepStatus,
+    note: stepNote,
     transactionOutput: stepOutput
   })
 

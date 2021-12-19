@@ -119,14 +119,14 @@ export default class Scheduler2 {
 
   /**
    *
-   * @param {XData} input
+   * @param {XData | object} input
    * @returns
    */
    static async startTransaction(input) {
     assert (typeof(input.metadata) === 'object')
     assert (typeof(input.metadata.owner) === 'string')
     assert (typeof(input.metadata.nodeGroup) === 'string')
-    assert (typeof(input.metadata.externalId) === 'string')
+    assert (typeof(input.metadata.externalId) === 'string' || input.metadata.externalId === null)
     assert (typeof(input.metadata.transactionType) === 'string')
     assert (typeof(input.metadata.onComplete) === 'object')
     assert (typeof(input.metadata.onComplete.callback) === 'string')

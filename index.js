@@ -15,11 +15,11 @@ import { LOGIN_IGNORED, defineRoute } from './lib/apiVersions'
 import { initiateTransaction, getTransactionResult } from './DATP/datp'
 import resultReceiver from './ATP/ResultReceiver'
 import resultReceiverRegister from './ATP/ResultReceiverRegister'
-import scheduler from './ATP/Scheduler'
 import healthcheck from './restify/healthcheck'
 import juice from '@tooltwist/juice-client'
 import { RouterStep as RouterStepInternal } from './ATP/hardcoded-steps/RouterStep'
 import pause from './lib/pause'
+import Scheduler2 from './ATP/Scheduler2/Scheduler2'
 
 
 export const Step = step
@@ -28,7 +28,6 @@ export const ConversionHandler = conversionHandler
 export const FormsAndFields = formsAndFields
 export const ResultReceiver = resultReceiver
 export const ResultReceiverRegister = resultReceiverRegister
-export const Scheduler = scheduler
 export const RouterStep = RouterStepInternal
 
 export const query = dbQuery
@@ -66,6 +65,12 @@ export async function goLive(server) {
   if (serveMondat) {
     await masterServer.serveMondat(server)
   }
+
+  // Start the master Scheduler
+  const MASTER_NODE_GROUP = 'master'
+  const scheduler = new Scheduler2(MASTER_NODE_GROUP, null)
+  // await scheduler.drainQueue()
+  await scheduler.start()
 }
 
 

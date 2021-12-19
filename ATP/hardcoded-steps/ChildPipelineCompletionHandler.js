@@ -1,5 +1,3 @@
-import Step, { STEP_FAILED } from '../Step'
-import Scheduler from '../Scheduler'
 import XData from '../XData'
 import ResultReceiver from '../ResultReceiver'
 import ResultReceiverRegister from '../ResultReceiverRegister'

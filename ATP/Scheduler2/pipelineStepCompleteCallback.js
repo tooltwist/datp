@@ -66,6 +66,7 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
       // Save the child status and output as our own
       await tx.delta(pipelineStepId, {
         stepOutput: childStep.stepOutput,
+        note: childStep.note,
         status: childStep.status
       })
 
@@ -136,8 +137,10 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
     // pipelineInstance.finish(STEP_ABORTED, `Step ${currentStepNo} failed`, stepOutput)
     await tx.delta(pipelineStepId, {
       stepOutput: childStep.stepOutput,
+      note: childStep.note,
       status: childStep.status
     })
+    console.log(`pipeline step is now`, tx.stepData(pipelineStepId))
 
     // Send the event back to whoever started this step
     const queueToParentOfPipeline = Scheduler2.standardQueueName(pipelineStep.onComplete.nodeGroup, DEFAULT_QUEUE)

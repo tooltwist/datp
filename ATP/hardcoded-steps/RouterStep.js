@@ -1,6 +1,5 @@
 import Step from '../Step'
 import StepTypeRegister from '../StepTypeRegister'
-import Scheduler from '../Scheduler'
 import XData from '../XData'
 import ChildPipelineCompletionHandler from './ChildPipelineCompletionHandler'
 

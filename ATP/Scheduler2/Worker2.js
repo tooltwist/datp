@@ -406,10 +406,12 @@ export default class Worker2 {
         console.log(`processEvent_TransactionCompleted txData=`, txData)
       }
       const status = txData.status
+      const note = txData.note
       const transactionOutput = txData.transactionOutput
 
       const extraInfo = {
         status,
+        note,
         transactionOutput
       }
       await CallbackRegister.call(txData.onComplete.callback, txData.onComplete.context, extraInfo)

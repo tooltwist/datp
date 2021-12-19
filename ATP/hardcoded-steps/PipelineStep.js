@@ -5,12 +5,7 @@
  * the author or owner be liable for any claim or damages.
  */
 import Step from '../Step'
-import Scheduler from "../Scheduler"
 import StepTypes from '../StepTypeRegister'
-import ResultReceiver from '../ResultReceiver'
-import ResultReceiverRegister from '../ResultReceiverRegister'
-import defaultATE from '../ATP'
-import XData from '../XData'
 import assert from 'assert'
 import StepInstance from '../StepInstance'
 import Scheduler2, { DEFAULT_QUEUE } from '../Scheduler2/Scheduler2'
@@ -190,96 +185,12 @@ class Pipeline extends Step {
         }
       })
 
-
-
-
     //ZZZZ Handling of sync steps???
 
     //ZZZZ Perhaps we should get the new step ID above and souble check it in the completion handler????
 
   }//- initiateChildStep
-
 }
-
-
-// class PipelineChildStepCompletionHandler extends ResultReceiver {
-
-//   constructor() {
-//     super()
-//   }
-//   async haveResult(contextForCompletionHandler, status, note, newTx) {
-//     assert(newTx instanceof XData)
-//     // console.log(`PipelineChildStepCompletionHandler.haveResult(status=${status})`, newTx.toString())
-//     // console.log(`PipelineChildStepCompletionHandler.haveResult(status=${status})`)
-//     // console.log(`newTx=`, newTx)
-//     // console.log(`contextForCompletionHandler=`, contextForCompletionHandler)
-
-//     const pipelineStepId = contextForCompletionHandler.pipelineId
-//     const pipelineIndexEntry = await Scheduler.getStepEntry(pipelineStepId)
-//     if (!pipelineIndexEntry) {
-//       throw new Error(`Internal error 827772: could not find pipeline in Scheduler (${pipelineStepId})`)
-//     }
-//     const pipelineInstance = await pipelineIndexEntry.getStepInstance()
-
-//     // Double check the step number
-//     if (contextForCompletionHandler.stepNo != pipelineInstance.privateData.indexOfCurrentChildStep) {
-//       throw new Error(`Internal Error 882659: invalid step number {${contextForCompletionHandler.stepNo} vs ${pipelineInstance.privateData.indexOfCurrentChildStep}}`)
-//     }
-
-//     // Remember the reply
-//     //ZZZZZ Really needed?
-//     const currentStepNo = pipelineInstance.privateData.indexOfCurrentChildStep
-//     pipelineInstance.privateData.responses[currentStepNo] = { status, newTx }
-//     // console.log(`yarp C - ${this.stepNo}`)
-
-//     if (status === STEP_COMPLETED) {
-//       // Do we have any steps left
-//       // console.log(`yarp D - ${this.stepNo}`)
-//       const nextStepNo = currentStepNo + 1
-//       // const currentStepNo = contextForCompletionHandler.stepNo
-//       pipelineInstance.privateData.indexOfCurrentChildStep = nextStepNo
-
-//       // const stepNo = ++pipelineInstance.privateData.indexOfCurrentChildStep
-//       // console.log(`yarp E - ${this.stepNo}`)
-//       if (nextStepNo >= pipelineInstance.privateData.numSteps) {
-//         // We've finished this pipeline - return the final respone
-//         // console.log(``)
-//         // console.log(``)
-//         // console.log(``)
-//         console.log(`<<<<    PIPELINE COMPLETED ${pipelineStepId}  `.blue.bgGreen.bold)
-//         // console.log(``)
-//         // console.log(``)
-//         // return Scheduler.haveResult(pipelineStepId, pipelineInstance.getCompletionToken(), STEP_COMPLETED, newTx)
-//         pipelineInstance.finish(STEP_COMPLETED, 'Successful completion', newTx)
-
-//       } else {
-//         // Initiate the next step
-//         console.log(`----    ON TO THE NEXT PIPELINE STEP  `.blue.bgGreen.bold)
-//         const txForNextStep = newTx
-//         //ZZZZZ Should be cloned, to prevent previous step from secretly
-//         // continuing to run and accessing the tx during the next step.
-//         const pipelineObject = pipelineInstance.stepObject
-//         await pipelineObject.initiateChildStep(pipelineInstance, stepNo, stepDefinition, txForNextStep)
-//       }
-
-//     } else if (status === STEP_FAILED || status === STEP_ABORTED || status === STEP_INTERNAL_ERROR) {
-//       /*
-//        *  Need to try Rollback
-//        */
-//       // We can't rollback yet, so abort instead.
-//       console.log(`<<<<    PIPELINE FAILED ${pipelineStepId}  `.white.bgRed.bold)
-//       // console.log(``)
-//       // console.log(``)
-//       // return Scheduler.haveResult(pipelineStepId, pipelineInstance.getCompletionToken(), STEP_COMPLETED, newTx)
-//       pipelineInstance.finish(STEP_ABORTED, `Step ${currentStepNo} failed`, newTx)
-
-//     } else {
-//       //ZZZZ
-//       throw new Error(`Status ${status} not supported yet`)
-//     }
-//   }//- haveResult
-
-// }//- class PipelineChildStepCompletionHandler
 
 
 async function register() {

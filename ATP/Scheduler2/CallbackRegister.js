@@ -5,6 +5,7 @@
  * the author or owner be liable for any claim or damages.
  */
 
+import { doNothingCallback, DO_NOTHING_CALLBACK } from "./doNothingCallback"
 import { pipelineStepCompleteCallback, PIPELINE_STEP_COMPLETE_CALLBACK } from "./pipelineStepCompleteCallback"
 import { rootStepCompleteCallback, ROOT_STEP_COMPLETE_CALLBACK } from "./rootStepCompleteCallback"
 
@@ -28,6 +29,7 @@ export default class CallbackRegister {
       // Add a few built-in callbacks
       CallbackRegister._index[ROOT_STEP_COMPLETE_CALLBACK] = rootStepCompleteCallback
       CallbackRegister._index[PIPELINE_STEP_COMPLETE_CALLBACK] = pipelineStepCompleteCallback
+      CallbackRegister._index[DO_NOTHING_CALLBACK] = doNothingCallback
     }
   }
 
