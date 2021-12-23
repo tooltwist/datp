@@ -51,14 +51,7 @@ class Pipeline extends Step {
 
   async invoke(pipelineInstance) {
     assert(pipelineInstance instanceof StepInstance)
-    // await this.initIfRequired()
-    // pipelineInstance.console(`*****`)
     if (PIPELINES_VERBOSE) pipelineInstance.console(`>>>>    Pipeline.invoke (${pipelineInstance.getStepId()})  `.blue.bgGreen.bold)
-    // console.log(`pipelineInstance=`, pipelineInstance)
-
-    // pipelineInstance.console(`*****`)
-    // console.log(`tx=`, tx)
-    // console.log(`pipelineInstance=`, pipelineInstance)
 
     //ZZZZ If there are no steps, return immediately
     if (this.#steps.length < 1) {
@@ -163,6 +156,8 @@ class Pipeline extends Step {
       // console.log(`parentNodeGroup=`, parentNodeGroup)
       // console.log(`queueToPipelineNode=`, queueToPipelineNode)
 
+      const childFullSequence = `${pipelineInstance.getFullSequence()}.1` // Start sequence at 1
+
       // console.log(`metadata=`, metadata)
       // console.log(`txdata=`, txdata)
       // console.log(`parentNodeGroup=`, parentNodeGroup)
@@ -173,7 +168,7 @@ class Pipeline extends Step {
         stepId: childStepId,
         // parentNodeId,
         parentStepId,
-        sequenceYARP: txId.substring(txId.length - 8),/// Is this right?
+        fullSequence: childFullSequence,
         stepDefinition: childStepDefinition,
         metadata: metadata,
         data: stepInput,
@@ -189,7 +184,7 @@ class Pipeline extends Step {
 
     //ZZZZ Perhaps we should get the new step ID above and souble check it in the completion handler????
 
-  }//- initiateChildStep
+  }//- invoke
 }
 
 

@@ -217,6 +217,7 @@ export default class Worker2 {
    * @param {XData} event
    */
   async processEvent_StepStart(event) {
+    if (VERBOSE) console.log(`Worker2.processEvent_StepStart()`, event)
 
     try {
       assert(typeof(event.txId) === 'string')
@@ -232,6 +233,7 @@ export default class Worker2 {
       const txData = tx.txData()
       const stepData = tx.stepData(stepId)
       assert(stepData.status === STEP_QUEUED)
+      assert(stepData.fullSequence)
 
       const trace = (typeof(txData.metadata.traceLevel) === 'number') && txData.metadata.traceLevel > 0
       if (trace || this.#debugLevel > 0) {
@@ -245,7 +247,9 @@ export default class Worker2 {
         // Boounce back via STEP_COMPLETION_EVENT, after creating fake transaction data.
         const description = 'processEvent_StepStart() - util.ping3 - returning via STEP_COMPLETED, without processing step'
         if (trace || this.#debugLevel > 0) console.log(description.bgBlue.white)
+
         await tx.delta(stepId, {
+          stepId,
           status: STEP_SUCCESS,
           stepOutput: {
             happy: 'dayz',
@@ -259,7 +263,7 @@ export default class Worker2 {
           completionToken: event.onComplete.completionToken
         })
         return
-      }
+      }//- ping3
 
 
 
@@ -272,6 +276,7 @@ export default class Worker2 {
       if (trace || this.#debugLevel > 0) console.log(`>>>>>>>>>> >>>>>>>>>> >>>>>>>>>> START [${instance.getStepType()}] ${instance.getStepId()}`, tx.stepData(stepId))
 
       await tx.delta(stepId, {
+        stepId,
         status: STEP_RUNNING
       })
 
@@ -401,15 +406,20 @@ export default class Worker2 {
       const txId = event.txId
       const tx = await TransactionCache.findTransaction(txId, true)
       const txData = tx.txData()
+      // console.log(`txData=`, txData)
+
 
       if (this.#debugLevel > 1) {
         console.log(`processEvent_TransactionCompleted txData=`, txData)
       }
+      const owner = tx.getOwner()
       const status = txData.status
       const note = txData.note
       const transactionOutput = txData.transactionOutput
 
       const extraInfo = {
+        owner,
+        txId,
         status,
         note,
         transactionOutput

@@ -94,6 +94,7 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
       const childStepId = childStepIds[nextStepNo]
       const metadataForNewStep = txData.metadata
       const inputForNewStep = childStep.stepOutput
+      const childFullSequence = `${pipelineStep.fullSequence}.${1 + nextStepNo}` // Start sequence at 1
 
       // The child will run in the same node as this pipeline.
       const queueToChild = Scheduler2.standardQueueName(nodeInfo.nodeGroup, DEFAULT_QUEUE)
@@ -103,7 +104,7 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
         stepId: childStepId,
         parentNodeGroup: nodeInfo.nodeGroup,
         parentStepId: pipelineStepId,
-        sequenceYARP: txId.substring(txId.length - 8),/// Is this right?
+        fullSequence: childFullSequence,
         stepDefinition: pipelineSteps[nextStepNo].definition,
         metadata: metadataForNewStep,
         data: inputForNewStep,
@@ -114,14 +115,6 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
           context: { txId, parentNodeGroup: nodeInfo.nodeGroup, parentStepId: pipelineStepId, childStepId }
         }
       })
-
-
-      // throw new Error(`BOMB EARLY`)
-      // const txForNextStep = stepOutput
-      // //ZZZZZ Should be cloned, to prevent previous step from secretly
-      // // continuing to run and accessing the tx during the next step.
-      // const pipelineObject = pipelineInstance.stepObject
-      // await pipelineObject.initiateChildStep(pipelineInstance, stepNo, stepDefinition, txForNextStep)
     }
 
   } else if (childStatus === STEP_FAILED || childStatus === STEP_ABORTED || childStatus === STEP_INTERNAL_ERROR) {
@@ -140,7 +133,7 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
       note: childStep.note,
       status: childStep.status
     })
-    console.log(`pipeline step is now`, tx.stepData(pipelineStepId))
+    // console.log(`pipeline step is now`, tx.stepData(pipelineStepId))
 
     // Send the event back to whoever started this step
     const queueToParentOfPipeline = Scheduler2.standardQueueName(pipelineStep.onComplete.nodeGroup, DEFAULT_QUEUE)

@@ -22,6 +22,7 @@ export default class Transaction {
   #txId
   #owner
   #externalId
+  #transactionType
   #status
   #sequenceOfUpdate
   #progressReport
@@ -43,16 +44,20 @@ export default class Transaction {
    * @param {String} txId Transaction ID
    * @param {XData} definition Mandatory, immutable parameters for a transaction
    */
-  constructor(txId, owner, externalId) {
+  constructor(txId, owner, externalId, transactionType) {
+    // console.log(`Transaction.constructor(${txId}, ${owner}, ${externalId}, ${transactionType})`)
+
     // Check the parameters
     if (typeof(txId) !== 'string') { throw new Error(`Invalid parameter [txId]`) }
     if (typeof(owner) !== 'string') { throw new Error(`Invalid parameter [owner]`) }
     if (externalId!==null && typeof(externalId) !== 'string') { throw new Error(`Invalid parameter [externalId]`) }
+    if (typeof(transactionType) !== 'string') { throw new Error(`Invalid parameter [transactionType]`) }
 
     // Core transaction information
     this.#txId = txId
     this.#owner = owner
     this.#externalId = externalId
+    this.#transactionType = transactionType
     this.#status = STEP_RUNNING
     this.#sequenceOfUpdate = 0
     this.#progressReport = {}
@@ -83,6 +88,10 @@ export default class Transaction {
 
   getOwner() {
     return this.#owner
+  }
+
+  getTransactionType() {
+    return this.#transactionType
   }
 
   getStatus() {
@@ -320,6 +329,15 @@ export default class Transaction {
       return null
     }
     return rows[0]
+  }
+
+
+
+  stepIds() {
+    console.log(`stepIds`)
+    const stepIds = Object.keys(this.#steps)
+    console.log(`stepIds=`, stepIds)
+    return stepIds
   }
 
 

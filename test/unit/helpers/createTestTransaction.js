@@ -3,12 +3,12 @@ import XData from "../../../ATP/XData"
 
 export default async function createTestTransaction () {
   const num = Math.round(Math.random() * 100000000000)
-  const num2 = Math.round(Math.random() * 100000000000)
+  // const num2 = Math.round(Math.random() * 100000000000)
+  const owner = 'fred'
   const externalId = `e-${num}`
   const transactionType = 'example'
-  const owner = 'fred'
-  const nodeId = `n-${num2}`
-  const pipeline = 'demo/example'
+  // const nodeId = `n-${num2}`
+  // const pipeline = 'demo/example'
 
   // const input = new XData({
   //   metadata: {
@@ -25,7 +25,7 @@ export default async function createTestTransaction () {
   // })
 
   // console.log(`input 111=`, input)
-  const tx = await TransactionCache.newTransaction(owner, externalId)
+  const tx = await TransactionCache.newTransaction(owner, externalId, transactionType)
   const txId = tx.getTxId()
   return { txId, externalId, tx, owner }
 }

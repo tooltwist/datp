@@ -5,6 +5,7 @@ import { STEP_FAILED, STEP_QUEUED, STEP_RUNNING, STEP_SLEEPING, STEP_SUCCESS } f
 import createTestTransaction from '../helpers/createTestTransaction'
 
 const OWNER = 'fred'
+const TRANSACTION_TYPE = 'example'
 
 // https://github.com/avajs/ava/blob/master/docs/01-writing-tests.md
 test.beforeEach(async t => {
@@ -15,7 +16,7 @@ test.serial('Get summary by transaction ID', async t => {
   // Create the transaction with an external ID
   const num = Math.round(Math.random() * 100000000000)
   const externalId = `e-${num}`
-  const tx = await TransactionCache.newTransaction(OWNER, externalId)
+  const tx = await TransactionCache.newTransaction(OWNER, externalId, TRANSACTION_TYPE)
   const txId = tx.getTxId()
 
   // Prior to running
@@ -74,7 +75,7 @@ test.serial('Get summary by external ID', async t => {
   // Create the transaction with an external ID
   const num = Math.round(Math.random() * 100000000000)
   const externalId = `e-${num}`
-  const tx = await TransactionCache.newTransaction(OWNER, externalId)
+  const tx = await TransactionCache.newTransaction(OWNER, externalId, TRANSACTION_TYPE)
   const txId = tx.getTxId()
 
   // Prior to running

@@ -14,6 +14,7 @@ export default class TransactionPersistance {
     // const type = tx.getType()
     const owner = tx.getOwner()
     const externalId = tx.getExternalId()
+    const transactionType = tx.getTransactionType()
     // const input = tx.getInput()
     // const nodeId = tx.getNodeId()
     // const pipeline = tx.getPipeline()
@@ -23,9 +24,9 @@ export default class TransactionPersistance {
     // ) VALUES (?,?,?,?,?,?,?,?)`
     // const status = TransactionIndexEntry.RUNNING //ZZZZ YARP2
     // const params = [ txId, externalId, type, status, owner, input.getJson(), nodeId, pipeline ]
-    const sql = `INSERT INTO atp_transaction2 (transaction_id, owner, external_id, status) VALUES (?,?,?,?)`
+    const sql = `INSERT INTO atp_transaction2 (transaction_id, owner, external_id, transaction_type, status) VALUES (?,?,?,?,?)`
     const status = TransactionIndexEntry.RUNNING //ZZZZ YARP2
-    const params = [ txId, owner, externalId, status ]
+    const params = [ txId, owner, externalId, transactionType, status ]
     await query(sql, params)
     // console.log(`result=`, result)
   }
@@ -81,7 +82,7 @@ export default class TransactionPersistance {
       // Transaction not found
       return null
     }
-    const tx = new Transaction(txId, rows[0].owner, rows[0].external_id)
+    const tx = new Transaction(txId, rows[0].owner, rows[0].external_id, rows[0].transaction_type)
 
     // Now add the deltas
     const sql2 = `SELECT * from atp_transaction_delta WHERE transaction_id=? ORDER BY sequence`

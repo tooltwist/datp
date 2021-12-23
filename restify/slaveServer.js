@@ -61,7 +61,7 @@ async function startSlaveServer(options) {
   */
   const port = await juice.int('datp.port', 8081)
   console.log(`Starting server on port ${port}`)
-  server.listen(port);
+  server.listen(port, '0.0.0.0');
 }
 
 export default {

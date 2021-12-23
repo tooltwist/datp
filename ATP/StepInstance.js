@@ -31,7 +31,7 @@ export default class StepInstance {
   #txdata
   #metadata
   #logSequence
-  #fullSequenceYARP
+  #fullSequence
 
   #level
   #indent
@@ -55,7 +55,7 @@ export default class StepInstance {
     // this.privateData = { }
     // Debug stuff
     this.#level = 0
-    this.#fullSequenceYARP = ''
+    this.#fullSequence = ''
     // Step completion handling
     this.#onComplete = null
     // Children
@@ -91,7 +91,7 @@ export default class StepInstance {
     assert (typeof(options.stepId) === 'string')
     // assert (typeof(options.parentNodeId) === 'string')
     assert (typeof(stepData.parentStepId) === 'string')
-    assert (typeof(stepData.sequenceYARP) === 'string')
+    assert (typeof(stepData.fullSequence) === 'string')
     assert (typeof(stepData.stepDefinition) !== 'undefined')
     assert (typeof(stepData.stepInput) === 'object')
     assert (typeof(txData.metadata) === 'object')
@@ -124,7 +124,7 @@ export default class StepInstance {
     this.#txdata = new XData(stepData.stepInput)
     this.#metadata = txData.metadata
     this.#level = stepData.level
-    this.#fullSequenceYARP = stepData.sequenceYARP
+    this.#fullSequence = stepData.fullSequence
 
     this.#onComplete = options.onComplete
     // this.#completionToken = options.completionToken
@@ -258,8 +258,8 @@ export default class StepInstance {
     return this.#metadata
   }
 
-  getSequence() {
-    return this.fullSequenceYARP
+  getFullSequence() {
+    return this.#fullSequence
   }
 
   /**

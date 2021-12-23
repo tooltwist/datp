@@ -3,6 +3,8 @@ import TransactionCache from '../../../ATP/Scheduler2/TransactionCache'
 import createTestTransaction from '../helpers/createTestTransaction'
 
 const OWNER = 'fred'
+const TRANSACTION_TYPE = 'example'
+
 
 // https://github.com/avajs/ava/blob/master/docs/01-writing-tests.md
 test.beforeEach(async t => {
@@ -17,7 +19,7 @@ test.serial('External Id is saved in transaction', async t => {
   // Create the transaction with an external ID
   const num = Math.round(Math.random() * 100000000000)
   const externalId = `e-${num}`
-  const tx = await TransactionCache.newTransaction(OWNER, externalId)
+  const tx = await TransactionCache.newTransaction(OWNER, externalId, TRANSACTION_TYPE)
   const txId = tx.getTxId()
 
   // Check the external ID is saved
@@ -38,7 +40,7 @@ test.serial('Access transaction via external ID', async t => {
   // Create the transaction with an external ID
   const num = Math.round(Math.random() * 100000000000)
   const externalId = `e-${num}`
-  const tx = await TransactionCache.newTransaction(OWNER, externalId)
+  const tx = await TransactionCache.newTransaction(OWNER, externalId, TRANSACTION_TYPE)
 
   // Find the transaction
   const tx2 = await TransactionCache.findTransactionByExternalId(OWNER, externalId, false)
@@ -52,7 +54,7 @@ test.serial('Check externalId is saved', async t => {
   // Create the transaction with an external ID
   const num = Math.round(Math.random() * 100000000000)
   const externalId = `e-${num}`
-  const tx = await TransactionCache.newTransaction(OWNER, externalId)
+  const tx = await TransactionCache.newTransaction(OWNER, externalId, TRANSACTION_TYPE)
   const txId = tx.getTxId()
 
   // Find the transaction

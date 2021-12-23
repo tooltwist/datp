@@ -172,7 +172,8 @@ export default class Scheduler2 {
         if (VERBOSE||trace) console.log(description.bgBlue.white)
 
         // Create a new transaction
-        const tx = await TransactionCache.newTransaction(metadata.owner, metadata.externalId)
+        const tx = await TransactionCache.newTransaction(metadata.owner, metadata.externalId, metadata.transactionType)
+        const txId = tx.getTxId()
         await tx.delta(null, {
           onComplete: {
             callback: metadata.onComplete.callback,
@@ -182,7 +183,6 @@ export default class Scheduler2 {
           transactionOutput: { whoopee: 'doo', description }
         })
         // console.log(`tx=`, (await tx).toString())
-        const txId = tx.getTxId()
         const queueName = Scheduler2.standardQueueName(input.metadata.nodeGroup, DEFAULT_QUEUE)
         Scheduler2.enqueue_TransactionCompleted(queueName, {
           txId,
@@ -217,7 +217,7 @@ export default class Scheduler2 {
 
 
       // Persist the transaction details
-      const tx = await TransactionCache.newTransaction(metadata.owner, metadata.externalId)
+      const tx = await TransactionCache.newTransaction(metadata.owner, metadata.externalId, metadata.transactionType)
       const def = {
         transactionType: metadata.transactionType,
         nodeGroup: metadata.nodeGroup,
@@ -272,12 +272,15 @@ export default class Scheduler2 {
       // console.log(`metadataCopy=`, metadataCopy)
       // console.log(`data=`, data)
       if (VERBOSE||trace) console.log(`Scheduler2.startTransaction() - adding to queue ${queueToPipelineNode}`)
+      console.log(`txId=`, txId)
+      const fullSequence = txId.substring(3, 9)
+      console.log(`fullSequence=`, fullSequence)
       await Scheduler2.enqueue_StepStart(queueToPipelineNode, {
         txId,
         stepId,
         parentNodeGroup: metadata.nodeGroup,
         parentStepId: '',
-        sequenceYARP: txId.substring(txId.length - 8),
+        fullSequence,
         stepDefinition: pipelineName,
         metadata: metadataCopy,
         data: initialData,
@@ -350,7 +353,7 @@ export default class Scheduler2 {
     assert (typeof(obj.txId) === 'string')
     assert (typeof(obj.stepId) === 'string')
 
-    assert (typeof(obj.sequenceYARP) === 'string')
+    assert (typeof(obj.fullSequence) === 'string')
     assert (typeof(obj.stepDefinition) !== 'undefined')
     assert (typeof(obj.data) === 'object')
     assert (typeof(obj.metadata) === 'object')
@@ -382,7 +385,7 @@ export default class Scheduler2 {
 
       // Other information about the step
       parentStepId: obj.parentStepId, // Is this needed?
-      sequenceYARP: obj.sequenceYARP,
+      fullSequence: obj.fullSequence,
       stepDefinition: obj.stepDefinition,
       stepInput: obj.data,
       level: obj.level,

@@ -5,6 +5,8 @@
  * the author or owner be liable for any claim or damages.
  */
 import ATP from '../ATP/ATP'
+import Transaction from '../ATP/Scheduler2/Transaction';
+import TransactionCache from '../ATP/Scheduler2/TransactionCache';
 
 export async function dumpAllTransactionsV1(req, res, next) {
   console.log(`dumpAllTransactionsV1()`)
@@ -29,18 +31,23 @@ export async function dumpTransactionV1(req, res, next) {
 export async function listAllTransactionsV1(req, res, next) {
   // console.log(`listAllTransactionsV1()`)
   const includeCompleted = true
-  const txlist = await ATP.transactionList(null, includeCompleted)
+  const txlist = await Transaction.findTransactions({ })
   res.send(txlist)
   return next();
 }
 
 export async function transactionStatusV1(req, res, next) {
-  console.log(`transactionStatusV1()`)
+  // console.log(`transactionStatusV1()`)
 
-  const transactionId = req.params.txId
-  // await Scheduler.dumpSteps(`Transaction ${transactionId}`, transactionId)
-  const steps = await ATP.stepList(true, transactionId)
+  const txId = req.params.txId
+  const tx = await TransactionCache.findTransaction(txId, true)
+  const ids = tx.stepIds()
 
+  const steps = [ ]
+  for (const stepId of ids) {
+    const stepData = await tx.stepData(stepId)
+    steps.push(stepData)
+  }
   res.send(steps)
   return next();
 }

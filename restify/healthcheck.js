@@ -1,5 +1,8 @@
 import { defineRoute, LOGIN_IGNORED } from '../lib/apiVersions'
 import { DATP_URL_PREFIX } from '../CONVERSION/lib/constants'
+import juice from '@tooltwist/juice-client'
+
+let logHealthcheck = null
 
 async function registerRoutes(server) {
 
@@ -12,7 +15,14 @@ async function registerRoutes(server) {
 
   // server.get(`${ROUTE_PREFIX}/${ROUTE_VERSION}/healthcheck`, async function (req, res, next) {
   async function healthcheckHandler(req, res, next) {
-    // console.log("Running health check...");
+
+    if (logHealthcheck === null) {
+      logHealthcheck = await juice.boolean('datp.logHealthcheck', false)
+    }
+
+    if (logHealthcheck) {
+      console.log("Running health check...");
+    }
     var status = {
       subsystem: 'datp',
       status: 'ok'

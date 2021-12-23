@@ -16,12 +16,15 @@ class TransactionCache {
    * @param {XData} input Input data for the new transaction.
    * @returns
    */
-  async newTransaction(owner, externalId) {
-    // console.log(`TransactionCache.newTransaction(${owner}, ${externalId})`)
+  async newTransaction(owner, externalId, transactionType) {
+    // console.log(`TransactionCache.newTransaction(${owner}, ${externalId}, ${transactionType})`)
+
+    assert(owner)
+    assert(transactionType)
 
     // Create the initial transaction
     const txId = GenerateHash('tx')
-    const tx = new Transaction(txId, owner, externalId)
+    const tx = new Transaction(txId, owner, externalId, transactionType)
     this.#cache[txId] = tx
 
     // Persist this transaction
