@@ -332,6 +332,114 @@ export default class Transaction {
   }
 
 
+  static async getSwitches(owner, txId) {
+    const sql = `SELECT
+      sequence_of_update,
+      switches
+      FROM atp_transaction2
+      WHERE owner=? AND transaction_id=?`
+    const params = [ owner, txId ]
+    const rows = await query(sql, params)
+    if (rows.length < 1) {
+      return [ ]
+    }
+
+    let switches = { }
+    try {
+      if (rows[0].switches) {
+        switches = JSON.parse(rows[0].switches)
+      }
+    } catch (e) {
+      //ZZZZZ report alert
+      const description = `Corrupt switches for transaction ${owner}, ${txId}`
+      console.log(description)
+      throw new Error(description)
+    }
+    return { sequenceOfUpdate: rows[0].sequence_of_update, switches }
+  }
+
+  static async getSwitch(owner, txId, name) {
+    const { switches } = await Transaction.getSwitches(owner, txId)
+    if (typeof(switches[name]) === 'undefined') {
+      return null
+    }
+    return switches[name]
+  }
+
+  /**
+   * Set a transaction switch value
+   * @param {String} owner
+   * @param {string} txId
+   * @param {string} name
+   * @param {string|number|bookean} value If the value is null, the switch will be removed
+   * @param {boolean} triggerNudgeEvent If true, a NUDGE_EVENT will be triggered for the transaction
+   * if we successfully change the switch value. If the transaction is currently sleeping, this will
+   * cause the current sleeping step to be immediately retried.
+   */
+  static async setSwitch(owner, txId, name, value, triggerNudgeEvent=false) {
+    const { switches, sequenceOfUpdate } = await Transaction.getSwitches(owner, txId)
+    if (value === null || typeof(value) === 'undefined') {
+
+      // Remove the switch
+      delete switches[name]
+    } else {
+
+      // Add the switch
+      switch (typeof(value)) {
+        case 'string':
+          if (value.length > 32) {
+            throw new Error(`Switch exceeds maximum length (${name}: ${value})`)
+          }
+          switches[name] = value
+          break
+
+        case 'boolean':
+        case 'number':
+          switches[name] = value
+          break
+
+        default:
+          throw new Error(`Switch can only be boolean, number, or string (< 32 chars)`)
+      }
+    }
+
+    const json = JSON.stringify(switches, '', 0)
+
+    // Update the transaction, ensuring nobody has changed the transaction before us
+    const sql = `UPDATE atp_transaction2 SET switches=?, sequence_of_update=? WHERE owner=? AND transaction_id=? AND sequence_of_update=?`
+    const params = [ json, sequenceOfUpdate+1, owner, txId, sequenceOfUpdate ]
+    const reply = await query(sql, params)
+    // console.log(`reply=`, reply)
+    if (reply.changedRows !== 1) {
+      throw new Error('Concurrent attempts to set transaction switches - switch not set')
+    }
+
+    // Trigger an event for this change?
+    if (triggerNudgeEvent) {
+      console.log(`YARP Event not triggered`)
+    }
+  }
+
+  static async findTransactions(options) {
+    console.log(`findTransactions()`, options)
+
+    const sql = `SELECT
+      transaction_id AS txId,
+      transaction_type AS transactionType,
+      status,
+      start_time AS startTime
+      FROM atp_transaction2`
+      // WHERE owner=? AND transaction_id=?`
+    const params = [ ]
+    // const params = [ owner, txId ]
+
+    // txId, includeComplete, limit, transactionType
+
+
+    const rows = await query(sql, params)
+
+    return rows
+  }
 
   stepIds() {
     console.log(`stepIds`)

@@ -269,29 +269,29 @@ class AsynchronousTransactionEngine {
     console.log(``)
   }
 
-  async transactionList(msg, includeComplete) {
-    if (msg) {
-      console.log(`${msg}:`)
-    }
-    const maxRecords = 20
-    const txlist = await this.getTransactions(includeComplete, maxRecords)
-    const reply = [ ]
-    for (const tx of txlist) {
-      const transactionType = await tx.getTransactionType()
-      const txId = await tx.getTxId()
-      const status = statusString(await tx.getStatus())
-      const startTime = await tx.getStartTime()
-      const color = await tx.getColor()
-      reply.push({
-        txId,
-        transactionType,
-        status,
-        startTime,
-        color,
-      })
-    }
-    return reply
-  }
+  // async transactionList(msg, includeComplete) {
+  //   if (msg) {
+  //     console.log(`${msg}:`)
+  //   }
+  //   const maxRecords = 20
+  //   const txlist = await this.getTransactions(includeComplete, maxRecords)
+  //   const reply = [ ]
+  //   for (const tx of txlist) {
+  //     const transactionType = await tx.getTransactionType()
+  //     const txId = await tx.getTxId()
+  //     const status = statusString(await tx.getStatus())
+  //     const startTime = await tx.getStartTime()
+  //     const color = await tx.getColor()
+  //     reply.push({
+  //       txId,
+  //       transactionType,
+  //       status,
+  //       startTime,
+  //       color,
+  //     })
+  //   }
+  //   return reply
+  // }
 
   // async dumpSteps(msg, transactionId) {
   //   await Scheduler.dumpSteps(msg, transactionId)

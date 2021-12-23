@@ -7,6 +7,7 @@
 
 import { doNothingCallback, DO_NOTHING_CALLBACK } from "./doNothingCallback"
 import { pipelineStepCompleteCallback, PIPELINE_STEP_COMPLETE_CALLBACK } from "./pipelineStepCompleteCallback"
+import { returnTxStatusWithWebhookCallback, RETURN_TX_STATUS_WITH_WEBHOOK } from "./returnStatusWithWebhookCallback"
 import { rootStepCompleteCallback, ROOT_STEP_COMPLETE_CALLBACK } from "./rootStepCompleteCallback"
 
 const VERBOSE = 0
@@ -30,6 +31,7 @@ export default class CallbackRegister {
       CallbackRegister._index[ROOT_STEP_COMPLETE_CALLBACK] = rootStepCompleteCallback
       CallbackRegister._index[PIPELINE_STEP_COMPLETE_CALLBACK] = pipelineStepCompleteCallback
       CallbackRegister._index[DO_NOTHING_CALLBACK] = doNothingCallback
+      CallbackRegister._index[RETURN_TX_STATUS_WITH_WEBHOOK] = returnTxStatusWithWebhookCallback
     }
   }
 
