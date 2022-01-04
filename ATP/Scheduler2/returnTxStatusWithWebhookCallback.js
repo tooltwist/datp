@@ -1,11 +1,13 @@
 import assert from 'assert'
 import axios from 'axios'
+import { PIPELINES_VERBOSE } from '../hardcoded-steps/PipelineStep'
 import Transaction from './Transaction'
+require('colors')
 
-export const RETURN_TX_STATUS_WITH_WEBHOOK = `returnTxStatusWithWebhook`
+export const RETURN_TX_STATUS_WITH_WEBHOOK_CALLBACK = `returnTxStatusWithWebhook`
 
 export async function returnTxStatusWithWebhookCallback (callbackContext, data) {
-  console.log(`==> returnTxStatusWithWebhookCallback()`, callbackContext, data)
+  if (PIPELINES_VERBOSE) console.log(`==> returnTxStatusWithWebhookCallback()`.magenta, callbackContext, data)
 
   assert(callbackContext.webhook)
   assert(data.owner)

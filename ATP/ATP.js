@@ -9,8 +9,6 @@ import Step, { STEP_FAILED } from './Step'
 import pause from '../lib/pause'
 import pad from '../lib/pad'
 import statusString from '../lib/statusString'
-import ResultReceiver from './ResultReceiver'
-// import ResultReceiverRegister from './ResultReceiverRegister'
 import GenerateHash from "./GenerateHash"
 import assert from 'assert'
 
@@ -27,13 +25,13 @@ import MandatoryFieldsStep from './hardcoded-steps/MandatoryFieldsStep'
 import MapFieldsStep from './hardcoded-steps/MapFieldsStep'
 import ConvertDatesStep from './hardcoded-steps/ConvertDatesStep'
 import RouterStep from './hardcoded-steps/RouterStep'
+import WaitStep from './hardcoded-steps/WaitStep'
 
 // Database stuff
 import dbTransactionInstance from '../database/dbTransactionInstance'
 import dbTransactionType from '../database/dbTransactionType'
 import colors from 'colors'
 import Logbook from './Logbook'
-import ChildPipelineCompletionHandler from './hardcoded-steps/ChildPipelineCompletionHandler'
 
 const ANTI_BRUTE_FORCE_DELAY = 2000 // 2 seconds
 
@@ -133,7 +131,7 @@ class AsynchronousTransactionEngine {
     await MapFieldsStep.register()
     await ConvertDatesStep.register()
     await RouterStep.register()
-    await ChildPipelineCompletionHandler.register()
+    await WaitStep.register()
 
 
     // await ResultReceiver.register(ATP_TRANSACTION_COMPLETION_HANDLER_NAME, new AtpTransactionCompletionHandler())

@@ -8,7 +8,7 @@ import errors from 'restify-errors'
 import currencies from '../lookup/currencies'
 import providers from '../providers-needToRemove/providers'
 import { LOOKUP_URL_PREFIX } from '../lib/constants'
-import apiVersions from '../../lib/apiVersions'
+import apiVersions from '../../extras/apiVersions'
 const { defineRoute, LOGIN_IGNORED } = apiVersions
 
 

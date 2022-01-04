@@ -272,9 +272,9 @@ export default class Scheduler2 {
       // console.log(`metadataCopy=`, metadataCopy)
       // console.log(`data=`, data)
       if (VERBOSE||trace) console.log(`Scheduler2.startTransaction() - adding to queue ${queueToPipelineNode}`)
-      console.log(`txId=`, txId)
+      // console.log(`txId=`, txId)
       const fullSequence = txId.substring(3, 9)
-      console.log(`fullSequence=`, fullSequence)
+      // console.log(`fullSequence=`, fullSequence)
       await Scheduler2.enqueue_StepStart(queueToPipelineNode, {
         txId,
         stepId,
@@ -356,6 +356,7 @@ export default class Scheduler2 {
     assert (typeof(obj.fullSequence) === 'string')
     assert (typeof(obj.stepDefinition) !== 'undefined')
     assert (typeof(obj.data) === 'object')
+    assert ( !(obj.data instanceof XData))
     assert (typeof(obj.metadata) === 'object')
     assert (typeof(obj.level) === 'number')
 
@@ -405,11 +406,34 @@ export default class Scheduler2 {
       eventType: this.STEP_START_EVENT,
       txId: obj.txId,
       stepId: obj.stepId,
-      onComplete: obj.onComplete,
+      // onComplete: obj.onComplete,
       // completionToken: obj.onComplete.completionToken
 
     })
   }//- enqueueStepStart
+
+  static async enqueue_StepRestart(queueName, txId, stepId) {
+    if (VERBOSE) {
+      console.log(`\n<<< enqueue_StepRestart EVENT(${queueName})`.green, data)
+    }
+    assert(typeof(queueName) === 'string')
+    assert(typeof(txId) === 'string')
+    assert(typeof(stepId) === 'string')
+
+    // Change the step status
+    const tx = await TransactionCache.findTransaction(txId, false)
+    await tx.delta(stepId, {
+      status: STEP_QUEUED
+    })
+
+    // Add to the event queue
+    const queue = await getQueueConnection()
+    await queue.enqueue(queueName, {
+      eventType: this.STEP_START_EVENT,
+      txId,
+      stepId
+    })
+  }//- enqueue_StepRestart
 
 
   /**

@@ -8,7 +8,7 @@ import providers from './providers-needToRemove/providers'
 import errors from 'restify-errors'
 import query from '../database/query'
 import constants from './lib/constants'
-import apiVersions from '../lib/apiVersions'
+import apiVersions from '../extras/apiVersions'
 const { defineRoute, LOGIN_IGNORED } = apiVersions
 
 import { MONITOR_URL_PREFIX } from './lib/constants'

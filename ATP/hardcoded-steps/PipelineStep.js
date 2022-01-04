@@ -14,7 +14,7 @@ import TransactionCache from '../Scheduler2/TransactionCache'
 import { PIPELINE_STEP_COMPLETE_CALLBACK } from '../Scheduler2/pipelineStepCompleteCallback'
 
 // const STEP_COMPLETION_HANDLER = 'pipeline-step-completion-handler'
-export const PIPELINES_VERBOSE = 0
+export const PIPELINES_VERBOSE = 1
 
 class Pipeline extends Step {
   #stepIndex
@@ -51,7 +51,7 @@ class Pipeline extends Step {
 
   async invoke(pipelineInstance) {
     assert(pipelineInstance instanceof StepInstance)
-    if (PIPELINES_VERBOSE) pipelineInstance.console(`>>>>    Pipeline.invoke (${pipelineInstance.getStepId()})  `.blue.bgGreen.bold)
+    if (PIPELINES_VERBOSE) pipelineInstance.console(`>>>>    Pipeline.invoke (${pipelineInstance.getStepId()})  `.black.bgGreen.bold)
 
     //ZZZZ If there are no steps, return immediately
     if (this.#steps.length < 1) {
@@ -140,49 +140,49 @@ class Pipeline extends Step {
 
     // await Scheduler2.invokeStep(pipelineInstance.getTransactionId(), pipelineInstance, sequence, definition, txdata, logbook, STEP_COMPLETION_HANDLER, contextForCompletionHandler)
 
-      // Generate a new ID for this step
-      // const txId = pipelineInstance.getTransactionId()//ZZZZ rename
-      const parentStepId = pipelineInstance.getStepId()
-      // console.log(`parentStepId=`, parentStepId)
-      const parentNodeGroup = pipelineInstance.getNodeGroup()
-      // console.log(`parentNodeGroup=`, parentNodeGroup)
-      // const childStepId = GenerateHash('s')
-      const childStepId = childStepIds[0]
-      const childNodeGroup = parentNodeGroup
+    // Generate a new ID for this step
+    // const txId = pipelineInstance.getTransactionId()//ZZZZ rename
+    const parentStepId = pipelineInstance.getStepId()
+    // console.log(`parentStepId=`, parentStepId)
+    const parentNodeGroup = pipelineInstance.getNodeGroup()
+    // console.log(`parentNodeGroup=`, parentNodeGroup)
+    // const childStepId = GenerateHash('s')
+    const childStepId = childStepIds[0]
+    const childNodeGroup = parentNodeGroup
 
-      // The child will run in the same node as this pipeline.
-      // const nodeGroupWherePipelineRuns = metadata.nodeId
-      const queueToPipelineNode = Scheduler2.standardQueueName(parentNodeGroup, DEFAULT_QUEUE)
-      // console.log(`parentNodeGroup=`, parentNodeGroup)
-      // console.log(`queueToPipelineNode=`, queueToPipelineNode)
+    // The child will run in the same node as this pipeline.
+    // const nodeGroupWherePipelineRuns = metadata.nodeId
+    const queueToPipelineNode = Scheduler2.standardQueueName(parentNodeGroup, DEFAULT_QUEUE)
+    // console.log(`parentNodeGroup=`, parentNodeGroup)
+    // console.log(`queueToPipelineNode=`, queueToPipelineNode)
 
-      const childFullSequence = `${pipelineInstance.getFullSequence()}.1` // Start sequence at 1
+    const childFullSequence = `${pipelineInstance.getFullSequence()}.1` // Start sequence at 1
 
-      // console.log(`metadata=`, metadata)
-      // console.log(`txdata=`, txdata)
-      // console.log(`parentNodeGroup=`, parentNodeGroup)
-      await Scheduler2.enqueue_StepStart(queueToPipelineNode, {
-        txId,
-        nodeGroup: childNodeGroup,
-        nodeId: childNodeGroup,
-        stepId: childStepId,
-        // parentNodeId,
-        parentStepId,
-        fullSequence: childFullSequence,
-        stepDefinition: childStepDefinition,
-        metadata: metadata,
-        data: stepInput,
-        level: pipelineInstance.getLevel() + 1,
-        onComplete: {
-          nodeGroup: parentNodeGroup,
-          callback: PIPELINE_STEP_COMPLETE_CALLBACK,
-          context: { txId, parentNodeGroup, parentStepId, childStepId }
-        }
-      })
+    // console.log(`metadata=`, metadata)
+    // console.log(`txdata=`, txdata)
+    // console.log(`parentNodeGroup=`, parentNodeGroup)
+    await Scheduler2.enqueue_StepStart(queueToPipelineNode, {
+      txId,
+      nodeGroup: childNodeGroup,
+      nodeId: childNodeGroup,
+      stepId: childStepId,
+      // parentNodeId,
+      parentStepId,
+      fullSequence: childFullSequence,
+      stepDefinition: childStepDefinition,
+      metadata: metadata,
+      data: stepInput,
+      level: pipelineInstance.getLevel() + 1,
+      onComplete: {
+        nodeGroup: parentNodeGroup,
+        callback: PIPELINE_STEP_COMPLETE_CALLBACK,
+        context: { txId, parentNodeGroup, parentStepId, childStepId }
+      }
+    })
 
     //ZZZZ Handling of sync steps???
 
-    //ZZZZ Perhaps we should get the new step ID above and souble check it in the completion handler????
+    //ZZZZ Perhaps we should get the new step ID above and double check it in the completion handler????
 
   }//- invoke
 }

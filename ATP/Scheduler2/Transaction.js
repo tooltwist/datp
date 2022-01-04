@@ -223,10 +223,12 @@ export default class Transaction {
 
               //ZZZZ Check that the transaction hasn't been updateed by someone else.
               //  AND sequence_of_update=?   [ this.#sequenceOfUpdate ]
-            const params = [
+              const transactionOutputJSON = JSON.stringify(this.#transactionOutput)
+              const progressReportJSON = JSON.stringify(this.#progressReport)
+              const params = [
               this.#status,
-              this.#progressReport,
-              this.#transactionOutput,
+              progressReportJSON,
+              transactionOutputJSON,
               this.#completionTime,
               this.#deltaCounter,
               this.#txId,
@@ -307,7 +309,44 @@ export default class Transaction {
     if (rows.length < 1) {
       return null
     }
-    return rows[0]
+    const row = rows[0]
+    const transactionOutput = row.transactionOutput
+    const progressReport = row.progressReport
+    const summary = {
+      metadata: row,
+      progressReport
+    }
+    delete summary.metadata.transactionOutput
+    delete summary.metadata.progressReport
+    try { summary.progressReport = JSON.parse(progressReport) } catch (e) { /* We'll stick with the JSON string */ }
+    if (
+      row.status === STEP_SUCCESS
+      || row.status === STEP_FAILED
+      || row.status === STEP_ABORTED
+      || row.status === STEP_INTERNAL_ERROR
+      || row.status === STEP_TIMEOUT
+    ) {
+      // Step has completed
+      try {
+        if (!transactionOutput) transactionOutput = '{ }'
+        // console.log(`transactionOutput=`, transactionOutput)
+        summary.data = JSON.parse(transactionOutput)
+        // console.log(`summary.data=`, summary.data)
+      } catch (e) {
+        summary.data = transactionOutput
+      }
+    } else {
+      // Step is still in progress
+      // try {
+      //   if (!progressReport) progressReport = '{ }'
+      //   summary.progressReport = JSON.parse(progressReport)
+      // } catch (e) {
+      //   summary.progressReport = progressReport
+      // }
+    }
+    // console.log(`summary=`, summary)
+
+    return summary
   }
 
 
@@ -328,7 +367,44 @@ export default class Transaction {
     if (rows.length < 1) {
       return null
     }
-    return rows[0]
+    const row = rows[0]
+    const transactionOutput = row.transactionOutput
+    const progressReport = row.progressReport
+    const summary = {
+      metadata: row,
+      progressReport
+    }
+    delete summary.metadata.transactionOutput
+    delete summary.metadata.progressReport
+    try { summary.progressReport = JSON.parse(progressReport) } catch (e) { /* We'll stick with the JSON string */ }
+    if (
+      row.status === STEP_SUCCESS
+      || row.status === STEP_FAILED
+      || row.status === STEP_ABORTED
+      || row.status === STEP_INTERNAL_ERROR
+      || row.status === STEP_TIMEOUT
+    ) {
+      // Step has completed
+      try {
+        if (!transactionOutput) transactionOutput = '{ }'
+        // console.log(`transactionOutput=`, transactionOutput)
+        summary.data = JSON.parse(transactionOutput)
+        // console.log(`summary.data=`, summary.data)
+      } catch (e) {
+        summary.data = transactionOutput
+      }
+    } else {
+      // Step is still in progress
+      // try {
+      //   if (!progressReport) progressReport = '{ }'
+      //   summary.progressReport = JSON.parse(progressReport)
+      // } catch (e) {
+      //   summary.progressReport = progressReport
+      // }
+    }
+    // console.log(`summary=`, summary)
+
+    return summary
   }
 
 
@@ -428,7 +504,8 @@ export default class Transaction {
       transaction_type AS transactionType,
       status,
       start_time AS startTime
-      FROM atp_transaction2`
+      FROM atp_transaction2
+      ORDER BY start_time DESC`
       // WHERE owner=? AND transaction_id=?`
     const params = [ ]
     // const params = [ owner, txId ]

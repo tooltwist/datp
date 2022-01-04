@@ -30,9 +30,9 @@ async function artifactsForStep(stepId) {
   console.log(`artifactsForStep(${stepId})`)
   const sql = `SELECT artifact_name AS name, json_value AS value FROM atp_step_artifact WHERE step_id=? ORDER BY name`
   const params = [ stepId ]
-  console.log(`sql=`, sql)
-  console.log(`params=`, params)
+  // console.log(`sql=`, sql)
+  // console.log(`params=`, params)
   const result = await query(sql, params)
-  console.log(`result=`, result)
+  // console.log(`result=`, result)
   return result
 }

@@ -5,9 +5,9 @@
  * the author or owner be liable for any claim or damages.
  */
 import ATP from '../ATP/ATP'
-import ResultReceiver from '../ATP/ResultReceiver'
+// import ResultReceiver from '../ATP/ResultReceiver'
 import master from '../restify/master'
-import apiVersions from '../lib/apiVersions'
+import apiVersions from '../extras/apiVersions'
 // import { monitorMidi } from '../mondat/midi'
 import errors from 'restify-errors';
 import assert from 'assert'
@@ -17,6 +17,10 @@ import currencies_routes from '../CONVERSION/restify/currencies'
 import countries_routes from '../CONVERSION/restify/countries'
 import formserviceYarp from '../restify/formservice'
 import { DATP_URL_PREFIX } from '../CONVERSION/lib/constants'
+import { startTransactionRoute } from '..';
+import { addRoute } from '../extras';
+import { transactionStatusByTxIdV1 } from '../../genericEndpoints/routes/transactionStatus';
+import { transactionStatusByExternalIdV1 } from '../../genericEndpoints/routes/transactionStatusByExternalId';
 
 
 const { defineRoute, showVersions, LOGIN_IGNORED } = apiVersions
@@ -25,86 +29,106 @@ const { defineRoute, showVersions, LOGIN_IGNORED } = apiVersions
 const responsesForSynchronousReturn = [ ] // txId -> { res, next, timestamp, timeoutHandle }
 
 
-const API_TRANSACTION_COMPLETION_HANDLER_NAME = 'api-transaction-completion-handler'
+// const API_TRANSACTION_COMPLETION_HANDLER_NAME_ZZZOLDE = 'api-transaction-completion-handler'
 
-class ApiTransactionCompletionHandler extends ResultReceiver {
-  constructor() {
-    super()
-  }
-  async haveResult(contextForCompletionHandler, status, note, response) {
-    assert(response instanceof XData)
-    console.log(`<<<<    ApiTransactionCompletionHandler.haveResult()  `.white.bgRed.bold)
-    // console.log(`  contextForCompletionHandler=`, JSON.stringify(contextForCompletionHandler, '', 0))
-    // console.log(`  status=`, status)
-    // console.log(`  response=`, response.toString())
-    // // await Scheduler.dumpSteps(`\nAfter Completion`)
+// class ApiTransactionCompletionHandlerZZZOLDE extends ResultReceiver {
+//   constructor() {
+//     super()
+//   }
+//   async haveResult(contextForCompletionHandler, status, note, response) {
+//     assert(response instanceof XData)
+//     console.log(`<<<<    ApiTransactionCompletionHandler.haveResult()  `.white.bgRed.bold)
+//     // console.log(`  contextForCompletionHandler=`, JSON.stringify(contextForCompletionHandler, '', 0))
+//     // console.log(`  status=`, status)
+//     // console.log(`  response=`, response.toString())
+//     // // await Scheduler.dumpSteps(`\nAfter Completion`)
 
-    console.log(`TRANSACTION ${contextForCompletionHandler.txId} HAS FINISHED [${status}].`)
-    console.log(`responsesForSynchronousReturn is holding ${Object.keys(responsesForSynchronousReturn).length} responses`.dim)
+//     console.log(`TRANSACTION ${contextForCompletionHandler.txId} HAS FINISHED [${status}].`)
+//     console.log(`responsesForSynchronousReturn is holding ${Object.keys(responsesForSynchronousReturn).length} responses`.dim)
 
-    // See if we can respond immediately
-    const immediateResponse = responsesForSynchronousReturn[contextForCompletionHandler.txId]
-    if (immediateResponse) {
-      // We can respond using the original API call
-      console.log(`  HAVE TRANSACTION RESULT - RETURNING IN ORIGINAL API RESPONSE  `.blue.bgYellow.bold)
-      const res = immediateResponse.res
-      const next = immediateResponse.next
+//     // See if we can respond immediately
+//     const immediateResponse = responsesForSynchronousReturn[contextForCompletionHandler.txId]
+//     if (immediateResponse) {
+//       // We can respond using the original API call
+//       console.log(`  HAVE TRANSACTION RESULT - RETURNING IN ORIGINAL API RESPONSE  `.blue.bgYellow.bold)
+//       const res = immediateResponse.res
+//       const next = immediateResponse.next
 
-      // Remove this response from the index
-      if (immediateResponse.timeoutHandle) {
-        clearTimeout(immediateResponse.timeoutHandle)
-        immediateResponse.timeoutHandle = null
-      }
-      delete responsesForSynchronousReturn[contextForCompletionHandler.txId]
+//       // Remove this response from the index
+//       if (immediateResponse.timeoutHandle) {
+//         clearTimeout(immediateResponse.timeoutHandle)
+//         immediateResponse.timeoutHandle = null
+//       }
+//       delete responsesForSynchronousReturn[contextForCompletionHandler.txId]
 
-      // Send the reply
-      res.send({
-        metadata: {
-          transactionId: contextForCompletionHandler.txId,
-          responseType: 'synchronous',
-          status,
-          note,
-        },
-        data: response.getData(),
-      })
-      // console.log(`responsesForSynchronousReturn=`, responsesForSynchronousReturn)
-      console.log(`responsesForSynchronousReturn is holding ${Object.keys(responsesForSynchronousReturn).length} responses`.dim)
-      return next(null)
-    } else {
-      // The response object has already been used by the timeout.
-      console.log(`  HAVE TRANSACTION RESULT, BUT API RESPONSE IS ALREADY USED - WILL NEED TO REPLY BY POLLING OR WEBHOOK`.blue.bgYellow.bold)
-    }
-  }
-}
-
-
+//       // Send the reply
+//       res.send({
+//         metadata: {
+//           transactionId: contextForCompletionHandler.txId,
+//           responseType: 'synchronous',
+//           status,
+//           note,
+//         },
+//         data: response.getData(),
+//       })
+//       // console.log(`responsesForSynchronousReturn=`, responsesForSynchronousReturn)
+//       console.log(`responsesForSynchronousReturn is holding ${Object.keys(responsesForSynchronousReturn).length} responses`.dim)
+//       return next(null)
+//     } else {
+//       // The response object has already been used by the timeout.
+//       console.log(`  HAVE TRANSACTION RESULT, BUT API RESPONSE IS ALREADY USED - WILL NEED TO REPLY BY POLLING OR WEBHOOK`.blue.bgYellow.bold)
+//     }
+//   }
+// }
 
 
-async function initiateTransactionRouteV1(req, res, next) {
+
+/**
+ *
+ * @param {Request} req
+ * @param {Response} res
+ * @param {function} next
+ */
+async function initiateTransactionFromMondatRouteV1(req, res, next) {
   console.log(`>>>>    Initiate transaction ${req.params.transactionType}  `.white.bgRed.bold)
-  // console.log(`req.params=`, req.params)
-  // console.log(`req.body=`, req.body)
-  // console.log(`req.query=`, req.query)
+  console.log(`req.params=`, req.params)
+  console.log(`req.body=`, req.body)
+  console.log(`req.query=`, req.query)
+
+  const TEST_TENANT = 'acme'
 
   const transactionType = req.params.transactionType
+  assert(transactionType && typeof(transactionType) === 'string')
+  assert(req.body)
+
   // // const transactionType = 'remittance-init'
   // const color = req.query.color
   // // console.log(`color=`, color)
   // // const initialData = { amount: 123.45, hello: 'there' }
   // const initiatedBy = 'nobody' //ZZZZ
-  const initialData = req.body
+  let metadata = req.body.metadata ? req.body.metadata : { }
+  let data = req.body.data ? req.body.data : { }
+  assert(typeof(metadata) === 'object')
+  assert(typeof(data) === 'object')
+  const externalId = metadata.externalId ? metadata.externalId : null
 
-  const options = {
-    color: req.query.color,
-    initiatedBy: 'nobody' //ZZZZ
-  }
+  console.log(`req.params.transactionType=`, req.params.transactionType)
+  console.log(`metadata=`, metadata)
+  console.log(`data=`, data)
+  console.log(`externalId=`, externalId)
+
+  console.log(`typeof(externalId)=`, typeof(externalId))
+  assert(externalId === null || typeof(externalId) === 'string')
+
+
+  // metadata.reply = 'longpoll'
 
   // This will reply, although maybe not till it times out.
-  await initiateTransaction(req, res, next, transactionType, initialData, options)
+  await startTransactionRoute(req, res, next, TEST_TENANT, externalId, transactionType, metadata, data)
 }
 
 
-export async function initiateTransaction(req, res, next, transactionType, initialData, options) {
+export async function initiateTransactionOLDE(req, res, next, transactionType, initialData, options) {
 
   // See what sort of reply is allowed
   let allowSyncReply = true
@@ -330,12 +354,18 @@ async function routesForRestify(server, isMaster = false) {
   //   { version: '1.1.3', handler: initiateTransactionRouteV1 },
   //   // { version: '2.0.0', handler: sendV2 }
   // ]));
-  defineRoute(server, 'put', false, DATP_URL_PREFIX, '/initiate/:transactionType', [
-    { versions: '1.0 - 1.0', handler: initiateTransactionRouteV1, auth: LOGIN_IGNORED, noTenant: true }
-  ])
-  defineRoute(server, 'get', false, DATP_URL_PREFIX, '/result/:transactionId', [
-    { versions: '1.0 - 1.0', handler: getTransactionResultRouteV1, auth: LOGIN_IGNORED, noTenant: true }
-  ])
+
+  // defineRoute(server, 'put', false, DATP_URL_PREFIX, '/initiate/:transactionType', [
+  //   { versions: '1.0 - 1.0', handler: initiateTransactionFromMondatRouteV1, auth: LOGIN_IGNORED, noTenant: true }
+  // ])
+  // defineRoute(server, 'get', false, DATP_URL_PREFIX, '/result/:transactionId', [
+  //   { versions: '1.0 - 1.0', handler: getTransactionResultRouteV1, auth: LOGIN_IGNORED, noTenant: true }
+  // ])
+
+  addRoute(server, 'put', DATP_URL_PREFIX, '/tx/start/:transactionType', [ { versions: '1.0 - 1.0', handler: initiateTransactionFromMondatRouteV1 } ])
+  addRoute(server, 'get', DATP_URL_PREFIX, '/tx/status/:txId', [ { versions: '1.0 - 1.0', handler: transactionStatusByTxIdV1 } ])
+  addRoute(server, 'get', DATP_URL_PREFIX, '/tx/statusByExternalId/:externalId', [ { versions: '1.0 - 1.0', handler: transactionStatusByExternalIdV1 } ])
+
 
 
   // providers.init()
@@ -349,7 +379,7 @@ async function routesForRestify(server, isMaster = false) {
 async function run() {
   console.log(`Run DATP`)
   await ATP.initialize()
-  await ResultReceiver.register(API_TRANSACTION_COMPLETION_HANDLER_NAME, new ApiTransactionCompletionHandler())
+  // await ResultReceiver.register(API_TRANSACTION_COMPLETION_HANDLER_NAME, new ApiTransactionCompletionHandler())
 }
 
 export default {
@@ -357,5 +387,5 @@ export default {
   registerAsMaster: master.registerAsMaster,
   // monitorMidi,
   run,
-  initiateTransaction,
+  initiateTransactionOLDE,
 }

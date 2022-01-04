@@ -7,9 +7,17 @@
 import GenerateHash from "./GenerateHash"
 import juice from '@tooltwist/juice-client'
 
+let myGroup = null
 let myId = null
 let name = null
 let description = null
+
+async function getNodeGroup() {
+  if (!myGroup) {
+    myGroup = 'master' //ZZZZZ Set from environment variable?
+  }
+  return myGroup
+}
 
 async function getNodeId() {
   if (!myId) {
@@ -47,6 +55,7 @@ async function getNodeStatus () {
 
 export default {
   getNodeStatus,
+  getNodeGroup,
   getNodeId,
   getName,
   getDescription,

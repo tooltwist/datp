@@ -5,10 +5,12 @@
  * the author or owner be liable for any claim or damages.
  */
 
-import { doNothingCallback, DO_NOTHING_CALLBACK } from "./doNothingCallback"
+import { doNotReturnTxResultCallback, DO_NOT_RETURN_TX_RESULT_CALLBACK } from "./doNotReturnTxResult"
 import { pipelineStepCompleteCallback, PIPELINE_STEP_COMPLETE_CALLBACK } from "./pipelineStepCompleteCallback"
-import { returnTxStatusWithWebhookCallback, RETURN_TX_STATUS_WITH_WEBHOOK } from "./returnStatusWithWebhookCallback"
+import { childPipelineCompletionCallback, CHILD_PIPELINE_COMPLETION_CALLBACK } from "./ChildPipelineCompletionCallback"
+import { returnTxStatusWithWebhookCallback, RETURN_TX_STATUS_WITH_WEBHOOK_CALLBACK } from "./returnTxStatusWithWebhookCallback"
 import { rootStepCompleteCallback, ROOT_STEP_COMPLETE_CALLBACK } from "./rootStepCompleteCallback"
+import { returnTxStatusWithLongPollCallback, RETURN_TX_STATUS_WITH_LONGPOLL_CALLBACK } from "./returnTxStatusViaLongpollCallback"
 
 const VERBOSE = 0
 
@@ -30,8 +32,10 @@ export default class CallbackRegister {
       // Add a few built-in callbacks
       CallbackRegister._index[ROOT_STEP_COMPLETE_CALLBACK] = rootStepCompleteCallback
       CallbackRegister._index[PIPELINE_STEP_COMPLETE_CALLBACK] = pipelineStepCompleteCallback
-      CallbackRegister._index[DO_NOTHING_CALLBACK] = doNothingCallback
-      CallbackRegister._index[RETURN_TX_STATUS_WITH_WEBHOOK] = returnTxStatusWithWebhookCallback
+      CallbackRegister._index[CHILD_PIPELINE_COMPLETION_CALLBACK] = childPipelineCompletionCallback
+      CallbackRegister._index[RETURN_TX_STATUS_WITH_WEBHOOK_CALLBACK] = returnTxStatusWithWebhookCallback
+      CallbackRegister._index[RETURN_TX_STATUS_WITH_LONGPOLL_CALLBACK] = returnTxStatusWithLongPollCallback
+      CallbackRegister._index[DO_NOT_RETURN_TX_RESULT_CALLBACK] = doNotReturnTxResultCallback // They reply will be accessed via short polling
     }
   }
 

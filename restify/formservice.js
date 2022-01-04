@@ -4,7 +4,7 @@ import Schema from '../CONVERSION/formservice/schema-parser/Schema'
 import FieldProperties from '../CONVERSION/formservice/schema-parser/field_properties'
 import formsAndFields from '../CONVERSION/lib/formsAndFields'
 import { FORMSERVICE_URL_PREFIX } from '../CONVERSION/lib/constants'
-import apiVersions from '../lib/apiVersions'
+import apiVersions from '../extras/apiVersions'
 const { defineRoute, LOGIN_IGNORED } = apiVersions
 
 export default {

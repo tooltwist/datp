@@ -340,10 +340,10 @@ export default class Field {
     const sql = `
       DELETE FROM formservice_field WHERE tenant=? AND view=? AND name=?`
     let params = [ schema.tenant, this.viewName, this.name]
-    console.log(`sql=`, sql)
-    console.log(`params=`, params)
+    // console.log(`sql=`, sql)
+    // console.log(`params=`, params)
     const result = await query(sql, params)
-    console.log(`result=`, result)
+    // console.log(`result=`, result)
 }
 
 

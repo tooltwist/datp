@@ -39,10 +39,10 @@ export async function saveTransactionMappingsV1(req, res, next) {
     }
     sql += ` WHERE transaction_type=?`
     params.push(req.body.transactionType)
-    console.log(`sql=`, sql)
-    console.log(`params=`, params)
+    // console.log(`sql=`, sql)
+    // console.log(`params=`, params)
     let result = await query(sql, params)
-    console.log(`result=`, result)
+    // console.log(`result=`, result)
     if (result.affectedRows === 1) {
       res.send({ status: 'ok' })
       return next()
@@ -59,10 +59,10 @@ export async function saveTransactionMappingsV1(req, res, next) {
       params.push(req.body.description)
     }
     let sql2 = `${sql2a}${sql2b}${sql2c}`
-    console.log(`sql2=`, sql2)
-    console.log(`params2=`, params2)
+    // console.log(`sql2=`, sql2)
+    // console.log(`params2=`, params2)
     result = await query(sql2, params2)
-    console.log(`result=`, result)
+    // console.log(`result=`, result)
 
     if (result.affectedRows === 1) {
       res.send({ status: 'ok' })

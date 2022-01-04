@@ -222,8 +222,8 @@ export default class Worker2 {
     try {
       assert(typeof(event.txId) === 'string')
       assert(typeof(event.stepId) === 'string')
-      assert(typeof(event.onComplete) === 'object')
-      assert(typeof(event.onComplete.completionToken) === 'string')
+      // assert(typeof(event.onComplete) === 'object')
+      // assert(typeof(event.onComplete.completionToken) === 'string')
 
       const txId = event.txId
       const stepId = event.stepId
@@ -235,13 +235,20 @@ export default class Worker2 {
       assert(stepData.status === STEP_QUEUED)
       assert(stepData.fullSequence)
 
+// console.log(`----------------------------------------------------------------`)
+// console.log(`event.onComplete=`, event.onComplete)
+// console.log(`stepData=`, stepData)
+
+
       const trace = (typeof(txData.metadata.traceLevel) === 'number') && txData.metadata.traceLevel > 0
       if (trace || this.#debugLevel > 0) {
         console.log(`>>> processEvent_StepStart()`.brightGreen, event)
       }
 
-      // See if this is a test step.
-      if (trace || this.#debugLevel > 0) console.log(`step type is ${stepData.stepDefinition}`)
+      /*
+       * See if this is a test step.
+       */
+      if (trace || this.#debugLevel > 0) console.log(`stepDefinition is ${stepData.stepDefinition}`)
       if (stepData.stepDefinition === 'util.ping3') {
 
         // Boounce back via STEP_COMPLETION_EVENT, after creating fake transaction data.
@@ -256,17 +263,19 @@ export default class Worker2 {
             description
           }
         })
-        const queueName = Scheduler2.standardQueueName(event.onComplete.nodeGroup, DEFAULT_QUEUE)
+        const queueName = Scheduler2.standardQueueName(stepData.onComplete.nodeGroup, DEFAULT_QUEUE)
         await Scheduler2.enqueue_StepCompleted(queueName, {
           txId: event.txId,
           stepId: event.stepId,
-          completionToken: event.onComplete.completionToken
+          completionToken: stepData.onComplete.completionToken
         })
         return
       }//- ping3
 
 
-
+      /*
+       *  Not a test step
+       */
       // Create the StepInstance object, to provide context to the step when it runs.
       event.nodeId = this.#nodeGroup
       event.nodeGroup = this.#nodeGroup
@@ -424,6 +433,7 @@ export default class Worker2 {
         note,
         transactionOutput
       }
+console.log(`\n\n YARP transaction complete - calling ${txData.onComplete.callback}`)
       await CallbackRegister.call(txData.onComplete.callback, txData.onComplete.context, extraInfo)
       return
     } catch (e) {

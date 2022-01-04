@@ -6,7 +6,7 @@
  */
 import Logbook from './Logbook'
 import StepTypes from './StepTypeRegister'
-import Step, { STEP_ABORTED, STEP_FAILED, STEP_INTERNAL_ERROR, STEP_RUNNING, STEP_SUCCESS } from './Step'
+import Step, { STEP_ABORTED, STEP_FAILED, STEP_INTERNAL_ERROR, STEP_RUNNING, STEP_SLEEPING, STEP_SUCCESS } from './Step'
 import dbStep from "../database/dbStep";
 import dbPipelines from "../database/dbPipelines";
 import XData from "./XData";
@@ -16,8 +16,10 @@ import Scheduler2, { DEFAULT_QUEUE } from "./Scheduler2/Scheduler2";
 import TransactionCache from "./Scheduler2/TransactionCache";
 import indentPrefix from '../lib/indentPrefix'
 import assert from 'assert'
+import Transaction from './Scheduler2/Transaction';
 
 const VERBOSE = 0
+export const DEEP_SLEEP_DURATION = 2 * 60 // Two minutes
 
 export default class StepInstance {
   #txId
@@ -97,9 +99,9 @@ export default class StepInstance {
     assert (typeof(txData.metadata) === 'object')
     assert (typeof(stepData.level) === 'number')
 
-    assert (typeof(options.onComplete) === 'object')
-    assert (typeof(options.onComplete.nodeGroup) === 'string')
-    assert (typeof(options.onComplete.completionToken) === 'string')
+    assert (typeof(stepData.onComplete) === 'object')
+    assert (typeof(stepData.onComplete.nodeGroup) === 'string')
+    assert (typeof(stepData.onComplete.completionToken) === 'string')
 
     // const txData = tx.txData()
     this.#parentStepId = stepData.parentStepId
@@ -126,7 +128,7 @@ export default class StepInstance {
     this.#level = stepData.level
     this.#fullSequence = stepData.fullSequence
 
-    this.#onComplete = options.onComplete
+    this.#onComplete = stepData.onComplete
     // this.#completionToken = options.completionToken
 
     // Log this step being materialized
@@ -337,6 +339,11 @@ export default class StepInstance {
     return myStepOutput
   }
 
+  /**
+   *
+   * @param {*} note
+   * @param {*} stepOutput
+   */
   async succeeded(note, stepOutput) {
     if (VERBOSE) console.log(`StepInstance.succeeded(note=${note}, ${typeof stepOutput})`, stepOutput)
 
@@ -374,6 +381,11 @@ export default class StepInstance {
 
   }
 
+  /**
+   *
+   * @param {*} note
+   * @param {*} stepOutput
+   */
   async aborted(note, stepOutput) {
     if (VERBOSE) console.log(`StepInstance.aborted(note=${note}, ${typeof stepOutput})`, stepOutput)
 
@@ -410,6 +422,11 @@ export default class StepInstance {
     })
   }
 
+  /**
+   *
+   * @param {*} note
+   * @param {*} stepOutput
+   */
   async failed(note, stepOutput) {
     if (VERBOSE) console.log(`StepInstance.failed(note=${note}, ${typeof stepOutput})`, stepOutput)
 
@@ -446,6 +463,11 @@ export default class StepInstance {
     })
   }
 
+  /**
+   *
+   * @param {*} msg
+   * @returns
+   */
   async badDefinition(msg) {
     // console.log(`StepInstance.badDefinition(${msg})`)
 
@@ -470,8 +492,15 @@ export default class StepInstance {
     return Scheduler.stepFinished(this.#stepId, this.#onComplete.completionToken, status, note, new XData(data))
   }
 
-  async exceptionInStep(e) {
+  /**
+   *
+   * @param {*} e
+   * @returns
+   */
+  async exceptionInStep(msg, e) {
     // console.log(Logbook.LEVEL_TRACE, `StepInstance.exceptionInStep()`)
+    console.log(this.#indent + `StepInstance.exceptionInStep(${msg})`, e)
+    console.log(new Error('YARP').stack)
 
     // Write this to the admin log.
     //ZZZZ
@@ -500,6 +529,66 @@ export default class StepInstance {
 
     const note = `Exception in step`
     return Scheduler.stepFinished(this.#stepId, this.#onComplete.completionToken, status, note, new XData(data))
+  }
+
+  /**
+   * Provide information for status reports, explaining progress in the processing of the
+   * transaction. This is commonly used in conjunction with sleeps and setting switches
+   * to pause the transaction at various states while it waits for extrnal events.
+   *
+   * @param {Object} object JSON-able object that will be returned in the transaction status
+   */
+  async progressReport(object) {
+    if (VERBOSE) console.log(`StepInstance.progressReport()`, object)
+    const tx = await TransactionCache.findTransaction(this.#txId, false)
+    await tx.delta(null, {
+      progressReport: object
+    })
+  }
+
+  /**
+   * This function places a pipeline into sleep status, waiting until either
+   * a fixed time has passed, or the value of a transaction switch changes.
+   *
+   * NOTE: It is essential that your step returns immediately after calling
+   * this function!
+   *
+   * @param {string} nameOfSwitch Retry immediately if the value of this switch changes
+   * @param {number} sleepDuration Number of seconds after which to retry (defaults to two minutes)
+   */
+  async retryLater(nameOfSwitch=null, sleepDuration=120) {
+    if (VERBOSE) console.log(`StepInstance.retryLater(nameOfSwitch=${nameOfSwitch}, sleepDuration=${sleepDuration})`)
+    const tx = await TransactionCache.findTransaction(this.#txId, false)
+    await tx.delta(null, {
+      status: STEP_SLEEPING
+      //ZZZZ Sleep completion time
+    })
+    await tx.delta(this.#stepId, {
+      status: STEP_SLEEPING
+    })
+
+sleepDuration = 15
+
+    if (sleepDuration < DEEP_SLEEP_DURATION) {
+      console.log(`Step will nap for ${sleepDuration} seconds [${this.#stepId}]`)
+      setTimeout(async() => {
+        console.log(`Restarting step after a nap of ${sleepDuration} seconds [${this.#stepId}]`)
+        const queueName = Scheduler2.standardQueueName(this.#nodeGroup, DEFAULT_QUEUE)
+        await Scheduler2.enqueue_StepRestart(queueName, this.#txId, this.#stepId)
+      }, sleepDuration * 1000)
+    }
+  }
+
+  /**
+   *
+   * @param {*} name
+   * @returns
+   */
+  async getSwitch(name) {
+    if (VERBOSE) console.log(`StepInstance.getSwitch(${name})`)
+    const tx = await TransactionCache.findTransaction(this.#txId, false)
+    const value = await Transaction.getSwitch(tx.getOwner(), this.#txId, name)
+    return value
   }
 
 

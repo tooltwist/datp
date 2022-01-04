@@ -1,3 +1,4 @@
+import { PIPELINES_VERBOSE } from "../hardcoded-steps/PipelineStep"
 import Scheduler2, { DEFAULT_QUEUE } from "./Scheduler2"
 import TransactionCache from "./TransactionCache"
 
@@ -5,7 +6,7 @@ import TransactionCache from "./TransactionCache"
 export const ROOT_STEP_COMPLETE_CALLBACK = `rootStepComplete`
 
 export async function rootStepCompleteCallback (callbackContext, nodeInfo) {
-  // console.log(`==> Callback rootStepCompleteCallback()`, callbackContext, nodeInfo)
+  if (PIPELINES_VERBOSE) console.log(`==> Callback rootStepCompleteCallback()`, callbackContext, nodeInfo)
 
   // Get the details of the root step
   const tx = await TransactionCache.findTransaction(callbackContext.txId, true)

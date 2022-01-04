@@ -190,10 +190,10 @@ async function setMapping(tenant, mappingId, version, toField, source, converter
   // Delete any existing mapping to this field
   const sql = `DELETE FROM formservice_field_mapping WHERE tenant=? AND mapping_id=? AND version=? AND to_field=?`
   const params = [ tenant, mappingId, version, toField ]
-  console.log(`sql=`, sql)
-  console.log(`params=`, params)
+  // console.log(`sql=`, sql)
+  // console.log(`params=`, params)
   const result = await query(sql, params)
-  console.log(`result=`, result)
+  // console.log(`result=`, result)
 
   // Save the new mapping
   if (source && source !== '-') {

@@ -1,9 +1,13 @@
+import { assert } from 'joi'
+import { deepCopy } from '../../lib/deepCopy'
+import GenerateHash from '../GenerateHash'
+import { CHILD_PIPELINE_COMPLETION_CALLBACK } from '../Scheduler2/ChildPipelineCompletionCallback'
+import Scheduler2, { DEFAULT_QUEUE } from '../Scheduler2/Scheduler2'
 import Step from '../Step'
 import StepTypeRegister from '../StepTypeRegister'
 import XData from '../XData'
-import ChildPipelineCompletionHandler from './ChildPipelineCompletionHandler'
 
-const VERBOSE = true
+export const ROUTERSTEP_VERBOSE = 0
 
 
 export class RouterStep extends Step {
@@ -33,7 +37,7 @@ export class RouterStep extends Step {
 
 
   async invoke(instance) {
-    if (VERBOSE) {
+    if (ROUTERSTEP_VERBOSE) {
       // instance.console(`*****`)
       instance.console(`RouterStep::invoke(${instance.getStepId()})`)
     }
@@ -44,13 +48,75 @@ export class RouterStep extends Step {
 
     // See which child pipeline to call.
     const pipelineName = await this.choosePipeline(instance)
-    console.log(`pipelineName=`, pipelineName)
+    if (ROUTERSTEP_VERBOSE) instance.console(`pipelineName=`, pipelineName)
     if (!pipelineName) {
       return await instance.failed(`Unknown value for selection field`, { status: 'error', error: 'Invalid selector field'})
     }
 
     // Start the child pipeline
     return await this.invokeChildPipeline(instance, pipelineName, null)
+  }//- invoke
+
+  async invokeChildPipeline(instance, pipelineName, data) {
+    if (ROUTERSTEP_VERBOSE) {
+      // instance.console(`*****`)
+      instance.console(`RouterStep::invokeChildPipeline (${pipelineName})`)
+    }
+
+    instance.log(``)
+    instance.console()
+    instance.console(`RouterStep initiating child pipeline`)
+    instance.console()
+
+    const parentInstance = instance
+    const txId = parentInstance.getTransactionId()//ZZZZ rename
+
+    // assert(data)
+    if (!data) {
+      data = await parentInstance.getDataAsObject()
+    }
+    if (ROUTERSTEP_VERBOSE) instance.console(`RouterStep.invokeChildPipeline() input is `, data)
+    const childData = deepCopy(data)
+    if (ROUTERSTEP_VERBOSE) instance.console(`RouterStep.invokeChildPipeline() data for child pipeline is `, childData)
+    const metadata = await parentInstance.getMetadata()
+
+    // Start the child pipeline
+    instance.console(`Start child transaction pipeline ${pipelineName}`)
+    const parentStepId = await parentInstance.getStepId()
+    const parentNodeGroup = parentInstance.getNodeGroup()
+    const childStepId = GenerateHash('s')
+
+    const childNodeGroup = parentNodeGroup
+
+    //ZZZZZ We should check which node this pipeline runs on.
+    const queueToPipelineNode = Scheduler2.standardQueueName(parentNodeGroup, DEFAULT_QUEUE)
+    // console.log(`parentNodeGroup=`, parentNodeGroup)
+    // console.log(`queueToPipelineNode=`, queueToPipelineNode)
+
+    const childFullSequence = `${parentInstance.getFullSequence()}.1` // Start sequence at 1
+
+
+      // console.log(`metadata=`, metadata)
+      // console.log(`txdata=`, txdata)
+      // console.log(`parentNodeGroup=`, parentNodeGroup)
+      await Scheduler2.enqueue_StepStart(queueToPipelineNode, {
+        txId,
+        nodeGroup: childNodeGroup,
+        nodeId: childNodeGroup,
+        stepId: childStepId,
+        // parentNodeId,
+        parentStepId,
+        fullSequence: childFullSequence,
+        stepDefinition: pipelineName,
+        metadata: metadata,
+        data: childData,
+        level: parentInstance.getLevel() + 1,
+        onComplete: {
+          nodeGroup: parentNodeGroup,
+          callback: CHILD_PIPELINE_COMPLETION_CALLBACK,
+          context: { txId, parentNodeGroup, parentStepId, childStepId }
+        }
+      })
   }//- invoke
 
   /**
@@ -66,8 +132,8 @@ export class RouterStep extends Step {
    *
    * @param {StepInstance} instance
    */
-  async choosePipeline(instance) {
-    console.log(`choosePipeline()`)
+   async choosePipeline(instance) {
+    if (ROUTERSTEP_VERBOSE) instance.console(`choosePipeline()`)
 
     // Check the definition is not invalid
     if (!this.#field) {
@@ -103,37 +169,6 @@ export class RouterStep extends Step {
     }
     return null
   }
-
-  async invokeChildPipeline(instance, pipelineName, data) {
-    if (VERBOSE) {
-      // instance.console(`*****`)
-      instance.console(`RouterStep::invokeChildPipeline (${pipelineName})`)
-    }
-    instance.log(``)
-    instance.console()
-    instance.console(`RouterStep initiating child pipeline`)
-    instance.console()
-
-    if (!data) {
-      data = await instance.getDataAsObject()
-    }
-
-    // Start the child pipeline
-    instance.console(`Start child transaction pipeline ${pipelineName}`)
-    const parentInstance = instance
-    const parentStepId = await parentInstance.getStepId()
-    const txId = await parentInstance.getTransactionId()
-    const sequenceYARP = txId.substring(txId.length - 8)
-    const definition = pipelineName
-    const contextForCompletionHandler = {
-      txId,
-      parentStepId
-    }
-    const childData = new XData(data)
-    const logbook = instance.getLogbook()
-    const completionHandler = ChildPipelineCompletionHandler.CHILD_PIPELINE_COMPLETION_HANDLER_NAME
-    return await Scheduler.invokeStep(txId, parentInstance, sequenceYARP, definition, childData, logbook, completionHandler, contextForCompletionHandler)
-  }//- invoke
 }//- class
 
 

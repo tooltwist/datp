@@ -10,7 +10,7 @@ import TransactionCache from './TransactionCache'
 export const PIPELINE_STEP_COMPLETE_CALLBACK = `pipelineStepComplete`
 
 export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
-  // console.log(`==> Callback pipelineStepCompleteCallback() context=`, callbackContext, nodeInfo)
+  if (PIPELINES_VERBOSE) console.log(`==> Callback pipelineStepCompleteCallback() context=`, callbackContext, nodeInfo)
 
   // Get the transaction details
   const txId = callbackContext.txId
@@ -56,12 +56,12 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
     // const stepNo = ++pipelineInstance.privateData.indexOfCurrentChildStep
     // console.log(`yarp E - ${this.stepNo}`)
     // if (nextStepNo >= pipelineInstance.privateData.numSteps) {
-    if (PIPELINES_VERBOSE) console.log(`Which step?  ${nextStepNo} of [0...${pipelineSteps.length - 1}]`)
+    // if (PIPELINES_VERBOSE) console.log(`Which step?  ${nextStepNo} of [0...${pipelineSteps.length - 1}]`)
     if (nextStepNo >= pipelineSteps.length) {
       /*
        *  We've finished this pipeline - return the final respone
        */
-      if (PIPELINES_VERBOSE) console.log(indent + `<<<<    PIPELINE COMPLETED ${pipelineStepId}  `.blue.bgGreen.bold)
+      if (PIPELINES_VERBOSE) console.log(indent + `<<<<    PIPELINE COMPLETED ${pipelineStepId}  `.black.bgGreen.bold)
 
       // Save the child status and output as our own
       await tx.delta(pipelineStepId, {
@@ -82,7 +82,7 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
 
     } else {
       // Initiate the next step
-      if (PIPELINES_VERBOSE) console.log(indent + `----    ON TO THE NEXT PIPELINE STEP  `.blue.bgGreen.bold)
+      if (PIPELINES_VERBOSE) console.log(indent + `----    ON TO THE NEXT PIPELINE STEP  `.black.bgGreen.bold)
 
 
       // Remember that we'ree moving on to the next step
@@ -117,13 +117,16 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
       })
     }
 
-  } else if (childStatus === STEP_FAILED || childStatus === STEP_ABORTED || childStatus === STEP_INTERNAL_ERROR) {
+  } else if (
+    childStatus === STEP_FAILED
+    || childStatus === STEP_ABORTED || childStatus === STEP_INTERNAL_ERROR) {
     /*
       *  Need to try Rollback
       */
     // We can't rollback yet, so abort instead.
+    const pipelineStatus = (childStatus === STEP_FAILED) ? STEP_ABORTED : childStatus
     //ZZZZ Log this
-    if (PIPELINES_VERBOSE) console.log(indent + `<<<<    PIPELINE FAILED ${pipelineStepId}  `.white.bgRed.bold)
+    if (PIPELINES_VERBOSE) console.log(indent + `<<<<    PIPELINE DID NOT SUCCEED ${pipelineStepId}  `.white.bgRed.bold)
     // console.log(``)
     // console.log(``)
     // return Scheduler.haveResult(pipelineStepId, pipelineInstance.getCompletionToken(), STEP_COMPLETED, stepOutput)
@@ -131,7 +134,7 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
     await tx.delta(pipelineStepId, {
       stepOutput: childStep.stepOutput,
       note: childStep.note,
-      status: childStep.status
+      status: pipelineStatus
     })
     // console.log(`pipeline step is now`, tx.stepData(pipelineStepId))
 

@@ -85,7 +85,7 @@ export default class Step {
 //         instance.console(``)
 //         instance.console(``)
 
-        return await instance.exceptionInStep(e)
+        return await instance.exceptionInStep(null, e)
         // const note = `Exception in step.invoke()`
         // const data = {
         //   error: `Exception`

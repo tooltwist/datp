@@ -1,4 +1,4 @@
-import { defineRoute, LOGIN_IGNORED } from '../lib/apiVersions'
+import { defineRoute, LOGIN_IGNORED } from '../extras/apiVersions'
 import { DATP_URL_PREFIX } from '../CONVERSION/lib/constants'
 import juice from '@tooltwist/juice-client'
 
