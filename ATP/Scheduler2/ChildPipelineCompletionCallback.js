@@ -62,6 +62,15 @@ export async function childPipelineCompletionCallback (callbackContext, nodeInfo
       const childStatus = childStep.status
       assert(childStatus !== STEP_FAILED) // Should not happen. Pipelines either succeed, rollback to success, or abort.
       // if (childStatus === STEP_SUCCESS || childStatus === STEP_ABORTED) {
+
+      Transaction.bulkLogging(txId, parentStepId, [{
+        level: Transaction.LOG_LEVEL_TRACE,
+        source: Transaction.LOG_SOURCE_SYSTEM,
+        message: `Child pipeline completed with status #${childStatus}`
+      }])
+
+
+
         /*
         *  We've finished this pipeline - return the final respone
         */
@@ -73,6 +82,13 @@ export async function childPipelineCompletionCallback (callbackContext, nodeInfo
           note: childStep.note,
           status: childStep.status
         })
+
+        Transaction.bulkLogging(txId, parentStepId, [{
+          level: Transaction.LOG_LEVEL_TRACE,
+          source: Transaction.LOG_SOURCE_SYSTEM,
+          message: `This step will complete with status ${childStep.status}`
+        }])
+
 
         // Send the event back to whoever started this step
         const queueToParent = Scheduler2.standardQueueName(parentStep.onComplete.nodeGroup, DEFAULT_QUEUE)

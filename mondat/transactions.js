@@ -39,15 +39,40 @@ export async function listAllTransactionsV1(req, res, next) {
 export async function transactionStatusV1(req, res, next) {
   // console.log(`transactionStatusV1()`)
 
+
   const txId = req.params.txId
   const tx = await TransactionCache.findTransaction(txId, true)
-  const ids = tx.stepIds()
+  // console.log(`tx=`, tx)
 
+  // Check that the current user has access to this transaction
+  //ZZZZZ
+
+  // Create a list of steps
+  const ids = tx.stepIds()
   const steps = [ ]
+  const index = { }
   for (const stepId of ids) {
     const stepData = await tx.stepData(stepId)
+    stepData.logs = [ ]
     steps.push(stepData)
+    index[stepId] = stepData
   }
+
+  // Load the log entries for this transaction
+  const logEntries = await Transaction.getLog(txId)
+  // console.log(`logEntries=`, logEntries)
+  for (const entry of logEntries) {
+    const step = index[entry.stepId]
+    if (step) {
+      step.logs.push(entry)
+      delete entry.stepId
+    } else {
+      //ZZZZZ Write this to the system error log
+      console.log(`INTERNAL ERROR: Found log entry for unknown step in transaction [ ${entry.stepId} in ${txId}]`)
+    }
+  }
+
+  // Send the reply
   res.send(steps)
   return next();
 }

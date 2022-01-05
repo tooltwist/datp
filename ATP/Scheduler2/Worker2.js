@@ -433,7 +433,7 @@ export default class Worker2 {
         note,
         transactionOutput
       }
-console.log(`\n\n YARP transaction complete - calling ${txData.onComplete.callback}`)
+// console.log(`\n\n YARP transaction complete - calling ${txData.onComplete.callback}`)
       await CallbackRegister.call(txData.onComplete.callback, txData.onComplete.context, extraInfo)
       return
     } catch (e) {

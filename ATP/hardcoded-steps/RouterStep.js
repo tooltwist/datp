@@ -41,10 +41,6 @@ export class RouterStep extends Step {
       // instance.console(`*****`)
       instance.console(`RouterStep::invoke(${instance.getStepId()})`)
     }
-    instance.log(``)
-    instance.console()
-    instance.console(`kycInitiateRouterStep initiating child pipeline`)
-    instance.console()
 
     // See which child pipeline to call.
     const pipelineName = await this.choosePipeline(instance)
@@ -63,11 +59,6 @@ export class RouterStep extends Step {
       instance.console(`RouterStep::invokeChildPipeline (${pipelineName})`)
     }
 
-    instance.log(``)
-    instance.console()
-    instance.console(`RouterStep initiating child pipeline`)
-    instance.console()
-
     const parentInstance = instance
     const txId = parentInstance.getTransactionId()//ZZZZ rename
 
@@ -81,7 +72,7 @@ export class RouterStep extends Step {
     const metadata = await parentInstance.getMetadata()
 
     // Start the child pipeline
-    instance.console(`Start child transaction pipeline ${pipelineName}`)
+    instance.console(`Start child transaction pipeline - ${pipelineName}`)
     const parentStepId = await parentInstance.getStepId()
     const parentNodeGroup = parentInstance.getNodeGroup()
     const childStepId = GenerateHash('s')
@@ -94,6 +85,10 @@ export class RouterStep extends Step {
     // console.log(`queueToPipelineNode=`, queueToPipelineNode)
 
     const childFullSequence = `${parentInstance.getFullSequence()}.1` // Start sequence at 1
+
+
+    instance.trace(`Start child pipeline ${pipelineName}`)
+    instance.syncLogs()
 
 
       // console.log(`metadata=`, metadata)

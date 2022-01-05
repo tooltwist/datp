@@ -29,11 +29,14 @@ export default class StepInstance {
   // #parentNodeId
   #parentStepId
   #stepDefinition
-  #logbook
+  // #logbook
   #txdata
   #metadata
-  #logSequence
+  // #logSequence
   #fullSequence
+
+  #rollingBack
+  #logBuffer
 
   #level
   #indent
@@ -63,7 +66,10 @@ export default class StepInstance {
     // Children
     // this.childStep = 0
 
-    this.#logSequence = 0
+    this.#rollingBack = false
+    this.#logBuffer = [ ] // Temporary store of log entries
+
+    // this.#logSequence = 0
 
     // Note that this object is transitory - not persisted. It will be
     // recreated if we reload this stepInstance from persistant storage.
@@ -134,11 +140,11 @@ export default class StepInstance {
     // Log this step being materialized
     // this.#logbook = options.logbook
     //ZZZZZ
-    this.#logbook = new Logbook.cls({
-      transactionId: this.#txId,
-      description: `Pipeline logbook`
-    })
-    await this.log(Logbook.LEVEL_TRACE, `Start step ${this.#stepId}`)
+    // this.#logbook = new Logbook.cls({
+    //   transactionId: this.#txId,
+    //   description: `Pipeline logbook`
+    // })
+    // this.trace(`Materialize stepInstance ${this.#stepId}`, Transaction.LOG_SOURCE_SYSTEM)
 
 
     // Prepare an indent string to prepend to messages
@@ -350,6 +356,9 @@ export default class StepInstance {
     const myStepOutput = this._sanitizedOutput(stepOutput)
     if (VERBOSE) console.log(`succeeded: step out is `.magenta, myStepOutput)
 
+    // Sync any buffered logs
+    this.trace(`instance.succeeded()`, Transaction.LOG_SOURCE_SYSTEM)
+    await this.syncLogs()
 
     // Quick sanity check - make sure this step is actually running, and has not already exited.
     // console.log(`yarp getting tx ${this.#txId}`)
@@ -388,6 +397,11 @@ export default class StepInstance {
    */
   async aborted(note, stepOutput) {
     if (VERBOSE) console.log(`StepInstance.aborted(note=${note}, ${typeof stepOutput})`, stepOutput)
+
+    // Sync any buffered logs
+    this.trace(`instance.aborted()`, Transaction.LOG_SOURCE_SYSTEM)
+    await this.syncLogs()
+
 
     const myStepOutput = this._sanitizedOutput(stepOutput)
     if (VERBOSE) console.log(`aborted: step out is `.magenta, myStepOutput)
@@ -430,6 +444,10 @@ export default class StepInstance {
   async failed(note, stepOutput) {
     if (VERBOSE) console.log(`StepInstance.failed(note=${note}, ${typeof stepOutput})`, stepOutput)
 
+    // Sync any buffered logs
+    this.trace(`instance.failed()`, Transaction.LOG_SOURCE_SYSTEM)
+    await this.syncLogs()
+
     const myStepOutput = this._sanitizedOutput(stepOutput)
     if (VERBOSE) console.log(`failed: step out is `.magenta, myStepOutput)
 
@@ -471,6 +489,10 @@ export default class StepInstance {
   async badDefinition(msg) {
     // console.log(`StepInstance.badDefinition(${msg})`)
 
+    // Sync any buffered logs
+    this.trace(msg, Transaction.LOG_SOURCE_DEFINITION)
+    await this.syncLogs()
+
     // Write this to the admin log.
     //ZZZZ
 
@@ -497,10 +519,23 @@ export default class StepInstance {
    * @param {*} e
    * @returns
    */
-  async exceptionInStep(msg, e) {
+  async exceptionInStep(message, e) {
     // console.log(Logbook.LEVEL_TRACE, `StepInstance.exceptionInStep()`)
     console.log(this.#indent + `StepInstance.exceptionInStep(${msg})`, e)
-    console.log(new Error('YARP').stack)
+    // console.log(new Error('YARP').stack)
+
+    // Sync any buffered logs
+    if (!message) {
+      message = 'Exception in step'
+    }
+    this.trace(message, Transaction.LOG_SOURCE_EXCEPTION)
+    if (e instanceof Error) {
+      const str = `${message}\n${e.stack}`
+      this.trace(str, Transaction.LOG_SOURCE_EXCEPTION)
+    // } else {
+    //   this.trace(message, Transaction.LOG_SOURCE_EXCEPTION)
+    }
+    await this.syncLogs()
 
     // Write this to the admin log.
     //ZZZZ
@@ -540,6 +575,12 @@ export default class StepInstance {
    */
   async progressReport(object) {
     if (VERBOSE) console.log(`StepInstance.progressReport()`, object)
+
+    // Sync any buffered logs
+    this.trace(object, Transaction.LOG_SOURCE_PROGRESS_REPORT)
+    await this.syncLogs()
+
+    // Save the progressReport
     const tx = await TransactionCache.findTransaction(this.#txId, false)
     await tx.delta(null, {
       progressReport: object
@@ -558,6 +599,12 @@ export default class StepInstance {
    */
   async retryLater(nameOfSwitch=null, sleepDuration=120) {
     if (VERBOSE) console.log(`StepInstance.retryLater(nameOfSwitch=${nameOfSwitch}, sleepDuration=${sleepDuration})`)
+
+    // Sync any buffered logs
+    this.trace(`instance.retryLater()`, Transaction.LOG_SOURCE_SYSTEM)
+    await this.syncLogs()
+
+    // Update the transaction status
     const tx = await TransactionCache.findTransaction(this.#txId, false)
     await tx.delta(null, {
       status: STEP_SLEEPING
@@ -596,6 +643,10 @@ sleepDuration = 15
     if (!msg) {
       msg = ''
     }
+    // Log this first
+    this.debug(msg, null)
+
+    // Now display on the console
     if (p2) {
       console.log(`${this.#indent} ${msg}`, p2)
     } else {
@@ -619,33 +670,57 @@ sleepDuration = 15
       }
   }
 
-  log(level, msg) {
-    const options = {
-      level
+  log(message, source=null) {
+    this.dump(message, source)
+  }
+
+  debug(message, source=null) {
+    if (!source) {
+      source = this.#rollingBack ? Transaction.LOG_SOURCE_ROLLBACK : Transaction.LOG_SOURCE_INVOKE
     }
-    this.#logbook.log(this.pipeId, options, msg)
+    const level = Transaction.LOG_LEVEL_DEBUG
+    this.#logBuffer.push({ level, source, message })
+    // console.log(`\n\nthis.#logBuffer=`, this.#logBuffer)
   }
 
-  getLogbook() {
-    return this.#logbook
+  trace(message, source=null) {
+    if (!source) {
+      source = this.#rollingBack ? Transaction.LOG_SOURCE_ROLLBACK : Transaction.LOG_SOURCE_INVOKE
+    }
+    const level = Transaction.LOG_LEVEL_TRACE
+    this.#logBuffer.push({ level, source, message })
+    // console.log(`\n\nthis.#logBuffer=`, this.#logBuffer)
   }
 
-  // getChildStep() {
-  //   return this.childStep
+  warning(message, source=null) {
+    if (!source) {
+      source = this.#rollingBack ? Transaction.LOG_SOURCE_ROLLBACK : Transaction.LOG_SOURCE_INVOKE
+    }
+    const level = Transaction.LOG_LEVEL_WARNING
+    this.#logBuffer.push({ level, source, message })
+  }
+
+  error(message, source=null) {
+    if (!source) {
+      source = this.#rollingBack ? Transaction.LOG_SOURCE_ROLLBACK : Transaction.LOG_SOURCE_INVOKE
+    }
+    const level = Transaction.LOG_LEVEL_ERROR
+    this.#logBuffer.push({ level, source, message })
+  }
+
+  // addLog(level, source, message) {
+  //   this.#logBuffer.push({ level, source, message })
   // }
 
-  // setChildStep(index) {
-  //   this.childStep = index
-  // }
+  async syncLogs() {
+    // console.log(`\n\n\n\n\n********************\n\n\nsyncLogs()`)
+    if (this.#logBuffer.length > 0) {
+      await Transaction.bulkLogging(this.#txId, this.#stepId, this.#logBuffer)
+      this.#logBuffer = [ ]
+    }
+  }
 
-  // fullSequenceYARP() {
-  //   if (this.parentContext) {
-  //     return `${this.parentContext.sequenceNo()}.${this.sequence}`
-  //   }
-  //   return ''+this.stepNo
-  // }
-
-  // Add into to toString() when debugging
+  // Add details into toString() when debugging
   // See https://stackoverflow.com/questions/42886953/whats-the-recommended-way-to-customize-tostring-using-symbol-tostringtag-or-ov
   get [Symbol.toStringTag]() {
     let s = `${this.#stepDefinition.stepType}, ${this.#stepId}`

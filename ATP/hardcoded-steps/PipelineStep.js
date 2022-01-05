@@ -14,7 +14,7 @@ import TransactionCache from '../Scheduler2/TransactionCache'
 import { PIPELINE_STEP_COMPLETE_CALLBACK } from '../Scheduler2/pipelineStepCompleteCallback'
 
 // const STEP_COMPLETION_HANDLER = 'pipeline-step-completion-handler'
-export const PIPELINES_VERBOSE = 1
+export const PIPELINES_VERBOSE = 0
 
 class Pipeline extends Step {
   #stepIndex
@@ -52,6 +52,8 @@ class Pipeline extends Step {
   async invoke(pipelineInstance) {
     assert(pipelineInstance instanceof StepInstance)
     if (PIPELINES_VERBOSE) pipelineInstance.console(`>>>>    Pipeline.invoke (${pipelineInstance.getStepId()})  `.black.bgGreen.bold)
+
+    // console.log(new Error(`IN PipelineStep.invoke()`).stack)
 
     //ZZZZ If there are no steps, return immediately
     if (this.#steps.length < 1) {
@@ -120,9 +122,7 @@ class Pipeline extends Step {
       console.log(`Pipeline.initiateChildStep(${indexOfCurrentChildStep})`)
     }
 
-    pipelineInstance.console()
-    pipelineInstance.console(`Pipeline initiating child step #${indexOfCurrentChildStep}:`)
-    pipelineInstance.console()
+    // pipelineInstance.console(`Pipeline initiating child step #${indexOfCurrentChildStep}:`)
     // // console.log(`tx=`, tx)
     // // console.log(`pipelineInstance=`, pipelineInstance)
     // const stepDef =  this.#steps[stepNo]
@@ -157,6 +157,9 @@ class Pipeline extends Step {
     // console.log(`queueToPipelineNode=`, queueToPipelineNode)
 
     const childFullSequence = `${pipelineInstance.getFullSequence()}.1` // Start sequence at 1
+
+    pipelineInstance.console(`Start pipeline child #0`)
+    pipelineInstance.syncLogs()
 
     // console.log(`metadata=`, metadata)
     // console.log(`txdata=`, txdata)

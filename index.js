@@ -25,6 +25,7 @@ import { deepCopy } from './lib/deepCopy'
 import LongPoll from './ATP/Scheduler2/LongPoll'
 import { RETURN_TX_STATUS_WITH_LONGPOLL_CALLBACK } from './ATP/Scheduler2/returnTxStatusViaLongpollCallback'
 
+const VERBOSE = 0
 
 export const Step = step
 export const StepTypes = stepTypeRegister
@@ -73,10 +74,10 @@ export async function goLive(server) {
  * @param {*} data
  */
 export async function startTransactionRoute(req, res, next, tenant, transactionType, data=null, metadata=null) {
-  console.log(`DATP.startTransactionRoute()`)
-  console.log(`req.params=`, req.params)
-  console.log(`req.body=`, req.body)
-  console.log(`req.query=`, req.query)
+  // console.log(`DATP.startTransactionRoute()`)
+  // console.log(`req.params=`, req.params)
+  // console.log(`req.body=`, req.body)
+  // console.log(`req.query=`, req.query)
 
   // console.log(`metadata=`, metadata)
   if (typeof(tenant) !== 'string') throw new Error(`Invalid tenant`)
@@ -126,7 +127,7 @@ export async function startTransactionRoute(req, res, next, tenant, transactionT
         throw new Error(`Invalid value for option 'reply' [${reply}]`)
       }
   }
-  console.log(`isLongpoll=`, isLongpoll)
+  // console.log(`isLongpoll=`, isLongpoll)
 
   // Sanitize the metadata to make sure it contains no mischief (getters/setter, functions, etc)
   const metadataCopy = deepCopy(metadata)
@@ -148,22 +149,13 @@ export async function startTransactionRoute(req, res, next, tenant, transactionT
   if (isLongpoll) {
     // Wait a while before returning, but allow the completing pipeline
     // to hijack our response object if it finishes.
-    console.log(`DATP.startTransactionRoute() - REPLY AFTER A WHILE`)
+    if (VERBOSE) console.log(`DATP.startTransactionRoute() - REPLY AFTER A WHILE`)
     return LongPoll.returnTxStatusAfterDelayWithPotentialEarlyReply(tenant, tx.getTxId(), res, next)
   } else {
 
     // Reply with the current transactin status
     let summary = await Transaction.getSummary(tenant, tx.getTxId())
-    // // console.log(`Point 1: summary=`, summary)
-    // if (isLongpoll && (summary.metadata.status === STEP_RUNNING || summary.metadata.status === STEP_SLEEPING)) {
-    //   // Simulate a long poll
-    //   console.log(`Pretending to do long poll`)
-    //   //ZZZZZ
-    //   await pause(2000)
-    //   // console.log(`Point 2: summary=`, summary)
-    //   summary = await Transaction.getSummary(tenant, tx.getTxId())
-    // }
-    console.log(`DATP.startTransactionRoute() - IMMEDIATE REPLY`)
+    if (VERBOSE) console.log(`DATP.startTransactionRoute() - IMMEDIATE REPLY`)
     res.send(summary)
     next()
   }// !isLongpoll

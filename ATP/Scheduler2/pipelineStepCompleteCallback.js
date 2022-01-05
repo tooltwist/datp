@@ -4,6 +4,7 @@ import GenerateHash from '../GenerateHash'
 import { PIPELINES_VERBOSE } from '../hardcoded-steps/PipelineStep'
 import { STEP_SUCCESS, STEP_ABORTED, STEP_FAILED, STEP_INTERNAL_ERROR } from '../Step'
 import Scheduler2, { DEFAULT_QUEUE } from './Scheduler2'
+import Transaction from './Transaction'
 import TransactionCache from './TransactionCache'
 
 
@@ -46,6 +47,14 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
   // console.log(`childStepIds=`, childStepIds)
   const indexOfCurrentChildStep = pipelineStep.indexOfCurrentChildStep
   const childStatus = childStep.status
+
+  Transaction.bulkLogging(txId, pipelineStepId, [{
+    level: Transaction.LOG_LEVEL_TRACE,
+    source: Transaction.LOG_SOURCE_SYSTEM,
+    message: `Pipeline child #${indexOfCurrentChildStep} completed with status ${childStep.status}`
+  }])
+
+
   if (childStatus === STEP_SUCCESS) {
     // Do we have any steps left
     // console.log(`yarp D - ${this.stepNo}`)
@@ -62,6 +71,11 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
        *  We've finished this pipeline - return the final respone
        */
       if (PIPELINES_VERBOSE) console.log(indent + `<<<<    PIPELINE COMPLETED ${pipelineStepId}  `.black.bgGreen.bold)
+      Transaction.bulkLogging(txId, pipelineStepId, [{
+        level: Transaction.LOG_LEVEL_TRACE,
+        source: Transaction.LOG_SOURCE_SYSTEM,
+        message: `Pipeline completed with status ${childStep.status}`
+      }])
 
       // Save the child status and output as our own
       await tx.delta(pipelineStepId, {
@@ -89,6 +103,11 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
       await tx.delta(pipelineStepId, {
         indexOfCurrentChildStep: nextStepNo,
       })
+      Transaction.bulkLogging(txId, pipelineStepId, [{
+        level: Transaction.LOG_LEVEL_TRACE,
+        source: Transaction.LOG_SOURCE_SYSTEM,
+        message: `Start pipeline child #${nextStepNo}`
+      }])
 
 
       const childStepId = childStepIds[nextStepNo]

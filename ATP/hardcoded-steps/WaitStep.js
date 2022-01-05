@@ -35,32 +35,33 @@ class WaitStep extends Step {
    * @param {StepInstance} instance
    */
   async invoke(instance) {
-    instance.console(`WaitStep (${instance.getStepId()})`)
+    // instance.console(`WaitStep (${instance.getStepId()})`)
     // const data = instance.getDataAsObject()
 
     // Do something here
     const input = instance.getDataAsObject()
     // const switch = input.switch
-    instance.console(`#switch is [${this.#switch}]`)
+    // instance.console(`#switch is [${this.#switch}]`)
 
 
     const value = await instance.getSwitch(this.#switch)
-    instance.console(`switch value=`, value)
+    // instance.console(`switch value=`, value)
 
     // switch is set, we can proceed to the next step
     if (value) {
       // Time to complete the step and send a result
       const note = `Switch ${this.#switch} set - proceeding`
-      console.log(`note=`, note)
+      instance.console(note)
       const output = { ...input }
       delete output.instruction // ZZZZZ should leave output as null, for passthrough
       delete output.url
       delete output.qrcode
       return await instance.succeeded(note, output)
+    } else {
+      instance.console(`Switch ${this.#switch} set - sleep a while`)
+      return await instance.retryLater(this.#switch)
     }
 
-    // const sleepTime = 5 * 60 // five minutes
-    return await instance.retryLater(this.#switch)
   }
 
   // /**
@@ -97,7 +98,7 @@ async function register() {
  */
  async function defaultDefinition() {
   return {
-    "switch": "switch-name"
+    "switch": "name-of-switch"
   }
 }
 
