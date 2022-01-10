@@ -74,7 +74,9 @@ test.serial('Run a sucessful transaction', async t => {
   t.truthy(returnedContext)
   t.is(returnedContext.glee, 'yippee!')
   t.truthy(status)
-  t.is(status, 'failed')
+  // Rollback is not current possible
+  // t.is(status, 'failed')
+  t.is(status, 'aborted')
   t.truthy(transactionOutput)
   t.is(transactionOutput.foo, 'bar')
   t.is(transactionOutput.info, 'I failed!')

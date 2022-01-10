@@ -12,6 +12,7 @@ import { STEP_FAILED } from '../Step'
 import { ROUTERSTEP_VERBOSE } from '../hardcoded-steps/RouterStep'
 import indentPrefix from '../../lib/indentPrefix'
 import { PIPELINES_VERBOSE } from '../hardcoded-steps/PipelineStep'
+import Transaction from './Transaction'
 
 export const CHILD_PIPELINE_COMPLETION_CALLBACK = 'childPipelineComplete'
 

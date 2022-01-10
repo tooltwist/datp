@@ -67,7 +67,11 @@ export default class LongPoll {
 
       // Send the reply
       let summary = await Transaction.getSummary(entry.tenant, txId)
-      if (VERBOSE) console.log(`LongPoll:tryToReply - send summary`, summary)
+      if (VERBOSE) {
+        const json = JSON.stringify(summary, '', 2)
+        if (json.length > 500) json = json.substring(0, 500)
+        console.log(`LongPoll:tryToReply - send summary`, json)
+      }
       entry.response.send(summary)
       entry.next()
 

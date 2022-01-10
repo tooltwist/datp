@@ -67,7 +67,8 @@ test.serial('Call ping4 test transaction', async t => {
   })
 
   // await scheduler.dump()
-  await pause(2000)
+  // Give it time to complete
+  await pause(3000)
   await scheduler.stop()
 
 
@@ -75,6 +76,7 @@ test.serial('Call ping4 test transaction', async t => {
   const txId = tx.getTxId()
   const withSteps = true
   let details = await tx.getDetails(withSteps)
+  // console.log(`details=`, details)
 
   // console.log(`details=`, details)
   t.is(details.txId, txId)
