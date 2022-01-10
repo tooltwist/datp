@@ -29,6 +29,12 @@ export default class Transaction {
   #transactionOutput
   #completionTime
 
+  // Sleep related stuff
+  #sleepingSince
+  #sleepCounter
+  #wakeTime
+  #wakeSwitch
+
   #steps // stepId => Object
   #tx // Object
 
@@ -77,7 +83,11 @@ export default class Transaction {
     this.#transactionOutput = {}
     this.#completionTime = null
 
-
+    // Sleep-related fields
+    this.#sleepCounter = 0
+    this.#sleepingSince = null
+    this.#wakeTime = null
+    this.#wakeSwitch = null
 
     // Initialise the places where we store transaction and step data
     this.#tx = {
@@ -189,18 +199,89 @@ export default class Transaction {
         if (data.status) {
           // Check the status is valid
           switch (data.status) {
+            // These are temporary ststuses that do not impact sleeping values
             case STEP_QUEUED:
             case STEP_RUNNING:
+              if (this.#status !== data.status) {
+                if (VERBOSE) console.log(`Setting transaction status to ${data.status}`)
+                coreValuesChanged = true
+                this.#status = data.status
+              }
+              break
+
+            // These statuses need to reset the sleeping values
             case STEP_SUCCESS:
             case STEP_FAILED:
             case STEP_ABORTED:
-            case STEP_SLEEPING:
             case STEP_TIMEOUT:
             case STEP_INTERNAL_ERROR:
               if (this.#status !== data.status) {
                 if (VERBOSE) console.log(`Setting transaction status to ${data.status}`)
                 coreValuesChanged = true
                 this.#status = data.status
+              }
+              // We are no longer in a sleep loop
+              if (this.#sleepCounter!==0 || this.#sleepingSince!==null || this.#wakeTime!==null || this.#wakeSwitch!==null) {
+                coreValuesChanged = true
+                this.#sleepCounter = 0
+                this.#sleepingSince = null
+                this.#wakeTime = null
+                this.#wakeSwitch = null
+                if (VERBOSE) console.log(`Resetting sleep values`)
+              }
+              break
+
+            case STEP_SLEEPING:
+              if (this.#status !== data.status) {
+                // Was not already in sleep mode
+                if (VERBOSE) console.log(`Setting transaction status to ${data.status}`)
+                coreValuesChanged = true
+                this.#status = data.status
+                if (this.#sleepingSince === null) {
+                  if (VERBOSE) console.log(`Initializing sleep fields`)
+                  this.#sleepCounter = 1
+                  this.#sleepingSince = new Date()
+                } else {
+                  if (VERBOSE) console.log(`Incrementing sleep counter`)
+                  this.#sleepCounter++
+                }
+              }
+              // if (typeof(data.wakeTime) !== 'undefined' && this.#wakeTime !== data.wakeTime) {
+              //   if (VERBOSE) console.log(`Setting wakeTime to ${data.wakeTime}`)
+              //   if (data.wakeTime === null || data.wakeTime instanceof Date) {
+              //     coreValuesChanged = true
+              //     this.#wakeTime = data.wakeTime
+              //   } else {
+              //     throw new Error('Invalid data.wakeTime')
+              //   }
+              // }
+              if (typeof(data.sleepDuration) !== 'undefined') {
+                let newWakeTime
+                if (data.sleepDuration === null) {
+                  // All good
+                  newWakeTime = null
+                } else if (typeof(data.sleepDuration) === 'number') {
+                  // This value is used by the scheduler to restart steps. We'll add on fifteen
+                  // seconds for the scheduler, so that if we have a setTimeut set to trigger
+                  // a short timeout, it gets in before the scheduler.
+                  newWakeTime = new Date(Date.now() + (data.sleepDuration * 1000) + (15 * 1000))
+                } else {
+                  throw new Error('Invalid data.sleepDuration')
+                }
+                if (this.#wakeTime !== newWakeTime) {
+                  if (VERBOSE) console.log(`Setting wakeTime to +${newWakeTime}`)
+                  coreValuesChanged = true
+                  this.#wakeTime = newWakeTime
+                }
+              }
+              if (typeof(data.wakeSwitch) !== 'undefined' && this.#wakeSwitch !== data.wakeSwitch) {
+                if (VERBOSE) console.log(`Setting wakeSwitch to ${data.wakeSwitch}`)
+                if (data.wakeSwitch === null || typeof(data.wakeSwitch) === 'string') {
+                  coreValuesChanged = true
+                  this.#wakeSwitch = data.wakeSwitch
+                } else {
+                  throw new Error('Invalid data.wakeSwitch')
+                }
               }
               break
 
@@ -233,31 +314,46 @@ export default class Transaction {
           this.#completionTime = data.completionTime
         }
 
+                    // if (this.#status === STEP_SLEEPING) {
+            //   if (this.)
+
+            // } else if (this.#status === STEP_ || this.#status === STEP_SLEEPING)
+
+
         // If the core values were changed, update the database
         if (coreValuesChanged) {
           this.#sequenceOfUpdate = this.#deltaCounter
           if (!replayingPastDeltas) {
-            const sql = `UPDATE atp_transaction2 SET
+            let sql = `UPDATE atp_transaction2 SET
               status=?,
               progress_report=?,
               transaction_output=?,
               completion_time=?,
-              sequence_of_update=?
-              WHERE transaction_id=? AND owner=?`
+              sequence_of_update=?,
+              sleep_counter=?,
+              sleeping_since=?,
+              wake_time=?,
+              wake_switch=?`
 
-              //ZZZZ Check that the transaction hasn't been updateed by someone else.
-              //  AND sequence_of_update=?   [ this.#sequenceOfUpdate ]
-              const transactionOutputJSON = JSON.stringify(this.#transactionOutput)
-              const progressReportJSON = JSON.stringify(this.#progressReport)
-              const params = [
+
+            //ZZZZ Check that the transaction hasn't been updateed by someone else.
+            //  AND sequence_of_update=?   [ this.#sequenceOfUpdate ]
+            const transactionOutputJSON = this.#transactionOutput ? JSON.stringify(this.#transactionOutput) : null
+            const progressReportJSON = this.#progressReport ? JSON.stringify(this.#progressReport) : null
+            const params = [
               this.#status,
               progressReportJSON,
               transactionOutputJSON,
               this.#completionTime,
               this.#deltaCounter,
-              this.#txId,
-              this.#owner
+              this.#sleepCounter,
+              this.#sleepingSince,
+              this.#wakeTime,
+              this.#wakeSwitch
             ]
+            sql += ` WHERE transaction_id=? AND owner=?`
+            params.push(this.#txId)
+            params.push(this.#owner)
             // console.log(`sql=`, sql)
             // console.log(`params=`, params)
             const response = await query(sql, params)
@@ -520,6 +616,43 @@ export default class Transaction {
     }
   }
 
+  /**
+   *
+   * @returns
+   */
+  getSleepingSince() {
+    return this.#sleepingSince
+  }
+
+  /**
+   *
+   * @returns
+   */
+  getSleepCounter() {
+    return this.#sleepCounter
+  }
+
+  /**
+   *
+   * @returns
+   */
+  getWakeTime() {
+    return this.#wakeTime
+  }
+
+  /**
+   *
+   * @returns
+   */
+  getWakeSwitch() {
+    return this.#wakeSwitch
+  }
+
+  /**
+   *
+   * @param {*} options
+   * @returns
+   */
   static async findTransactions(options) {
     // console.log(`findTransactions()`, options)
 
