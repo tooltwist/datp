@@ -6,7 +6,7 @@ import { getRecentPerformanceV1 } from '../mondat/recentPerformance';
 import { getStepInstanceDetailsV1 } from '../mondat/stepInstances';
 import { deleteTestCasesV1, getTestCasesV1, saveTestCasesV1 } from '../mondat/testCases';
 import { deleteTransactionMappingsV1, getTransactionMappingsV1, saveTransactionMappingsV1 } from '../mondat/transactionMapping';
-import { listAllTransactionsV1, transactionStatusV1 } from '../mondat/transactions';
+import { mondatTransactionsV1, transactionStatusV1 } from '../mondat/transactions';
 
 
 // server.get(`${ROUTE_PREFIX}/${ROUTE_VERSION}/healthcheck`, async function (req, res, next) {
@@ -41,10 +41,10 @@ async function registerRoutes(server) {
   // ]));
 
   // server.get('/transactions', restify.plugins.conditionalHandler([
-  //   { version: '1.1.3', handler: listAllTransactionsV1 },
+  //   { version: '1.1.3', handler: mondatTransactionsV1 },
   // ]));
   defineRoute(server, 'get', false, MONITOR_PREFIX, '/transactions', [
-    { versions: '1.0 - 1.0', handler: listAllTransactionsV1, auth: LOGIN_IGNORED, noTenant: true }
+    { versions: '1.0 - 1.0', handler: mondatTransactionsV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
 
   defineRoute(server, 'get', false, MONITOR_PREFIX, '/stepInstance/:stepId', [

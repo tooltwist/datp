@@ -650,22 +650,77 @@ export default class Transaction {
 
   /**
    *
-   * @param {*} options
+   * @param {number} pagesize
+   * @param {number} page
+   * @param {string} filter
+   * @param {string[]} status
    * @returns
    */
-  static async findTransactions(options) {
+  static async findTransactions(pagesize=20, page=1, filter='', status=[STEP_SUCCESS, STEP_FAILED, STEP_ABORTED]) {
     // console.log(`findTransactions()`, options)
 
-    const sql = `SELECT
+    let sql = `SELECT
       transaction_id AS txId,
+      owner,
+      external_id AS externalId,
       transaction_type AS transactionType,
       status,
-      start_time AS startTime
-      FROM atp_transaction2
-      ORDER BY start_time DESC`
-      // WHERE owner=? AND transaction_id=?`
+      start_time AS startTime,
+      completion_time AS completionTime,
+      response_acknowledge_time AS responseAcknowledgeTime,
+      switches,
+      sleep_counter AS sleepCounter,
+      sleeping_since AS sleepingSince,
+      wake_time AS wakeTime,
+      wake_switch AS wakeSwitch
+      FROM atp_transaction2`
     const params = [ ]
+
+    let sep = `\nWHERE`
+    // if (options.sleeping) {
+    //   sql += ` ${sep} sleep_counter > 0`
+    //   sep = `AND`
+    // }
+    // if (options.finished) {
+    //   sql += ` ${sep} (status='${STEP_SUCCESS}' OR status='${STEP_FAILED}' OR status='${STEP_ABORTED}')`
+    //   sep = `AND`
+    // }
+
+    if (status) {
+      sql += `${sep} (`
+      let sep2 = ''
+      for (const s of status) {
+        sql += `${sep2} status=?`
+        params.push(s)
+        sep2 = ' OR '
+      }
+      sql += `)`
+      sep = `\nAND `
+    }
+    if (filter) {
+      sql += `${sep} (
+        transaction_id LIKE ?
+        OR owner LIKE ?
+        OR external_id LIKE ?
+        OR transaction_type LIKE ?
+        OR wake_switch =?
+      )`
+      params.push(`%${filter}%`)
+      params.push(`%${filter}%`)
+      params.push(`%${filter}%`)
+      params.push(`%${filter}%`)
+      params.push(`%${filter}%`)
+    }
+
+    // pagination
+    sql += `\nORDER BY start_time DESC LIMIT ? OFFSET ?`
+    params.push(pagesize)
+    params.push((page-1) * pagesize)
+
+    // console.log(`sql=`, sql)
+    // console.log(`params=`, params)
     const rows = await query(sql, params)
+    // console.log(`${rows.length} transactions.`)
     return rows
   }
 

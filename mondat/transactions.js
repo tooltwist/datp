@@ -7,6 +7,8 @@
 import ATP from '../ATP/ATP'
 import Transaction from '../ATP/Scheduler2/Transaction';
 import TransactionCache from '../ATP/Scheduler2/TransactionCache';
+import { STEP_ABORTED, STEP_FAILED, STEP_SUCCESS } from '../ATP/Step';
+import errors from 'restify-errors'
 
 export async function dumpAllTransactionsV1(req, res, next) {
   console.log(`dumpAllTransactionsV1()`)
@@ -28,10 +30,30 @@ export async function dumpTransactionV1(req, res, next) {
   return next();
 }
 
-export async function listAllTransactionsV1(req, res, next) {
-  // console.log(`listAllTransactionsV1()`)
-  const includeCompleted = true
-  const txlist = await Transaction.findTransactions({ })
+export async function mondatTransactionsV1(req, res, next) {
+  // console.log(`mondatTransactionsV1()`)
+  // console.log(`req.query=`, req.query)
+  // console.log(`req.params=`, req.params)
+
+
+
+  let pagesize = 20
+  // console.log(`req.query.pagesize=`, req.query.pagesize)
+  try { pagesize = parseInt(req.query.pagesize) } catch (e) { }
+  let page = 0
+  // console.log(`req.query.page=`, req.query.page)
+  try { page = parseInt(req.query.page) } catch (e) { }
+  const filter = req.query.filter ? req.query.filter : null
+  let status = [STEP_SUCCESS, STEP_FAILED, STEP_ABORTED] // Finished transactions
+  if (req.query.status) {
+    status = req.query.status.split(',')
+  }
+
+  // console.log(`pagesize=`, pagesize)
+  // console.log(`page=`, page)
+  // console.log(`filter=`, filter)
+  // console.log(`status=`, status)
+  const txlist = await Transaction.findTransactions(pagesize, page, filter, status)
   res.send(txlist)
   return next();
 }
@@ -43,9 +65,18 @@ export async function transactionStatusV1(req, res, next) {
   const txId = req.params.txId
   const tx = await TransactionCache.findTransaction(txId, true)
   // console.log(`tx=`, tx)
+  if (!tx) {
+    console.log(`Unknown transaction ${txId}`)
+    res.send(new errors.NotFoundError(`Unknown transaction`))
+    return next()
+  }
 
   // Check that the current user has access to this transaction
   //ZZZZZ
+
+  // Get transaction details
+  const txData = tx.txData()
+  console.log(`txData=`, txData)
 
   // Create a list of steps
   const ids = tx.stepIds()
@@ -73,6 +104,14 @@ export async function transactionStatusV1(req, res, next) {
   }
 
   // Send the reply
-  res.send(steps)
+  res.send({
+    status: txData.status,
+    transactionType: txData.transactionType,
+    nodeGroup: txData.nodeGroup,
+    nodeId: txData.nodeId,
+    pipelineName: txData.pipelineName,
+    steps
+  })
+  // res.send(steps)
   return next();
 }
