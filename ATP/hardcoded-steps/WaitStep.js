@@ -14,8 +14,8 @@ import StepTypes from '../StepTypeRegister'
  * it receives.
  *
  * When it is time to run the step, the pipeline will call the 'invoke'
- * function. When the step has completed running, it should call the
- * instance.finish function, including the completion status.
+ * function. When the step has completed running, it should call
+ * instance.succeeded, instance.failed, etc.
  *
  * For long running options, the invoke function may return before the
  * step has completed, but some other part of your server will need to later
@@ -35,30 +35,30 @@ class WaitStep extends Step {
    * @param {StepInstance} instance
    */
   async invoke(instance) {
-    // instance.console(`WaitStep (${instance.getStepId()})`)
+    // instance.trace(`WaitStep (${instance.getStepId()})`)
     // const data = instance.getDataAsObject()
 
     // Do something here
     const input = instance.getDataAsObject()
     // const switch = input.switch
-    // instance.console(`#switch is [${this.#switch}]`)
+    // instance.trace(`#switch is [${this.#switch}]`)
 
 
     const value = await instance.getSwitch(this.#switch)
-    // instance.console(`switch value=`, value)
+    // instance.trace(`switch value=`, value)
 
     // switch is set, we can proceed to the next step
     if (value) {
       // Time to complete the step and send a result
       const note = `Switch ${this.#switch} set - proceeding`
-      instance.console(note)
+      instance.trace(note)
       const output = { ...input }
       delete output.instruction // ZZZZZ should leave output as null, for passthrough
       delete output.url
       delete output.qrcode
       return await instance.succeeded(note, output)
     } else {
-      instance.console(`Switch ${this.#switch} set - sleep a while`)
+      instance.trace(`Switch ${this.#switch} set - sleep a while`)
       return await instance.retryLater(this.#switch)
     }
 
@@ -71,7 +71,7 @@ class WaitStep extends Step {
   //  * @param {StepInstance} instance
   //  */
   //  async rollback(instance) {
-  //   instance.console(`WaitStep rolling back (${instance.getStepId()})`)
+  //   instance.trace(`WaitStep rolling back (${instance.getStepId()})`)
   //   const data = instance.getDataAsObject()
 
   //   // Do something here

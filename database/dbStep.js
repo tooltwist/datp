@@ -10,7 +10,7 @@ import query from './query'
 export default {
   startStep,
   updateStatus,
-  saveExitStatus,
+  // saveExitStatus,
   getRecentPerformance,
 }
 
@@ -63,36 +63,36 @@ async function updateStatus(stepId, status, progress, percentage) {
  * @param {String} stepId
  * @param {String} response
  */
-async function saveExitStatus(stepId, status, response) {
-  // console.log(`\n\n*-*-*-*-*-*-*dbStep.saveExitStatus(${stepId}, ${status})\n`)
+// async function saveExitStatus(stepId, status, response) {
+//   // console.log(`\n\n*-*-*-*-*-*-*dbStep.saveExitStatus(${stepId}, ${status})\n`)
 
-  // Check the status has not already been set to completed
-  let sql1 = `SELECT status FROM atp_step_instance WHERE step_id=?`
-  let params1 = [ stepId ]
-  const result1 = await query(sql1, params1)
-  if (result1.length < 1) {
-    const msg = `Internal error: step ${stepId} not in the database`
-    console.trace(msg)
-    throw new Error(msg)
-  }
-  if (result1[0].status !== STEP_RUNNING) {
-     const msg = `Trying to set exist status of non-running step ${stepId}.`
-     console.trace(msg)
-     throw new Error(msg)
-  }
-  // console.log(`Existing step status =`, result1)
-  console.log(`   ====> Previous status=${result1[0].status}. Setting to ${status}.`)
+//   // Check the status has not already been set to completed
+//   let sql1 = `SELECT status FROM atp_step_instance WHERE step_id=?`
+//   let params1 = [ stepId ]
+//   const result1 = await query(sql1, params1)
+//   if (result1.length < 1) {
+//     const msg = `Internal error: step ${stepId} not in the database`
+//     console.trace(msg)
+//     throw new Error(msg)
+//   }
+//   if (result1[0].status !== STEP_RUNNING) {
+//      const msg = `Trying to set exist status of non-running step ${stepId}.`
+//      console.trace(msg)
+//      throw new Error(msg)
+//   }
+//   // console.log(`Existing step status =`, result1)
+//   console.log(`   ====> Previous status=${result1[0].status}. Setting to ${status}.`)
 
 
-  // Update the status now
-  console.log(`dbStep.saveExitStatus(${stepId}, ${status}, ${JSON.stringify(response, '', 0)})`.dim)
-  let sql = `UPDATE atp_step_instance SET status=?, status_time=NOW(3), completion_time=NOW(3), progress=?, percentage_complete=?, response=? WHERE step_id=?`
-  let params = [ status, status, 100, response, stepId ]
-  // console.log(`sql=`, sql)
-  // console.log(`params=`, params)
-  const result = await query(sql, params)
-  // console.log(`result=`, result)
-}
+//   // Update the status now
+//   console.log(`dbStep.saveExitStatus(${stepId}, ${status}, ${JSON.stringify(response, '', 0)})`.dim)
+//   let sql = `UPDATE atp_step_instance SET status=?, status_time=NOW(3), completion_time=NOW(3), progress=?, percentage_complete=?, response=? WHERE step_id=?`
+//   let params = [ status, status, 100, response, stepId ]
+//   // console.log(`sql=`, sql)
+//   // console.log(`params=`, params)
+//   const result = await query(sql, params)
+//   // console.log(`result=`, result)
+// }
 
 async function getRecentPerformance(seconds) {
   // console.log(`getRecentPerformance(${seconds})`)

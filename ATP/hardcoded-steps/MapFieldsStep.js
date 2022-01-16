@@ -23,8 +23,8 @@ const FORM_TENANT = 'datp'
  * it receives.
  *
  * When it is time to run the step, the pipeline will call the 'invoke'
- * function. When the step has completed running, it should call the
- * instance.finish function, including the completion status.
+ * function. When the step has completed running, it should call
+ * instance.succeeded, instance.failed, etc.
  *
  * For long running options, the invoke function may return before the
  * step has completed, but some other part of your server will need to later
@@ -47,8 +47,8 @@ class MapFieldsStep extends Step {
    * @param {StepInstance} instance
    */
   async invoke(instance) {
-    instance.console(`MapFields (${instance.getStepId()})`)
-    instance.console(`"${this.#mappingId}"`)
+    instance.trace(`MapFields (${instance.getStepId()})`)
+    instance.trace(`"${this.#mappingId}"`)
 
     const data = await instance.getDataAsObject()
 
@@ -108,7 +108,7 @@ class MapFieldsStep extends Step {
     })
 
     // Time to complete the step and send a result
-    return instance.finish(STEP_COMPLETED, '', newData)
+    return instance.succeeded('', newData)
   }
 }
 

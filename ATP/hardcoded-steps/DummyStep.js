@@ -15,10 +15,10 @@ class DummyStep extends Step {
   }//- contructor
 
   async invoke(instance) {
-    // instance.console(`*****`)
-    instance.console(`DummyStep (${instance.getStepId()})`)
-    instance.console(`"${this.msg}"`)
-    // instance.console(`*****`)
+    // instance.trace(`*****`)
+    instance.trace(`DummyStep (${instance.getStepId()})`)
+    instance.trace(`"${this.msg}"`)
+    // instance.trace(`*****`)
     // console.log(`this=`, this)
     // console.log(`instance=`, instance)
 
@@ -28,7 +28,7 @@ class DummyStep extends Step {
     setTimeout(() => {
       data.said = 'nothing'
       const note = this.msg
-      instance.finish(STEP_COMPLETED, note, data)
+      instance.succeedeed(note, data)
     }, 1000)
   }//- invoke
 

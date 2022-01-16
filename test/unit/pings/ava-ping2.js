@@ -68,7 +68,7 @@ test.serial('Call ping2 test transaction', async t => {
   t.is(status, STEP_SUCCESS)
   t.truthy(transactionOutput)
   t.is(transactionOutput.whoopee, 'doo')
-  t.is(transactionOutput.description, 'ping2 - Scheduler.startTransaction() returning without processing step')
+  t.is(transactionOutput.description, 'ping2 - Scheduler2.startTransaction() returning without processing step')
 
   if (endTime !== 0) {
     const elapsed = endTime - startTime

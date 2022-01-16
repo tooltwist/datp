@@ -45,7 +45,7 @@ class Scheduler {
 
 
     // if (parentInstance) {
-    //   parentInstance.console(`Scheduler.invokeStep(): ${JSON.stringify(definition, '', 0)}`.yellow.bgBlue)
+    //   parentinstance.trace(`Scheduler.invokeStep(): ${JSON.stringify(definition, '', 0)}`.yellow.bgBlue)
     // } else {
     //   console.log(`Scheduler.invokeStep(): ${JSON.stringify(definition, '', 0)}`.yellow.bgBlue)
     // }
@@ -148,8 +148,8 @@ class Scheduler {
     /*
      *  Prepare for how we are going to return from this step.
      */
-    // instance.console(`>>>>>>>>>> >>>>>>>>>> >>>>>>>>>> START ${instance.getStepType()}: ${instance.getStepId()} ${token}`)
-    instance.console(`>>>>>>>>>> >>>>>>>>>> >>>>>>>>>> START [${instance.getStepType()}] ${instance.getStepId()}`)
+    // instance.trace(`>>>>>>>>>> >>>>>>>>>> >>>>>>>>>> START ${instance.getStepType()}: ${instance.getStepId()} ${token}`)
+    instance.trace(`>>>>>>>>>> >>>>>>>>>> >>>>>>>>>> START [${instance.getStepType()}] ${instance.getStepId()}`)
 
 
     /*
@@ -183,8 +183,8 @@ class Scheduler {
       throw new Error(`Unknown step ${stepId} - possible hack attempt`)
     }
     const stepInstance = await schedulerSnapshotOfStepInstance.getStepInstance()
-    // stepInstance.console(`<<<<<<<<<< <<<<<<<<<< <<<<<<<<<< END   ${stepInstance.getStepType()}: ${stepId} ${token}`)
-    stepInstance.console(`<<<<<<<<<< <<<<<<<<<< <<<<<<<<<< END   [${stepInstance.getStepType()}] ${stepId} status=${status}`)
+    // stepinstance.trace(`<<<<<<<<<< <<<<<<<<<< <<<<<<<<<< END   ${stepInstance.getStepType()}: ${stepId} ${token}`)
+    stepinstance.trace(`<<<<<<<<<< <<<<<<<<<< <<<<<<<<<< END   [${stepInstance.getStepType()}] ${stepId} status=${status}`)
 
     // Check the token is correct
     await schedulerSnapshotOfStepInstance.validateToken(token)

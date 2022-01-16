@@ -42,9 +42,9 @@ class RandomDelayStep extends Step {
 
   async invoke(instance) {
     if (VERBOSE) {
-      // instance.console(`*****`)
-      instance.console(`RandomDelayStep (${instance.getStepId()})`)
-      // instance.console(`*****`)
+      // instance.trace(`*****`)
+      instance.trace(`RandomDelayStep (${instance.getStepId()})`)
+      // instance.trace(`*****`)
       // console.log(`this=`, this)
       // console.log(`instance=`, instance)
     }
@@ -53,7 +53,7 @@ class RandomDelayStep extends Step {
     const range = (this.#maxDelay - this.#minDelay)
     const delay = this.#minDelay + Math.floor(Math.random() * range)
     if (VERBOSE) {
-      instance.console(`Delay ${delay}ms (${this.#minDelay}ms - ${this.#maxDelay}ms)`)
+      instance.trace(`Delay ${delay}ms (${this.#minDelay}ms - ${this.#maxDelay}ms)`)
     }
 
     // logbook.log(this.stepId, `RandomDelayStep.invoke()`, {
@@ -62,9 +62,9 @@ class RandomDelayStep extends Step {
     // })
 
     setTimeout(() => {
-      instance.console(`Delay complete`)
+      // instance.trace(`Delay complete`)
       const note = `${delay}ms`
-      output.delayTime = note
+      // output.delayTime = note
       instance.succeeded(note, output)
     }, delay)
   }//- invoke

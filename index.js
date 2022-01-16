@@ -12,7 +12,6 @@ import conversionHandler from './CONVERSION/lib/ConversionHandler'
 import formsAndFields from './CONVERSION/lib/formsAndFields'
 import dbQuery from './database/query'
 import { LOGIN_IGNORED, defineRoute } from './extras/apiVersions'
-// import { initiateTransaction, getTransactionResult } from './DATP/datp'
 import healthcheck from './restify/healthcheck'
 import juice from '@tooltwist/juice-client'
 import { RouterStep as RouterStepInternal } from './ATP/hardcoded-steps/RouterStep'
@@ -74,7 +73,9 @@ export async function goLive(server) {
  * @param {*} data
  */
 export async function startTransactionRoute(req, res, next, tenant, transactionType, data=null, metadata=null) {
-  // console.log(`DATP.startTransactionRoute()`)
+  if (VERBOSE) console.log(`DATP.startTransactionRoute()`)
+  // console.log(`metadata=`, metadata)
+  // console.log(`data=`, data)
   // console.log(`req.params=`, req.params)
   // console.log(`req.body=`, req.body)
   // console.log(`req.query=`, req.query)
@@ -85,6 +86,7 @@ export async function startTransactionRoute(req, res, next, tenant, transactionT
 
   if (data) {
     // Use the supplied value
+    // console.log(`Use provided data`)
   } else if (req.body &&req.body.data) {
     data = req.body.data
   } else {
@@ -92,6 +94,7 @@ export async function startTransactionRoute(req, res, next, tenant, transactionT
   }
   if (metadata) {
     // Use the supplied value
+    // console.log(`Use provided metadata`)
   } else if (req.body && req.body.metadata) {
     metadata = req.body.metadata
   } else if (req.query) {
@@ -137,8 +140,13 @@ export async function startTransactionRoute(req, res, next, tenant, transactionT
   metadataCopy.transactionType = transactionType
   metadataCopy.onComplete = { callback, context }
 
+
   const dataCopy = deepCopy(data)
-  dataCopy.tenant = tenant //ZZZZZ Is this needed?
+  // dataCopy.tenant = tenant //ZZZZZ Is this needed?
+
+  // console.log(`STARTING TRANSACTION WITH:`)
+  // console.log(`metadataCopy=`, metadataCopy)
+  // console.log(`dataCopy=`, dataCopy)
 
   const tx = await Scheduler2.startTransaction({
     metadata: metadataCopy,
@@ -216,7 +224,6 @@ export default {
   FormsAndFields,
   query: dbQuery,
   // initiateTransaction,
-  // getTransactionResult,
   RouterStep,
   pause,
 

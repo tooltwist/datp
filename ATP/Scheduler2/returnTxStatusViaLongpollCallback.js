@@ -13,5 +13,5 @@ export async function returnTxStatusWithLongPollCallback (callbackContext, data)
   assert(data.txId)
 
   const sent = await LongPoll.tryToReply(data.txId)
-  console.log(`sent=`, sent)
+  // console.log(`sent=`, sent)
 }//- returnTxStatusWithLongPollCallback

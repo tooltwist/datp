@@ -57,6 +57,7 @@ export default class Transaction {
   static LOG_SOURCE_DEFINITION = 'definition'
   static LOG_SOURCE_SYSTEM = 'system'
   static LOG_SOURCE_PROGRESS_REPORT = 'progReport'
+  static LOG_SOURCE_UNKNOWN = 'unknown'
 
   /**
    *

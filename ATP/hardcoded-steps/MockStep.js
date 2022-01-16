@@ -19,10 +19,10 @@ class MockStep extends Step {
 
   async invoke(instance) {
     if (VERBOSE) {
-      // instance.console(`*****`)
-      instance.console(`MockStep (${instance.getStepId()})`)
-      instance.console(`"${this.msg}"`)
-      // instance.console(`*****`)
+      // instance.trace(`*****`)
+      instance.trace(`MockStep (${instance.getStepId()})`)
+      instance.trace(`"${this.msg}"`)
+      // instance.trace(`*****`)
       // console.log(`this=`, this)
       // console.log(`instance=`, instance)
     }
@@ -41,7 +41,7 @@ class MockStep extends Step {
     // setTimeout(() => {
       data.said = 'nothing'
       const note = this.msg
-      instance.finish(STEP_COMPLETED, note, data)
+      instance.succeedeed(note, data)
     // }, 1000)
   }//- invoke
 

@@ -14,8 +14,8 @@ import StepTypes from '../StepTypeRegister'
  * it receives.
  *
  * When it is time to run the step, the pipeline will call the 'invoke'
- * function. When the step has completed running, it should call the
- * instance.finish function, including the completion status.
+ * function. When the step has completed running, it should call
+ * instance.succeeded, instance.failed, etc.
  *
  * For long running options, the invoke function may return before the
  * step has completed, but some other part of your server will need to later
@@ -34,13 +34,13 @@ class ExampleStep extends Step {
    * @param {StepInstance} instance
    */
   async invoke(instance) {
-    instance.console(`ExampleStep (${instance.getStepId()})`)
+    instance.trace(`ExampleStep (${instance.getStepId()})`)
     // const data = instance.getDataAsObject()
 
     // Do something here
     const input = instance.getDataAsObject()
     const instruction = input.instruction
-    instance.console(`input.instruction is [${instruction}]`)
+    instance.trace(`input.instruction is [${instruction}]`)
 
     switch (instruction) {
       case 'fail':
@@ -67,7 +67,7 @@ class ExampleStep extends Step {
    * @param {StepInstance} instance
    */
    async rollback(instance) {
-    instance.console(`ExampleStep rolling back (${instance.getStepId()})`)
+    instance.trace(`ExampleStep rolling back (${instance.getStepId()})`)
     const data = instance.getDataAsObject()
 
     // Do something here

@@ -149,7 +149,7 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
     // console.log(``)
     // console.log(``)
     // return Scheduler.haveResult(pipelineStepId, pipelineInstance.getCompletionToken(), STEP_COMPLETED, stepOutput)
-    // pipelineInstance.finish(STEP_ABORTED, `Step ${currentStepNo} failed`, stepOutput)
+    // pipelineInstance.succeedeed(`Step ${currentStepNo} failed`, stepOutput)
     await tx.delta(pipelineStepId, {
       stepOutput: childStep.stepOutput,
       note: childStep.note,

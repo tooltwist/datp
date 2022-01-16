@@ -15,6 +15,7 @@ import assert from 'assert'
 
 // Hardcoded steps
 import DummyStep from './hardcoded-steps/DummyStep'
+import FixedReplyStep from './hardcoded-steps/FixedReplyStep'
 import SaySomethingStep from './hardcoded-steps/SaySomethingStep'
 import PipelineStep from './hardcoded-steps/PipelineStep'
 import MockStep from './hardcoded-steps/MockStep'
@@ -28,10 +29,10 @@ import RouterStep from './hardcoded-steps/RouterStep'
 import WaitStep from './hardcoded-steps/WaitStep'
 
 // Database stuff
-import dbTransactionInstance from '../database/dbTransactionInstance'
-import dbTransactionType from '../database/dbTransactionType'
+// import dbTransactionInstance from '../database/dbTransactionInstance'
+// import dbTransactionType from '../database/dbTransactionType'
 import colors from 'colors'
-import Logbook from './Logbook'
+// import Logbook from './Logbook'
 
 const ANTI_BRUTE_FORCE_DELAY = 2000 // 2 seconds
 
@@ -122,6 +123,7 @@ class AsynchronousTransactionEngine {
   async initialize() {
     await SaySomethingStep.register()
     await DummyStep.register()
+    await FixedReplyStep.register()
     await MockStep.register()
     await RandomDelayStep.register()
     await PipelineStep.register()
@@ -212,9 +214,9 @@ class AsynchronousTransactionEngine {
   //   return { txId, inquiryToken }
   // }//- initiateTransaction
 
-  async getTransactionResult(transactionId) {
-    return await dbTransactionInstance.getTransaction(transactionId)
-  }
+  // async getTransactionResult(transactionId) {
+  //   return await dbTransactionInstance.getTransaction(transactionId)
+  // }
 
   // /**
   //  * Get details of a transaction.

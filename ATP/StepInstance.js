@@ -7,7 +7,6 @@
 import Logbook from './Logbook'
 import StepTypes from './StepTypeRegister'
 import Step, { STEP_ABORTED, STEP_FAILED, STEP_INTERNAL_ERROR, STEP_RUNNING, STEP_SLEEPING, STEP_SUCCESS } from './Step'
-import dbStep from "../database/dbStep";
 import dbPipelines from "../database/dbPipelines";
 import XData from "./XData";
 import dbArtifact from "../database/dbArtifact";
@@ -291,39 +290,6 @@ export default class StepInstance {
     await dbArtifact.saveArtifact(this.#stepId, name, value)
   }
 
-  /*
-   * Step return functions
-   */
-
-  // async finish(status, note, newTx) {
-  //   // console.log(`StepInstance.finish(${status}, ${note}, newTx):`, newTx)
-  //   // console.log(`StepInstance.finish(${status}, ${note}, newTx)`)
-  //   // console.log(`StepInstance.finish(${status}, ${note}, newTx):`, newTx)
-  //   if (!newTx) {
-  //     newTx = this.getDataAsObject()
-  //   }
-  //   const myTx = new XData(newTx)
-  //   // console.log('YARP', myTx)
-  //   // console.log(`StepInstance.finish(${status}, ${note}). newTx:`, newTx)
-  //   const response = myTx.getJson()
-  //   await dbStep.saveExitStatus(this.#stepId, status, response)
-
-  //   const tx = await TransactionCache.findTransaction(this.#txId)
-
-  //   // Return the promise
-  //   // console.log(`   -> stepId=${this.#stepId}, completionToken=${this.#completionToken}`)
-  //   // return Scheduler.stepFinished(this.#stepId, this.#completionToken, status, note, myTx)
-
-  //   const queueToParentNodeRunningParent = Scheduler2.standardQueueName(parentNodeId, '')
-  //   await Scheduler2.enqueue_StepCompleted(queueToParentNodeRunningParent, {
-  //     txId,
-  //     stepId,
-  //     status,
-  //     stepOutput: { from: 'misc/ping3'}
-  //   })
-
-  // }
-
   _sanitizedOutput(stepOutput) {
     // Sanitize the output to an object (not TXData, not null)
     let myStepOutput // TtxData
@@ -345,6 +311,14 @@ export default class StepInstance {
     return myStepOutput
   }
 
+
+
+
+  /*
+   * Step return functions
+   */
+
+
   /**
    *
    * @param {*} note
@@ -357,7 +331,7 @@ export default class StepInstance {
     if (VERBOSE) console.log(`succeeded: step out is `.magenta, myStepOutput)
 
     // Sync any buffered logs
-    this.trace(`instance.succeeded()`, Transaction.LOG_SOURCE_SYSTEM)
+    this.trace(`instance.succeeded() - ${note}`, Transaction.LOG_SOURCE_SYSTEM)
     await this.syncLogs()
 
     // Quick sanity check - make sure this step is actually running, and has not already exited.
@@ -427,7 +401,6 @@ export default class StepInstance {
     })
 
     // Tell the parent we've completed.
-    // console.log(`replying to `, this.#onComplete)
     const queueName = Scheduler2.standardQueueName(this.#onComplete.nodeGroup, DEFAULT_QUEUE)
     await Scheduler2.enqueue_StepCompleted(queueName, {
       txId: this.#txId,
@@ -445,7 +418,7 @@ export default class StepInstance {
     if (VERBOSE) console.log(`StepInstance.failed(note=${note}, ${typeof stepOutput})`, stepOutput)
 
     // Sync any buffered logs
-    this.trace(`instance.failed()`, Transaction.LOG_SOURCE_SYSTEM)
+    this.trace(`instance.failed(${note})`, Transaction.LOG_SOURCE_SYSTEM)
     await this.syncLogs()
 
     const myStepOutput = this._sanitizedOutput(stepOutput)
@@ -487,7 +460,7 @@ export default class StepInstance {
    * @returns
    */
   async badDefinition(msg) {
-    // console.log(`StepInstance.badDefinition(${msg})`)
+    console.log(`StepInstance.badDefinition(${msg})`)
 
     // Sync any buffered logs
     this.trace(msg, Transaction.LOG_SOURCE_DEFINITION)
@@ -497,7 +470,7 @@ export default class StepInstance {
     //ZZZZ
 
     // Write to the transaction / step
-    this.console(msg)
+    this.error(msg)
     await this.log(Logbook.LEVEL_TRACE, `Step reported bad definition [${msg}]`)
     await this.artifact('badStepDefinition', this.#stepDefinition)
 
@@ -508,10 +481,22 @@ export default class StepInstance {
       transactionId: this.#txId,
       stepId: this.#stepId
     }
-    await dbStep.saveExitStatus(this.#stepId, status, data)
 
-    const note = `Bad step definition: ${msg}`
-    return Scheduler.stepFinished(this.#stepId, this.#onComplete.completionToken, status, note, new XData(data))
+    // Save the step status
+    const tx = await TransactionCache.findTransaction(this.#txId, false)
+    await tx.delta(this.#stepId, {
+      status: STEP_INTERNAL_ERROR,
+      note: `Internal error: bad pipeline definition. Please notify system administrator.`,
+      stepOutput: data
+    })
+
+    // Tell the parent we've completed.
+    const queueName = Scheduler2.standardQueueName(this.#onComplete.nodeGroup, DEFAULT_QUEUE)
+    await Scheduler2.enqueue_StepCompleted(queueName, {
+      txId: this.#txId,
+      stepId: this.#stepId,
+      completionToken: this.#onComplete.completionToken,
+    })
   }
 
   /**
@@ -521,7 +506,7 @@ export default class StepInstance {
    */
   async exceptionInStep(message, e) {
     // console.log(Logbook.LEVEL_TRACE, `StepInstance.exceptionInStep()`)
-    console.log(this.#indent + `StepInstance.exceptionInStep(${msg})`, e)
+    console.log(this.#indent + `StepInstance.exceptionInStep(${message})`, e)
     // console.log(new Error('YARP').stack)
 
     // Sync any buffered logs
@@ -541,7 +526,7 @@ export default class StepInstance {
     //ZZZZ
 
     // Write to the transaction / step
-    await this.console(`Exception in step: ${e.stack}`)
+    await this.error(`Exception in step: ${e.stack}`)
     await this.log(Logbook.LEVEL_TRACE, `Exception in step.`, e)
     // this.artifact('exception', { stacktrace: e.stack })
 
@@ -560,10 +545,21 @@ export default class StepInstance {
       transactionId: this.#txId,
       stepId: this.#stepId
     }
-    await dbStep.saveExitStatus(this.#stepId, status, data)
 
-    const note = `Exception in step`
-    return Scheduler.stepFinished(this.#stepId, this.#onComplete.completionToken, status, note, new XData(data))
+    const tx = await TransactionCache.findTransaction(this.#txId, false)
+    await tx.delta(this.#stepId, {
+      status: STEP_INTERNAL_ERROR,
+      note: `Internal error: exceptiopn in step. Please notify system administrator.`,
+      stepOutput: data
+    })
+
+    // Tell the parent we've completed.
+    const queueName = Scheduler2.standardQueueName(this.#onComplete.nodeGroup, DEFAULT_QUEUE)
+    await Scheduler2.enqueue_StepCompleted(queueName, {
+      txId: this.#txId,
+      stepId: this.#stepId,
+      completionToken: this.#onComplete.completionToken,
+    })
   }
 
   /**
@@ -639,30 +635,29 @@ sleepDuration = 15
   }
 
 
-  console(msg, p2) {
-    if (!msg) {
-      msg = ''
-    }
-    // Log this first
-    this.debug(msg, null)
+  // console(msg, p2) {
+  //   if (!msg) {
+  //     msg = ''
+  //   }
+  //   // Log this first
+  //   this.debug(msg, null)
 
-    // Now display on the console
-    if (p2) {
-      console.log(`${this.#indent} ${msg}`, p2)
-    } else {
-      console.log(`${this.#indent} ${msg}`)
-    }
-  }
+  //   // Now display on the console
+  //   if (p2) {
+  //     console.log(`${this.#indent} ${msg}`, p2)
+  //   } else {
+  //     console.log(`${this.#indent} ${msg}`)
+  //   }
+  // }
 
   dump(obj) {
-    // this.console
     const type = obj.constructor.name
     switch (type) {
       case 'StepInstance':
-        this.console(`Dump: ${type}`)
-        this.console(`  pipeId: ${obj.pipeId}`)
-        this.console(`  data: `, obj.data)
-        this.console(`  ${obj.pipelineStack.length} pipelines deep`)
+        this.debug(`Dump: ${type}`)
+        this.debug(`  pipeId: ${obj.pipeId}`)
+        this.debug(`  data: `, obj.data)
+        this.debug(`  ${obj.pipelineStack.length} pipelines deep`)
         break
 
       default:
@@ -674,37 +669,34 @@ sleepDuration = 15
     this.dump(message, source)
   }
 
-  debug(message, source=null) {
-    if (!source) {
-      source = this.#rollingBack ? Transaction.LOG_SOURCE_ROLLBACK : Transaction.LOG_SOURCE_INVOKE
-    }
+  debug(...args) {
+    const { message, source } = this.checkLogParams(args)
     const level = Transaction.LOG_LEVEL_DEBUG
     this.#logBuffer.push({ level, source, message })
-    // console.log(`\n\nthis.#logBuffer=`, this.#logBuffer)
   }
 
-  trace(message, source=null) {
-    if (!source) {
-      source = this.#rollingBack ? Transaction.LOG_SOURCE_ROLLBACK : Transaction.LOG_SOURCE_INVOKE
-    }
+  // trace(message, source=null) {
+  trace(...args) {
+    const { message, source } = this.checkLogParams(args)
     const level = Transaction.LOG_LEVEL_TRACE
+    assert(typeof(source) !== 'undefined')
+    assert(typeof(message) !== 'undefined')
     this.#logBuffer.push({ level, source, message })
-    // console.log(`\n\nthis.#logBuffer=`, this.#logBuffer)
   }
 
-  warning(message, source=null) {
-    if (!source) {
-      source = this.#rollingBack ? Transaction.LOG_SOURCE_ROLLBACK : Transaction.LOG_SOURCE_INVOKE
-    }
+  warning(...args) {
+    const { message, source } = this.checkLogParams(args)
     const level = Transaction.LOG_LEVEL_WARNING
+    assert(typeof(source) !== 'undefined')
+    assert(typeof(message) !== 'undefined')
     this.#logBuffer.push({ level, source, message })
   }
 
-  error(message, source=null) {
-    if (!source) {
-      source = this.#rollingBack ? Transaction.LOG_SOURCE_ROLLBACK : Transaction.LOG_SOURCE_INVOKE
-    }
+  error(...args) {
+    const { message, source } = this.checkLogParams(args)
     const level = Transaction.LOG_LEVEL_ERROR
+    assert(typeof(source) !== 'undefined')
+    assert(typeof(message) !== 'undefined')
     this.#logBuffer.push({ level, source, message })
   }
 
@@ -731,4 +723,47 @@ sleepDuration = 15
     }
     return s
   }
+
+  checkLogParams(args) {
+    // console.log(`checkLogParams`, args)
+    let message = ''
+    let source = this.#rollingBack ? Transaction.LOG_SOURCE_ROLLBACK : Transaction.LOG_SOURCE_INVOKE
+    if (args.length > 0) {
+      const lastArg = args[args.length - 1]
+      switch (lastArg) {
+        case Transaction.LOG_SOURCE_DEFINITION:
+        case Transaction.LOG_SOURCE_INVOKE:
+        case Transaction.LOG_SOURCE_ROLLBACK:
+        case Transaction.LOG_SOURCE_EXCEPTION:
+        case Transaction.LOG_SOURCE_DEFINITION:
+        case Transaction.LOG_SOURCE_SYSTEM:
+        case Transaction.LOG_SOURCE_PROGRESS_REPORT:
+        case Transaction.LOG_SOURCE_UNKNOWN:
+          message = checkMessage(args, args.length - 1)
+          source = lastArg
+          break
+
+        default:
+          message = checkMessage(args, args.length)
+          break
+      }
+      return { message, source}
+    }
+  }
+}
+
+
+function checkMessage(arr, len) {
+  let sep = ''
+  let s = ''
+  for (let i = 0; i < len; i++) {
+    const element = arr[i]
+    if (typeof(element) === 'string') {
+      s += sep + element
+    } else {
+      s += sep + JSON.stringify(element)
+    }
+    sep = ',\n'
+  }
+  return s
 }

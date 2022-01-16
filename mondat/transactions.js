@@ -23,7 +23,6 @@ export async function dumpTransactionV1(req, res, next) {
   console.log(`dumpTransactionV1()`)
 
   const transactionId = req.params.txId
-  // await Scheduler.dumpSteps(`Transaction ${transactionId}`, transactionId)
   await ATP.dumpSteps(`Transaction ${transactionId}`, transactionId)
 
   res.send({ status: 'done' })

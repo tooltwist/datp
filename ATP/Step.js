@@ -79,22 +79,22 @@ export default class Step {
         await this.invoke(instance) // Provided by the step implementation
       } catch (e) {
 // console.log(`\n\n\nException in Step:`, e)
-//         instance.console(``)
+//         instance.trace(``)
 //         // console.log(`Exception occurred while running step ${instance.getStepId()}:`)
-//         instance.console(`Exception occurred while running step ${instance.getStepId()}:`)
-//         instance.console(``)
+//         instance.trace(`Exception occurred while running step ${instance.getStepId()}:`)
+//         instance.trace(``)
 //         //ZZZZZ
 //         // handle the error better
 //         console.log(e)
-//         instance.console(``)
-//         instance.console(``)
+//         instance.trace(``)
+//         instance.trace(``)
 
         return await instance.exceptionInStep(null, e)
         // const note = `Exception in step.invoke()`
         // const data = {
         //   error: `Exception`
         // }
-        // instance.finish(STEP_INTERNAL_ERROR, note, data)
+        // instance.succeedeed(note, data)
       }
     }, 0)
       // let reply = this.invoke(instance) // Provided by the step implementation

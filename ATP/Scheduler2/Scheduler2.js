@@ -168,7 +168,7 @@ export default class Scheduler2 {
        */
       if (metadata.transactionType === 'ping2') {
         // Bounce back via a normal TRANSACTION_COMPLETE_EVENT
-        const description = 'ping2 - Scheduler.startTransaction() returning without processing step'
+        const description = 'ping2 - Scheduler2.startTransaction() returning without processing step'
         if (VERBOSE||trace) console.log(description.bgBlue.white)
 
         // Create a new transaction

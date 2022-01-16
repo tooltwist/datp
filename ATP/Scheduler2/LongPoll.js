@@ -3,7 +3,7 @@ import TransactionCache from "./TransactionCache"
 
 const LONGPOLL_TIMEOUT = 15
 
-const VERBOSE = 1
+const VERBOSE = 0
 export default class LongPoll {
 
   static index = { } // txId => { response, next, tenant, timer }

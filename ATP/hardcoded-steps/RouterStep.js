@@ -38,13 +38,13 @@ export class RouterStep extends Step {
 
   async invoke(instance) {
     if (ROUTERSTEP_VERBOSE) {
-      // instance.console(`*****`)
-      instance.console(`RouterStep::invoke(${instance.getStepId()})`)
+      // instance.trace(`*****`)
+      instance.trace(`RouterStep::invoke(${instance.getStepId()})`)
     }
 
     // See which child pipeline to call.
     const pipelineName = await this.choosePipeline(instance)
-    if (ROUTERSTEP_VERBOSE) instance.console(`pipelineName=`, pipelineName)
+    if (ROUTERSTEP_VERBOSE) instance.trace(`pipelineName=`, pipelineName)
     if (!pipelineName) {
       return await instance.failed(`Unknown value for selection field`, { status: 'error', error: 'Invalid selector field'})
     }
@@ -55,8 +55,8 @@ export class RouterStep extends Step {
 
   async invokeChildPipeline(instance, pipelineName, data) {
     if (ROUTERSTEP_VERBOSE) {
-      // instance.console(`*****`)
-      instance.console(`RouterStep::invokeChildPipeline (${pipelineName})`)
+      // instance.trace(`*****`)
+      instance.trace(`RouterStep::invokeChildPipeline (${pipelineName})`)
     }
 
     const parentInstance = instance
@@ -66,13 +66,13 @@ export class RouterStep extends Step {
     if (!data) {
       data = await parentInstance.getDataAsObject()
     }
-    if (ROUTERSTEP_VERBOSE) instance.console(`RouterStep.invokeChildPipeline() input is `, data)
+    if (ROUTERSTEP_VERBOSE) instance.trace(`RouterStep.invokeChildPipeline() input is `, data)
     const childData = deepCopy(data)
-    if (ROUTERSTEP_VERBOSE) instance.console(`RouterStep.invokeChildPipeline() data for child pipeline is `, childData)
+    if (ROUTERSTEP_VERBOSE) instance.trace(`RouterStep.invokeChildPipeline() data for child pipeline is `, childData)
     const metadata = await parentInstance.getMetadata()
 
     // Start the child pipeline
-    instance.console(`Start child transaction pipeline - ${pipelineName}`)
+    instance.trace(`Start child transaction pipeline - ${pipelineName}`)
     const parentStepId = await parentInstance.getStepId()
     const parentNodeGroup = parentInstance.getNodeGroup()
     const childStepId = GenerateHash('s')
@@ -128,7 +128,7 @@ export class RouterStep extends Step {
    * @param {StepInstance} instance
    */
    async choosePipeline(instance) {
-    if (ROUTERSTEP_VERBOSE) instance.console(`choosePipeline()`)
+    if (ROUTERSTEP_VERBOSE) instance.trace(`choosePipeline()`)
 
     // Check the definition is not invalid
     if (!this.#field) {
@@ -153,9 +153,9 @@ export class RouterStep extends Step {
       }
     }
     if (typeof(value) === 'undefined') {
-      instance.console(`Field missing [${this.#field}]`)
+      instance.trace(`Field missing [${this.#field}]`)
     } else {
-      instance.console(`Unknown value for field [${this.#field}]`)
+      instance.trace(`Unknown value for field [${this.#field}]`)
     }
 
     // No mapping found

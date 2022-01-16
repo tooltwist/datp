@@ -51,7 +51,7 @@ class Pipeline extends Step {
 
   async invoke(pipelineInstance) {
     assert(pipelineInstance instanceof StepInstance)
-    if (PIPELINES_VERBOSE) pipelineInstance.console(`>>>>    Pipeline.invoke (${pipelineInstance.getStepId()})  `.black.bgGreen.bold)
+    if (PIPELINES_VERBOSE) pipelineInstance.trace(`>>>>    Pipeline.invoke (${pipelineInstance.getStepId()})  `.black.bgGreen.bold)
 
     // console.log(new Error(`IN PipelineStep.invoke()`).stack)
 
@@ -122,7 +122,7 @@ class Pipeline extends Step {
       console.log(`Pipeline.initiateChildStep(${indexOfCurrentChildStep})`)
     }
 
-    // pipelineInstance.console(`Pipeline initiating child step #${indexOfCurrentChildStep}:`)
+    // pipelineInstance.trace(`Pipeline initiating child step #${indexOfCurrentChildStep}:`)
     // // console.log(`tx=`, tx)
     // // console.log(`pipelineInstance=`, pipelineInstance)
     // const stepDef =  this.#steps[stepNo]
@@ -158,7 +158,7 @@ class Pipeline extends Step {
 
     const childFullSequence = `${pipelineInstance.getFullSequence()}.1` // Start sequence at 1
 
-    pipelineInstance.console(`Start pipeline child #0`)
+    pipelineInstance.trace(`Start pipeline child #0`)
     pipelineInstance.syncLogs()
 
     // console.log(`metadata=`, metadata)

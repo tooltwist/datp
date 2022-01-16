@@ -24,8 +24,8 @@ const FORM_TENANT = 'datp'
  * it receives.
  *
  * When it is time to run the step, the pipeline will call the 'invoke'
- * function. When the step has completed running, it should call the
- * instance.finish function, including the completion status.
+ * function. When the step has completed running, it should call
+ * instance.succeeded, instance.failed, etc.
  *
  * For long running options, the invoke function may return before the
  * step has completed, but some other part of your server will need to later
@@ -160,8 +160,8 @@ class MandatoryFieldsStep extends Step {
    * @param {StepInstance} instance
    */
   async invoke(instance) {
-    instance.console(`MandatoryFieldsStep (${instance.getStepId()})`)
-    instance.console(`"${this.#view}"`)
+    instance.trace(`MandatoryFieldsStep (${instance.getStepId()})`)
+    instance.trace(`"${this.#view}"`)
 
     const data = await instance.getDataAsObject()
     const handler = new ConversionHandler()
@@ -220,14 +220,16 @@ class MandatoryFieldsStep extends Step {
     }
 
     // Time to complete the step and send a result
-    instance.console(`${errors.length} errors.`)
     if (errors.length > 0) {
-      // console.log(`YARP finishing now with errors`)
-      instance.console(`Step failed`)
-      return await instance.failed('Invalid request', errors)
+      instance.trace(`${errors.length} errors:`)
+      for (const error of errors) {
+        instance.error(`    ${error}`)
+      }
+      instance.error(`Step failed due to invalid input.`)
+      return await instance.failed('Invalid input', errors)
     }
-    instance.console(`Step success`)
-    return await instance.finish(STEP_COMPLETED, '', data)
+    instance.trace(`Step success`)
+    return await instance.succeeded('', data)
   }
 }
 

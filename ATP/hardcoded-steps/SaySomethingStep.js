@@ -15,15 +15,15 @@ class SaySomething extends Step {
   }
 
   async invoke(instance) {
-    // instance.console(`*****`)
-    instance.console(`SaySomething (${instance.getStepId()})`)
-    instance.console(`"${this.msg}"`)
+    // instance.trace(`*****`)
+    instance.trace(`SaySomething (${instance.getStepId()})`)
+    instance.trace(`"${this.msg}"`)
     const data = instance.getDataAsObject()
 
     setTimeout(() => {
       data.said = this.msg
       const note = `Said "${this.msg}"`
-      instance.finish(STEP_COMPLETED, note, data)
+      instance.succeedeed(note, data)
     }, 1000)
   }
 

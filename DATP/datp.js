@@ -89,11 +89,11 @@ const responsesForSynchronousReturn = [ ] // txId -> { res, next, timestamp, tim
  * @param {Response} res
  * @param {function} next
  */
-async function initiateTransactionFromMondatRouteV1(req, res, next) {
-  console.log(`>>>>    Initiate transaction ${req.params.transactionType}  `.white.bgRed.bold)
-  console.log(`req.params=`, req.params)
-  console.log(`req.body=`, req.body)
-  console.log(`req.query=`, req.query)
+async function route_tx_start_$transactionType(req, res, next) {
+  // console.log(`>>>>    route_tx_start_$transactionType ${req.params.transactionType}  `.white.bgRed.bold)
+  // console.log(`req.params=`, req.params)
+  // console.log(`req.body=`, req.body)
+  // console.log(`req.query=`, req.query)
 
   const TEST_TENANT = 'acme'
 
@@ -110,21 +110,21 @@ async function initiateTransactionFromMondatRouteV1(req, res, next) {
   let data = req.body.data ? req.body.data : { }
   assert(typeof(metadata) === 'object')
   assert(typeof(data) === 'object')
-  const externalId = metadata.externalId ? metadata.externalId : null
+  // const externalId = metadata.externalId ? metadata.externalId : null
 
-  console.log(`req.params.transactionType=`, req.params.transactionType)
-  console.log(`metadata=`, metadata)
-  console.log(`data=`, data)
-  console.log(`externalId=`, externalId)
+  // console.log(`req.params.transactionType=`, req.params.transactionType)
+  // console.log(`metadata=`, metadata)
+  // console.log(`data=`, data)
+  // console.log(`externalId=`, externalId)
 
-  console.log(`typeof(externalId)=`, typeof(externalId))
-  assert(externalId === null || typeof(externalId) === 'string')
+  // console.log(`typeof(externalId)=`, typeof(externalId))
+  // assert(externalId === null || typeof(externalId) === 'string')
 
 
   // metadata.reply = 'longpoll'
 
   // This will reply, although maybe not till it times out.
-  await startTransactionRoute(req, res, next, TEST_TENANT, externalId, transactionType, metadata, data)
+  await startTransactionRoute(req, res, next, TEST_TENANT, transactionType, data, metadata)
 }
 
 
@@ -233,87 +233,87 @@ export async function initiateTransactionOLDE(req, res, next, transactionType, i
   }
 }
 
-async function getTransactionResultRouteV1(req, res, next) {
-  // console.log(`>>>>    get transaction result ${req.params.transactionId}  `.white.bgRed.bold)
-  // console.log(`req.params=`, req.params)
-  // console.log(`req.body=`, req.body)
-  // console.log(`req.query=`, req.query)
+// async function getTransactionResultRouteV1(req, res, next) {
+//   // console.log(`>>>>    get transaction result ${req.params.transactionId}  `.white.bgRed.bold)
+//   // console.log(`req.params=`, req.params)
+//   // console.log(`req.body=`, req.body)
+//   // console.log(`req.query=`, req.query)
 
-  // try {
-    const transactionId = req.params.transactionId
-    const fetchToken = 'xyz'//ZZZZZ
-    // console.log(`transactionId=`, transactionId)
-    await getTransactionResult(req, res, next, transactionId, fetchToken)
-  }
+//   // try {
+//   const transactionId = req.params.transactionId
+//   const fetchToken = 'xyz'//ZZZZZ
+//   // console.log(`transactionId=`, transactionId)
+//   await getTransactionResult(req, res, next, transactionId, fetchToken)
+// }
 
 
-export async function getTransactionResult(req, res, next, transactionId, fetchToken) {
-  console.log(`>>>>    get transaction result ${transactionId}  `.white.bgRed.bold)
-  console.log(`req.params=`, req.params)
-  console.log(`req.body=`, req.body)
-  console.log(`req.query=`, req.query)
+// export async function getTransactionResult(req, res, next, transactionId, fetchToken) {
+//   console.log(`>>>>    get transaction result ${transactionId}  `.white.bgRed.bold)
+//   console.log(`req.params=`, req.params)
+//   console.log(`req.body=`, req.body)
+//   console.log(`req.query=`, req.query)
 
-  try {
+//   try {
 
-    // console.log(`transactionId=`, transactionId)
+//     // console.log(`transactionId=`, transactionId)
 
-    const tx = await ATP.getTransactionResult(transactionId)
-    // console.log(`tx.response=`, tx.response)
+//     const tx = await ATP.getTransactionResult(transactionId)
+//     // console.log(`tx.response=`, tx.response)
 
-    if (!tx) {
-      res.send(new errors.NotFoundError(`Unknown transaction`))
-      return next()
-    }
+//     if (!tx) {
+//       res.send(new errors.NotFoundError(`Unknown transaction`))
+//       return next()
+//     }
 
-    // Check that the fetch token is correct
-    //ZZZZZZ Check that the user is allowed to access this response
-    // 1. Is admin?
-    // 2.
-    // if (fetchToken && fetchToken != result[0].inquiryToken) {
-    //   throw new Error()
-    // }
+//     // Check that the fetch token is correct
+//     //ZZZZZZ Check that the user is allowed to access this response
+//     // 1. Is admin?
+//     // 2.
+//     // if (fetchToken && fetchToken != result[0].inquiryToken) {
+//     //   throw new Error()
+//     // }
 
-    delete tx.inquiryToken
-    delete tx.responseMethod
-    delete tx.inquiryToken
+//     delete tx.inquiryToken
+//     delete tx.responseMethod
+//     delete tx.inquiryToken
 
-    // console.log(`tx.response=`, tx.response)
-    // console.log(`typeof(tx.response)=`, typeof(tx.response))
-    let result
-    try {
-      result = JSON.parse(tx.response)
-    } catch (e) {
-      result = tx.response.toString()
-    }
-    // switch (typeof(tx.response)) {
-    //   case 'undefined':
-    //     result = 'undefined'
-    //     break
-    //   case 'string':
-    //     result = tx.response
-    //     break
-    //   case 'object':
-    //     result = tx.response
-    //     break
-    //   default:
-    //     if (tx.result) {
-    //       result = tx.result.toString()
-    //     } else {
-    //       result = 'null'
-    //     }
-    // }
-    const reply = {
-      status: tx.status,
-      result,
-    }
-    // console.log(`reply=`, reply)
-    res.send(reply)
-    return next()
-  } catch (e) {
-    console.log(`Exception while getting transaction response:`, e)
-    throw e
-  }
-}
+//     // console.log(`tx.response=`, tx.response)
+//     // console.log(`typeof(tx.response)=`, typeof(tx.response))
+//     let result
+//     try {
+//       result = JSON.parse(tx.response)
+//     } catch (e) {
+//       result = tx.response.toString()
+//     }
+//     // switch (typeof(tx.response)) {
+//     //   case 'undefined':
+//     //     result = 'undefined'
+//     //     break
+//     //   case 'string':
+//     //     result = tx.response
+//     //     break
+//     //   case 'object':
+//     //     result = tx.response
+//     //     break
+//     //   default:
+//     //     if (tx.result) {
+//     //       result = tx.result.toString()
+//     //     } else {
+//     //       result = 'null'
+//     //     }
+//     // }
+//     const reply = {
+//       status: tx.status,
+//       result,
+//     }
+//     // console.log(`reply=`, reply)
+//     res.send(reply)
+//     return next()
+//   } catch (e) {
+//     console.log(`Exception while getting transaction response:`, e)
+//     throw e
+//   }
+// }
 
 
 
@@ -356,13 +356,13 @@ async function routesForRestify(server, isMaster = false) {
   // ]));
 
   // defineRoute(server, 'put', false, DATP_URL_PREFIX, '/initiate/:transactionType', [
-  //   { versions: '1.0 - 1.0', handler: initiateTransactionFromMondatRouteV1, auth: LOGIN_IGNORED, noTenant: true }
+  //   { versions: '1.0 - 1.0', handler: route_tx_start_$transactionType, auth: LOGIN_IGNORED, noTenant: true }
   // ])
   // defineRoute(server, 'get', false, DATP_URL_PREFIX, '/result/:transactionId', [
   //   { versions: '1.0 - 1.0', handler: getTransactionResultRouteV1, auth: LOGIN_IGNORED, noTenant: true }
   // ])
 
-  addRoute(server, 'put', DATP_URL_PREFIX, '/tx/start/:transactionType', [ { versions: '1.0 - 1.0', handler: initiateTransactionFromMondatRouteV1 } ])
+  addRoute(server, 'put', DATP_URL_PREFIX, '/tx/start/:transactionType', [ { versions: '1.0 - 1.0', handler: route_tx_start_$transactionType } ])
   addRoute(server, 'get', DATP_URL_PREFIX, '/tx/status/:txId', [ { versions: '1.0 - 1.0', handler: transactionStatusByTxIdV1 } ])
   addRoute(server, 'get', DATP_URL_PREFIX, '/tx/statusByExternalId/:externalId', [ { versions: '1.0 - 1.0', handler: transactionStatusByExternalIdV1 } ])
 
