@@ -1,3 +1,9 @@
+/* Copyright Tooltwist Innovations Limited - All Rights Reserved
+ * This file is part of DATP and as such is proprietary and confidential software.
+ * Unauthorized copying of this file, via any medium is strictly prohibited. All
+ * rights reserved. No warranty, explicit or implicit, provided. In no event shall
+ * the author or owner be liable for any claim or damages.
+ */
 import errors from 'restify-errors'
 import constants from '../CONVERSION/lib/constants'
 import Schema from '../CONVERSION/formservice/schema-parser/Schema'
@@ -17,7 +23,6 @@ async function init(server) {
   // Return all currencies
   defineRoute(server, 'get', false, FORMSERVICE_URL_PREFIX, '/view/:viewName', [
     { versions: '1.0 - 1.0', auth: LOGIN_IGNORED, noTenant: true, handler: async (req, res, next) => {
-      // server.get(`${constants.FORMSERVICE_URL_PREFIX}/view/:viewName`, async function (req, res, next) {
       console.log(`-------------------------------------`)
       console.log(`/formservice/:version/view/:viewName`)
 
@@ -41,8 +46,6 @@ async function init(server) {
             console.log(`View ${viewName} not found`)
             return next(new errors.NotFoundError(`Unknown view ${viewName}`))
           }
-        // } else {
-        //   console.log(`View found`)
         }
         const view = schema.views.list[index]
         // console.log(`view=`, view)
@@ -139,31 +142,21 @@ async function init(server) {
    */
    defineRoute(server, 'post', false, FORMSERVICE_URL_PREFIX, '/field/:viewName', [
     { versions: '1.0 - 1.0', auth: LOGIN_IGNORED, noTenant: true, handler: async (req, res, next) => {
-      // server.post(`${constants.FORMSERVICE_URL_PREFIX}/field/:viewName`, async function (req, res, next) {
       console.log(`-------------------------------------`)
       console.log(`POST /formservice/:version/field/:viewName`)
 
       const viewName = req.params.viewName
-      // console.log(`viewName=`, viewName)
-      // console.log(`req.body=`, req.body)
       const newField = req.body
-
       try {
         const schema = new Schema()
         const tenant = constants.DEFAULT_TENANT
         await schema.loadSchemaFromDatabase(tenant)
 
-        // schema.updateField(viewName, fieldName, req.body)
-
         // Get the field
-        // console.log(`schema=`, schema)
         const view = schema.getView(viewName)
-        // console.log(`view=`, view)
         if (!view) {
           return next(new errors.NotFoundError(`Unknown view ${viewName}`))
         }
-
-        // console.log(`newField=`, newField)
         await view.addField(schema, newField)
       } catch (err) {
         console.log(`err=`, err)
@@ -181,7 +174,6 @@ async function init(server) {
    */
    defineRoute(server, 'put', false, FORMSERVICE_URL_PREFIX, '/field/:viewName/:fieldName', [
     { versions: '1.0 - 1.0', auth: LOGIN_IGNORED, noTenant: true, handler: async (req, res, next) => {
-      // server.put(`${constants.FORMSERVICE_URL_PREFIX}/field/:viewName/:fieldName`, async function (req, res, next) {
 
       const viewName = req.params.viewName
       const fieldName = req.params.fieldName
@@ -197,17 +189,12 @@ async function init(server) {
         const tenant = constants.DEFAULT_TENANT
         await schema.loadSchemaFromDatabase(tenant)
 
-        // schema.updateField(viewName, fieldName, req.body)
-
         // Get the field
-        // console.log(`schema=`, schema)
         const view = schema.getView(viewName)
-        // console.log(`view=`, view)
         if (!view) {
           return next(new errors.NotFoundError(`Unknown view ${viewName}`))
         }
         const field = view.getField(fieldName)
-        // console.log(`field=`, field)
         if (!field) {
           return next(new errors.NotFoundError(`Unknown field ${viewName}/${fieldName}`))
         }
@@ -216,7 +203,6 @@ async function init(server) {
         console.log(`err=`, err)
         return next(err)
       }
-
       res.send({ status: 'ok' })
       return next()
     }}
@@ -228,14 +214,11 @@ async function init(server) {
    */
    defineRoute(server, 'del', false, FORMSERVICE_URL_PREFIX, '/field/:viewName/:fieldName', [
     { versions: '1.0 - 1.0', auth: LOGIN_IGNORED, noTenant: true, handler: async (req, res, next) => {
-      // server.del(`${constants.FORMSERVICE_URL_PREFIX}/field/:viewName/:fieldName`, async function (req, res, next) {
       console.log(`-------------------------------------`)
       console.log(`DELETE /formservice/:version/field/:viewName/:fieldName`)
 
       const viewName = req.params.viewName
       const fieldName = req.params.fieldName
-      // console.log(`viewName=`, viewName)
-      // console.log(`fieldName=`, fieldName)
 
       try {
         const schema = new Schema()
@@ -243,14 +226,11 @@ async function init(server) {
         await schema.loadSchemaFromDatabase(tenant)
 
         // Get the field
-        // console.log(`schema=`, schema)
         const view = schema.getView(viewName)
-        // console.log(`view=`, view)
         if (!view) {
           return next(new errors.NotFoundError(`Unknown view ${viewName}`))
         }
         const field = view.getField(fieldName)
-        // console.log(`field=`, field)
         if (!field) {
           return next(new errors.NotFoundError(`Unknown field ${viewName}/${fieldName}`))
         }
@@ -271,15 +251,12 @@ async function init(server) {
    */
    defineRoute(server, 'get', false, FORMSERVICE_URL_PREFIX, '/mapping/:mappingId', [
     { versions: '1.0 - 1.0', auth: LOGIN_IGNORED, noTenant: true, handler: async (req, res, next) => {
-      // server.get(`${constants.FORMSERVICE_URL_PREFIX}/mapping/:mappingId`, async function (req, res, next) {
       console.log(`-------------------------------------`)
       console.log(`/formservice/:version/mapping/:mappingId`)
 
       const mappingId = req.params.mappingId
-      // console.log(`mappingId=`, mappingId)
       const version = -1
       const mapping = await formsAndFields.getMapping(constants.DEFAULT_TENANT, mappingId, version)
-      // console.log(`mapping=`, mapping)
       res.send(mapping)
       return next()
     }}
@@ -318,7 +295,6 @@ async function init(server) {
 
       // Check the required parameters have been provided
       const view = req.body
-      // console.log(`view=`, view)
       if (!view.name) {
         return next(new errors.BadRequestError('body must include view [name]'))
       }

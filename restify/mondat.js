@@ -1,3 +1,9 @@
+/* Copyright Tooltwist Innovations Limited - All Rights Reserved
+ * This file is part of DATP and as such is proprietary and confidential software.
+ * Unauthorized copying of this file, via any medium is strictly prohibited. All
+ * rights reserved. No warranty, explicit or implicit, provided. In no event shall
+ * the author or owner be liable for any claim or damages.
+ */
 import { defineRoute, LOGIN_IGNORED } from '../extras/apiVersions'
 // import { getMidiValuesV1 } from '../mondat/midi';
 import { listNodesV1 } from '../mondat/nodes'
@@ -31,18 +37,6 @@ async function registerRoutes(server) {
     { versions: '1.0 - 1.0', handler: healthcheckHandler, auth: LOGIN_IGNORED, noTenant: true }
   ])
 
-
-  // server.get('/dump', restify.plugins.conditionalHandler([
-  //   { version: '1.1.3', handler: dumpAllTransactionsV1 },
-  // ]));
-
-  // server.get('/dump/:txId', restify.plugins.conditionalHandler([
-  //   { version: '1.1.3', handler: dumpTransactionV1 },
-  // ]));
-
-  // server.get('/transactions', restify.plugins.conditionalHandler([
-  //   { version: '1.1.3', handler: mondatTransactionsV1 },
-  // ]));
   defineRoute(server, 'get', false, MONITOR_PREFIX, '/transactions', [
     { versions: '1.0 - 1.0', handler: mondatTransactionsV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
@@ -52,42 +46,22 @@ async function registerRoutes(server) {
   ])
 
 
-
-
-  // server.get('/transaction/:txId', restify.plugins.conditionalHandler([
-  //   { version: '1.1.3', handler: transactionStatusV1 },
-  // ]));
   defineRoute(server, 'get', false, MONITOR_PREFIX, '/transaction/:txId', [
     { versions: '1.0 - 1.0', handler: transactionStatusV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
-
-  // server.get('/pipelines', restify.plugins.conditionalHandler([
-  //   { version: '1.1.3', handler: listPipelinesV1 },
-  // ]));
   defineRoute(server, 'get', false, MONITOR_PREFIX, '/pipelines', [
     { versions: '1.0 - 1.0', handler: listPipelinesV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
   defineRoute(server, 'post', false, MONITOR_PREFIX, '/pipeline/draft', [
     { versions: '1.0 - 1.0', handler: savePipelineDraftV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
-
-  // server.get('/pipeline/:pipeline/description', restify.plugins.conditionalHandler([
-  //   { version: '1.1.3', handler: pipelineDescriptionV1 },
-  // ]));
   defineRoute(server, 'get', false, MONITOR_PREFIX, '/pipeline/:pipeline/description', [
     { versions: '1.0 - 1.0', handler: pipelineDescriptionV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
   defineRoute(server, 'get', false, MONITOR_PREFIX, '/pipeline/:pipeline/definition', [
     { versions: '1.0 - 1.0', handler: pipelineDefinitionV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
-  // defineRoute(server, 'put', false, MONITOR_PREFIX, '/pipeline/details', [
-  //   { versions: '1.0 - 1.0', handler: savePipelineDetailsV1, auth: LOGIN_IGNORED, noTenant: true }
-  // ])
 
-
-  // server.get(`${MONDAT_PREFIX}/nodes`, restify.plugins.conditionalHandler([
-  //   { version: '1.1.3', handler: listNodesV1 },
-  // ]));
   defineRoute(server, 'get', false, MONITOR_PREFIX, '/nodes', [
     { versions: '1.0 - 1.0', handler: listNodesV1, auth: LOGIN_IGNORED, noTenant: true }
   ])

@@ -1,3 +1,9 @@
+/* Copyright Tooltwist Innovations Limited - All Rights Reserved
+ * This file is part of DATP and as such is proprietary and confidential software.
+ * Unauthorized copying of this file, via any medium is strictly prohibited. All
+ * rights reserved. No warranty, explicit or implicit, provided. In no event shall
+ * the author or owner be liable for any claim or damages.
+ */
 /*
  *  Master server.
  */
@@ -5,13 +11,10 @@ import restify from 'restify'
 import NodeRegister from '../DATP/NodeRegister'
 import me from '../ATP/me'
 import dbNode from '../database/dbNode'
-// import healthcheck from './healthcheck'
 import mondat from './mondat'
 
 async function registerSlaveV1(req, res) {
   // console.log(`registerSlaveV1()`)
-  // console.log(`req.params=`, req.params)
-  // console.log(`req.body=`, req.body)
 
   const nodeStatus = req.body
 
@@ -27,18 +30,13 @@ async function registerSlaveV1(req, res) {
 
 async function registerAsMaster(server) {
   // console.log(`registerAsMaster()`)
-  // const datpMasterEndpoint = await juice.string('datp.masterEndpoint', juice.MANDATORY)
-  // console.log(`datpMasterEndpoint=`, datpMasterEndpoint)
 
-  // healthcheck.registerRoutes(server)
   mondat.registerRoutes(server)
 
   // Initialize the name, etc
   const nodeId = await me.getNodeId()
   const name = await me.getName()
   const description = await me.getDescription()
-  // console.log(`Y nodeId=`, nodeId)
-  // console.log(`Y name=`, name)
 
   // Register this master node
   const masterNode = {

@@ -1,4 +1,9 @@
-// import DATP from '../DATP/datp'
+/* Copyright Tooltwist Innovations Limited - All Rights Reserved
+ * This file is part of DATP and as such is proprietary and confidential software.
+ * Unauthorized copying of this file, via any medium is strictly prohibited. All
+ * rights reserved. No warranty, explicit or implicit, provided. In no event shall
+ * the author or owner be liable for any claim or damages.
+ */
 import DATP from '../DATP/datp'
 import corsMiddleware from "restify-cors-middleware";
 import figlet from 'figlet'
@@ -30,30 +35,11 @@ async function startMasterServer(options) {
   });
   server.pre(cors.preflight);
   server.use(cors.actual);
-  // server.pre(cors.preflight)
-  // server.use(cors.actual)
 
   // See http://restify.com/docs/plugins-api/#queryparser
   server.use(restify.plugins.queryParser({ mapParams: false }));
   server.use(restify.plugins.bodyParser({ mapParams: false }));
 
-
-  // A few routes
-  // function sendV1(req, res, next) {
-  //   res.send('hello: ' + req.params.name);
-  //   return next();
-  // }
-
-  // function sendV2(req, res, next) {
-  //   res.send({ hello: req.params.name });
-  //   return next();
-  // }
-
-  // server.get('/hello/:name', restify.plugins.conditionalHandler([
-  //   { version: '1.1.3', handler: sendV1 },
-  //   { version: '2.0.0', handler: sendV2 }
-  // ]));
-  // const server = await restifyMasterServer()
   await DATP.run()
   await DATP.routesForRestify(server)
   await DATP.registerAsMaster(server)
@@ -77,10 +63,6 @@ async function startMasterServer(options) {
   const port = await juice.int('datp.port', 8080)
   console.log(`Starting server on port ${port}`)
   server.listen(port, '0.0.0.0');
-// })().catch(e => {
-//   console.error(e)
-// })
-
   return server
 }
 
@@ -89,7 +71,6 @@ async function serveMondat(server) {
   console.log(`Hosting Mondat application at http://0.0.0.0:${port}/mondat`)
   const staticFilesDir = `${__dirname}/../../MONDAT/dist`
   console.log(`staticFilesDir=`, staticFilesDir)
-  // server.get('/mondat/*', restify.plugins.serveStaticFiles(staticFilesDir))
   server.get('/*', restify.plugins.serveStaticFiles(staticFilesDir))
 }
 

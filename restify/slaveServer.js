@@ -1,6 +1,10 @@
+/* Copyright Tooltwist Innovations Limited - All Rights Reserved
+ * This file is part of DATP and as such is proprietary and confidential software.
+ * Unauthorized copying of this file, via any medium is strictly prohibited. All
+ * rights reserved. No warranty, explicit or implicit, provided. In no event shall
+ * the author or owner be liable for any claim or damages.
+ */
 import DATP from '../DATP/datp'
-// import dateRunner from './date-runner'
-// import * as corsMiddleware from "restify-cors-middleware";
 import corsMiddleware from "restify-cors-middleware";
 import figlet from 'figlet'
 import juice from '@tooltwist/juice-client'
@@ -31,8 +35,6 @@ async function startSlaveServer(options) {
   });
   server.pre(cors.preflight);
   server.use(cors.actual);
-  // server.pre(cors.preflight)
-  // server.use(cors.actual)
 
   // See http://restify.com/docs/plugins-api/#queryparser
   server.use(restify.plugins.queryParser({ mapParams: false }));

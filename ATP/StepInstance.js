@@ -9,7 +9,6 @@ import StepTypes from './StepTypeRegister'
 import Step, { STEP_ABORTED, STEP_FAILED, STEP_INTERNAL_ERROR, STEP_RUNNING, STEP_SLEEPING, STEP_SUCCESS } from './Step'
 import dbPipelines from "../database/dbPipelines";
 import XData from "./XData";
-import dbArtifact from "../database/dbArtifact";
 import { STEP_TYPE_PIPELINE } from './StepTypeRegister'
 import Scheduler2, { DEFAULT_QUEUE } from "./Scheduler2/Scheduler2";
 import TransactionCache from "./Scheduler2/TransactionCache";
@@ -269,26 +268,26 @@ export default class StepInstance {
     return this.#fullSequence
   }
 
-  /**
-   * Persist a value of interest used by the step
-   * @param {String} name
-   * @param {String | Number | Object} value
-   */
-  async artifact(name, value) {
-    // console.log(`StepInstance.artifact(${name}, ${value})`)
+  // /**
+  //  * Persist a value of interest used by the step
+  //  * @param {String} name
+  //  * @param {String | Number | Object} value
+  //  */
+  // async artifact(name, value) {
+  //   // console.log(`StepInstance.artifact(${name}, ${value})`)
 
-    switch (typeof(value)) {
-      case 'string':
-        break
-      case 'number':
-        value = value.toString()
-        break;
-      default:
-        value = 'JSON:' + JSON.stringify(value, '', 2)
-        break
-    }
-    await dbArtifact.saveArtifact(this.#stepId, name, value)
-  }
+  //   switch (typeof(value)) {
+  //     case 'string':
+  //       break
+  //     case 'number':
+  //       value = value.toString()
+  //       break;
+  //     default:
+  //       value = 'JSON:' + JSON.stringify(value, '', 2)
+  //       break
+  //   }
+  //   await dbArtifact.saveArtifact(this.#stepId, name, value)
+  // }
 
   _sanitizedOutput(stepOutput) {
     // Sanitize the output to an object (not TXData, not null)
@@ -472,7 +471,7 @@ export default class StepInstance {
     // Write to the transaction / step
     this.error(msg)
     await this.log(Logbook.LEVEL_TRACE, `Step reported bad definition [${msg}]`)
-    await this.artifact('badStepDefinition', this.#stepDefinition)
+    // await this.artifact('badStepDefinition', this.#stepDefinition)
 
     // Finish the step
     const status = STEP_INTERNAL_ERROR
@@ -536,7 +535,7 @@ export default class StepInstance {
     if (pos >= 0) {
       trace = trace.substring(0, pos)
     }
-    await this.artifact('exception', trace)
+    // await this.artifact('exception', trace)
 
     // Finish the step
     const status = STEP_INTERNAL_ERROR
@@ -670,14 +669,14 @@ sleepDuration = 15
   }
 
   debug(...args) {
-    const { message, source } = this.checkLogParams(args)
+    const { message, source } = this._checkLogParams(args)
     const level = Transaction.LOG_LEVEL_DEBUG
     this.#logBuffer.push({ level, source, message })
   }
 
   // trace(message, source=null) {
   trace(...args) {
-    const { message, source } = this.checkLogParams(args)
+    const { message, source } = this._checkLogParams(args)
     const level = Transaction.LOG_LEVEL_TRACE
     assert(typeof(source) !== 'undefined')
     assert(typeof(message) !== 'undefined')
@@ -685,7 +684,7 @@ sleepDuration = 15
   }
 
   warning(...args) {
-    const { message, source } = this.checkLogParams(args)
+    const { message, source } = this._checkLogParams(args)
     const level = Transaction.LOG_LEVEL_WARNING
     assert(typeof(source) !== 'undefined')
     assert(typeof(message) !== 'undefined')
@@ -693,7 +692,7 @@ sleepDuration = 15
   }
 
   error(...args) {
-    const { message, source } = this.checkLogParams(args)
+    const { message, source } = this._checkLogParams(args)
     const level = Transaction.LOG_LEVEL_ERROR
     assert(typeof(source) !== 'undefined')
     assert(typeof(message) !== 'undefined')
@@ -724,8 +723,8 @@ sleepDuration = 15
     return s
   }
 
-  checkLogParams(args) {
-    // console.log(`checkLogParams`, args)
+  _checkLogParams(args) {
+    // console.log(`_checkLogParams`, args)
     let message = ''
     let source = this.#rollingBack ? Transaction.LOG_SOURCE_ROLLBACK : Transaction.LOG_SOURCE_INVOKE
     if (args.length > 0) {

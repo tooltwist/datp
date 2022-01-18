@@ -1,3 +1,9 @@
+/* Copyright Tooltwist Innovations Limited - All Rights Reserved
+ * This file is part of DATP and as such is proprietary and confidential software.
+ * Unauthorized copying of this file, via any medium is strictly prohibited. All
+ * rights reserved. No warranty, explicit or implicit, provided. In no event shall
+ * the author or owner be liable for any claim or damages.
+ */
 import StepInstance from "../StepInstance"
 import XData from "../XData"
 import CallbackRegister from "./CallbackRegister"
@@ -152,46 +158,6 @@ export default class Worker2 {
     }
   }
 
-  // async processEvent(event) {
-  //   // console.log(`processEvent()`, event)
-  //   // const type = event.getType()
-  //   const eventType = event.eventType
-  //   delete event.eventType
-
-
-  //   // If this event came from a different node, then assume the transaction
-  //   // was modified over there, and so the transaction in our cache is dirty.
-  //   //ZZZZZ
-
-
-  //   // Decide how to handle this event.
-  //   switch (eventType) {
-  //     case Scheduler2.NULL_EVENT:
-  //       // Ignore this
-  //       break
-
-  //     // case Scheduler2.TRANSACTION_START_EVENT:
-  //     //   await this.TRANSACTION_START(event.data)
-  //     //   break
-
-  //     case Scheduler2.STEP_START_EVENT:
-  //       await this.processEvent_StepStart(event)
-  //       break
-
-  //     case Scheduler2.STEP_COMPLETED_EVENT:
-  //       await this.processEvent_StepCompleted(event)
-  //       break
-
-  //     case Scheduler2.TRANSACTION_COMPLETED_EVENT:
-  //       await this.processEvent_TransactionCompleted(event)
-  //       break
-
-  //     // case
-  //     default:
-  //       throw new Error(`Unknown event type ${eventType}`)
-  //   }
-  // }
-
   async stop() {
     // This worker won't notice this yet, but will after it finishes
     // blocking on it's read of the event queue.
@@ -222,8 +188,6 @@ export default class Worker2 {
     try {
       assert(typeof(event.txId) === 'string')
       assert(typeof(event.stepId) === 'string')
-      // assert(typeof(event.onComplete) === 'object')
-      // assert(typeof(event.onComplete.completionToken) === 'string')
 
       const txId = event.txId
       const stepId = event.stepId
@@ -234,11 +198,6 @@ export default class Worker2 {
       const stepData = tx.stepData(stepId)
       assert(stepData.status === STEP_QUEUED)
       assert(stepData.fullSequence)
-
-// console.log(`----------------------------------------------------------------`)
-// console.log(`event.onComplete=`, event.onComplete)
-// console.log(`stepData=`, stepData)
-
 
       const trace = (typeof(txData.metadata.traceLevel) === 'number') && txData.metadata.traceLevel > 0
       if (trace || this.#debugLevel > 0) {
@@ -319,11 +278,6 @@ export default class Worker2 {
 
       // See what we saved before calling the step
       const tx = await TransactionCache.findTransaction(txId, true)
-      // const obj = tx.asObject()
-      // console.log(`transaction ${txId} is`, obj)
-
-      // const step = obj.steps[stepId]
-      // console.log(`step=`, step)
       const stepData = tx.stepData(stepId)
       // console.log(`stepData for step ${stepId}`, stepData)
       assert(

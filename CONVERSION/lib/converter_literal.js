@@ -5,7 +5,6 @@
  * the author or owner be liable for any claim or damages.
  */
 
-
 export default class {
 
   async convert(handler, destObject, toField, source, description) {
