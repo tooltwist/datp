@@ -56,7 +56,7 @@ class WaitStep extends Step {
     // switch is set, we can proceed to the next step
     if (value) {
       // Time to complete the step and send a result
-      const note = `Switch ${this.#switch} set - proceeding`
+      const note = `SWITCH ${this.#switch} IS SET - PROCEED TO THE NEXT STEP`
       instance.trace(note)
       const output = { ...input }
       delete output.instruction // ZZZZZ should leave output as null, for passthrough
@@ -64,7 +64,7 @@ class WaitStep extends Step {
       delete output.qrcode
       return await instance.succeeded(note, output)
     } else {
-      instance.trace(`Switch ${this.#switch} set - sleep a while`)
+      instance.trace(`NEED TO WAIT FOR SWITCH ${this.#switch}`)
       return await instance.retryLater(this.#switch)
     }
 

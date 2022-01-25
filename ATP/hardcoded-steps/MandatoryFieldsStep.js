@@ -147,7 +147,7 @@ class MandatoryFieldsStep extends Step {
           }
         }
         if (!ok) {
-          errors.push(`Invalid value for field [${fieldName}]`)
+          errors.push(`Invalid value for field [${fieldName}=${actualValue}]. Acceptable values: ${values}`)
         }
       }
     }

@@ -79,7 +79,7 @@ test.serial('Call ping4 test transaction', async t => {
 
   if (endTime !== 0) {
     const elapsed = endTime - startTime
-    console.log(`ping4 completed in ${elapsed}ms`)
+    // console.log(`ping4 completed in ${elapsed}ms`)
   }
   await scheduler.destroy()
 })

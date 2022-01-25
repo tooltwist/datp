@@ -93,8 +93,8 @@ class MapFieldsStep extends Step {
     // Convert the objects
     const handler = new ConversionHandler()
     handler.addSource('request', null, data)
-    const newData = handler.convert(mapping, targetFieldIndex)
-    console.log(`newData=`, newData)
+    const newData = handler.convert(instance, mapping, targetFieldIndex)
+    // instance.debug(`newData=`, newData)
 
 
     if (data._mapFields) {

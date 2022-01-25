@@ -42,7 +42,7 @@ export default class ConversionHandler {
    * @param {[field]} targetFieldIndex Optional [ fieldpath => { name, type, mandatory } }
    * @returns
    */
-  convert(rules, targetFieldIndex) {
+  convert(instance, rules, targetFieldIndex) {
     // console.log(`handler.convert()`)
     // console.log(`rules=`, rules)
     // const obj = { }
@@ -61,7 +61,7 @@ export default class ConversionHandler {
       if (!converter) {
         converter = this.defaultConverter
       }
-      converter.convert(this, this.#target, rule.field, rule.source, description, targetType)
+      converter.convert(instance, this, this.#target, rule.field, rule.source, description, targetType)
     }
 
     return this.#target

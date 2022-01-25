@@ -17,14 +17,17 @@ export default class {
    * @param {*} description
    * @param {String} targetType Optional type for the destination field.
    */
-  async convert(handler, destObject, toField, source, description, targetType) {
+  async convert(instance, handler, destObject, toField, source, description, targetType) {
     // console.log(`converter_copy.convert(${toField}, ${source}, ${targetType})`)
     try {
       const value = handler.getSourceValue(source)
+      instance.debug(`     COPY ${source} -> ${toField}  (${value})`)
 
       // Special handling for amount3
       if (targetType && targetType === 'amount') {
+        instance.debug(`     - target is amount`)
         if (typeof(value) === 'object' && typeof(value.unscaledAmount) === 'number') {
+          instance.debug(`     - have value.unscaledAmount`)
           // Copy from { currency, unscaledAmount, scale } to number
           let scale = value.scale ? value.scale : 2
           let amount = value.unscaledAmount
@@ -32,8 +35,10 @@ export default class {
             amount /= 10.0
           }
           // const amount = value.unscaledAmount / scale
+          instance.debug(`     - convert from amount3 to number ${amount}`)
           handler.setValue(destObject, toField, amount)
         } else {
+          instance.debug(`     - do NOT have value.unscaledAmount`)
           handler.setValue(destObject, toField, value)
         }
       } else {

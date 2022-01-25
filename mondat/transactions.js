@@ -75,7 +75,7 @@ export async function transactionStatusV1(req, res, next) {
 
   // Get transaction details
   const txData = tx.txData()
-  console.log(`txData=`, txData)
+  // console.log(`txData=`, txData)
 
   // Create a list of steps
   const ids = tx.stepIds()

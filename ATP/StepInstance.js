@@ -572,7 +572,7 @@ export default class StepInstance {
     if (VERBOSE) console.log(`StepInstance.progressReport()`, object)
 
     // Sync any buffered logs
-    this.trace(object, Transaction.LOG_SOURCE_PROGRESS_REPORT)
+    this.trace(JSON.stringify(object, '', 2), Transaction.LOG_SOURCE_PROGRESS_REPORT)
     await this.syncLogs()
 
     // Save the progressReport

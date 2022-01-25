@@ -53,7 +53,7 @@ class StepTypeRegister {
   async factory(type, definition) {
     const stepModule = this.index[type]
     if (!stepModule) {
-      console.log(`this.index=`, this.index)
+      // console.log(`this.index=`, this.index)
       throw new Error(`Unknown step type [${type}]`)
     }
     const step = await stepModule.stepModule.factory(definition)

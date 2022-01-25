@@ -70,7 +70,7 @@ export default class Step {
   async invoke_internal(instance) {
     // console.log(`\n\n\n\n\n INVOKE STEP \n${new Error('YARP').stack}\n\n\n\n`)
     const hackSource = 'system' // Not sure why, but using Transaction.LOG_SOURCE_SYSTEM causes a compile error
-    instance.trace(`Starting as step ${instance.getStepId()}`, hackSource)
+    instance.trace(`Invoke step ${instance.getStepId()}`, hackSource)
     await instance.syncLogs()
 
     // Start the step in the background, immediately

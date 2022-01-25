@@ -135,7 +135,7 @@ test.serial('Large number of ping3 transactions, single worker', async t => {
   if (endTime) {
     const elapsed = endTime - startTime
     const each = elapsed / NUM_TESTS
-    console.log(`Completed ${NUM_TESTS} ping3 transactions in ${elapsed}ms  (${each}ms per ping, single threaded)`)
+    // console.log(`Completed ${NUM_TESTS} ping3 transactions in ${elapsed}ms  (${each}ms per ping, single threaded)`)
   }
 })
 
@@ -213,5 +213,5 @@ test.serial('Large number of ping3 transactions, multiple workers', async t => {
 
   const elapsed = endTime - startTime
   const each = elapsed / NUM_TESTS
-  console.log(`Completed ${NUM_TESTS} ping3 transactions in ${elapsed}ms  (${each}ms per ping, ${NUM_WORKERS} workers)`)
+  // console.log(`Completed ${NUM_TESTS} ping3 transactions in ${elapsed}ms  (${each}ms per ping, ${NUM_WORKERS} workers)`)
 })

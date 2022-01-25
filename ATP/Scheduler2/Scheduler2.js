@@ -222,7 +222,17 @@ export default class Scheduler2 {
 
 
       // Persist the transaction details
-      const tx = await TransactionCache.newTransaction(metadata.owner, metadata.externalId, metadata.transactionType)
+      let tx
+      try {
+        tx = await TransactionCache.newTransaction(metadata.owner, metadata.externalId, metadata.transactionType)
+      } catch (e) {
+        if (e.code === 'ER_DUP_ENTRY') {
+          // A transaction already exists with this externalId
+          throw new Error(`A transaction with externalId ${metadata.externalId} already exists`)
+        }
+        throw e
+      }
+
       const def = {
         transactionType: metadata.transactionType,
         nodeGroup: metadata.nodeGroup,

@@ -7,8 +7,9 @@
 
 export default class {
 
-  async convert(handler, destObject, toField, source, description) {
+  async convert(instance, handler, destObject, toField, source, description) {
     // console.log(`converter_literal.convert(${toField}, ${source})`)
+    instance.debug(`  LITERAL ${source} -> ${toField}`)
     const value = source
     handler.setValue(destObject, toField, value)
   }

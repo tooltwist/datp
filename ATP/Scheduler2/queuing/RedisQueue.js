@@ -41,6 +41,7 @@ export class RedisQueue extends QueueManager {
     if (initialRedisConnection) {
       VERBOSE && console.log(`{duplicating existing REDIS connection}`.gray)
       this.#redis = initialRedisConnection.duplicate()
+      // this.#redis = initialRedisConnection
       return
     }
     VERBOSE && console.log(`{getting initial REDIS connection}`.gray)

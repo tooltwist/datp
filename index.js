@@ -87,7 +87,7 @@ export async function startTransactionRoute(req, res, next, tenant, transactionT
   if (data) {
     // Use the supplied value
     // console.log(`Use provided data`)
-  } else if (req.body &&req.body.data) {
+  } else if (req.body && req.body.data) {
     data = req.body.data
   } else {
     data = { }
