@@ -8,7 +8,7 @@ import Step from "../Step"
 import StepTypes from '../StepTypeRegister'
 
 const MAX_DELAY = 60 * 1000 // One minute
-const VERBOSE = true
+const VERBOSE = 0
 
 class RandomDelayStep extends Step {
   #minDelay
@@ -41,19 +41,17 @@ class RandomDelayStep extends Step {
   }//- contructor
 
   async invoke(instance) {
+    instance.trace(`RandomDelayStep (${instance.getStepId()})`)
     if (VERBOSE) {
-      // instance.trace(`*****`)
-      instance.trace(`RandomDelayStep (${instance.getStepId()})`)
-      // instance.trace(`*****`)
-      // console.log(`this=`, this)
-      // console.log(`instance=`, instance)
+      console.log(`RandomDelayStep (${instance.getStepId()})`)
     }
 
     const output = instance.getDataAsObject()
     const range = (this.#maxDelay - this.#minDelay)
     const delay = this.#minDelay + Math.floor(Math.random() * range)
+    instance.trace(`Delay ${delay}ms (${this.#minDelay}ms - ${this.#maxDelay}ms)`)
     if (VERBOSE) {
-      instance.trace(`Delay ${delay}ms (${this.#minDelay}ms - ${this.#maxDelay}ms)`)
+      console.log(`Delay ${delay}ms (${this.#minDelay}ms - ${this.#maxDelay}ms)`)
     }
 
     // logbook.log(this.stepId, `RandomDelayStep.invoke()`, {
@@ -61,18 +59,17 @@ class RandomDelayStep extends Step {
     //   data: instance.data,
     // })
 
-    setTimeout(() => {
+    setTimeout(async () => {
       // instance.trace(`Delay complete`)
       const note = `${delay}ms`
       // output.delayTime = note
-      instance.succeeded(note, output)
+      if (VERBOSE) {
+        console.log(`Random delay completed`)
+      }
+      return await instance.succeeded(note, output)
     }, delay)
   }//- invoke
-
-  // async getNote() {
-  //   return 'NoNoye'
-  // }
-}//- class Dummy
+}//- class RandomDelayStep
 
 async function register() {
   await StepTypes.register(myDef, 'util/delay', 'Delay a random period of time')

@@ -37,8 +37,18 @@ async function startSlaveServer(options) {
   server.use(cors.actual);
 
   // See http://restify.com/docs/plugins-api/#queryparser
-  server.use(restify.plugins.queryParser({ mapParams: false }));
-  server.use(restify.plugins.bodyParser({ mapParams: false }));
+  server.use(restify.plugins.queryParser({
+    mapParams: false
+  }));
+
+  // See http://restify.com/docs/plugins-api/#bodyparser
+  server.use(restify.plugins.bodyParser({
+    mapParams: false,
+    maxBodySize: 10 * 1024 * 1024, // 10 MB
+    mapFiles: true,
+    keepExtensions: true,
+  }));
+
 
 
   // Start DATP (Distributed Asynchronous Transaction Engine)

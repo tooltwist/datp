@@ -109,7 +109,7 @@ export async function startTransactionRoute(req, res, next, tenant, transactionT
   const reply = metadata.reply
 
   // Let's see how we should reply - shortpoll (default), longpoll, or webhook (http...)
-  let callback = DO_NOT_RETURN_TX_RESULT_CALLBACK
+  let callback = RETURN_TX_STATUS_WITH_LONGPOLL_CALLBACK
   let context = { }
   let isLongpoll = false
   switch (reply) {
@@ -161,7 +161,7 @@ export async function startTransactionRoute(req, res, next, tenant, transactionT
     return LongPoll.returnTxStatusAfterDelayWithPotentialEarlyReply(tenant, tx.getTxId(), res, next)
   } else {
 
-    // Reply with the current transactin status
+    // Reply with the current transaction status
     let summary = await Transaction.getSummary(tenant, tx.getTxId())
     if (VERBOSE) console.log(`DATP.startTransactionRoute() - IMMEDIATE REPLY`)
     res.send(summary)
