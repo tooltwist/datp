@@ -7,6 +7,7 @@
 import { defineRoute, LOGIN_IGNORED } from '../extras/apiVersions'
 import { DATP_URL_PREFIX } from '../CONVERSION/lib/constants'
 import juice from '@tooltwist/juice-client'
+import { appVersion, datpVersion, buildTime } from '../build-version'
 
 let logHealthcheck = null
 
@@ -28,7 +29,12 @@ async function registerRoutes(server) {
     }
     var status = {
       subsystem: 'datp',
-      status: 'ok'
+      status: 'ok',
+
+      // Information inserted during Docker build.
+      appVersion,
+      datpVersion,
+      buildTime
     }
     return res.send(status);
   }
