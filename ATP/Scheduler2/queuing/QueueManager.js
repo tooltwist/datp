@@ -15,7 +15,7 @@ export class QueueManager {
   /**
    * @returns The item at the head of the queue, removed from the queue
    */
-  async dequeue(queueName) {
+  async dequeue(queues, numEvents, block=false) {
     throw new Error(`Fatal error: class ${this.constructor.name} does not extend QueueManager.dequeue()`)
   }
 
@@ -25,5 +25,13 @@ export class QueueManager {
 
   async close(queueName) {
     throw new Error(`Fatal error: class ${this.constructor.name} does not extend QueueManager.close()`)
+  }
+
+  async queueLengths() {
+    throw new Error(`Fatal error: class ${this.constructor.name} does not extend QueueManager.queueLengths()`)
+  }
+
+  async repeatEventDetection(key, interval) {
+    throw new Error(`Fatal error: class ${this.constructor.name} does not extend QueueManager.repeatEventDetection()`)
   }
 }

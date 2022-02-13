@@ -5,7 +5,7 @@
  * the author or owner be liable for any claim or damages.
  */
 import DATP from '../DATP/datp'
-import corsMiddleware from "restify-cors-middleware";
+import corsMiddleware from "restify-cors-middleware2";
 import figlet from 'figlet'
 import juice from '@tooltwist/juice-client'
 import me from '../ATP/me'

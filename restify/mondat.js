@@ -4,10 +4,12 @@
  * rights reserved. No warranty, explicit or implicit, provided. In no event shall
  * the author or owner be liable for any claim or damages.
  */
+import { MONITOR_URL_PREFIX } from '../CONVERSION/lib/constants';
 import { defineRoute, LOGIN_IGNORED } from '../extras/apiVersions'
 // import { getMidiValuesV1 } from '../mondat/midi';
 import { listNodesV1 } from '../mondat/nodes'
-import { listPipelinesV1, pipelineDefinitionV1, pipelineDescriptionV1, savePipelineDraftV1 } from '../mondat/pipelines'
+import { getNodeStatsV1 } from '../mondat/nodeStats';
+import { listPipelinesV1, pipelineDefinitionV1, pipelineDescriptionV1, pipelineVersionsV1, savePipelineDraftV1 } from '../mondat/pipelines'
 import { getRecentPerformanceV1 } from '../mondat/recentPerformance';
 import { getStepInstanceDetailsV1 } from '../mondat/stepInstances';
 import { deleteTestCasesV1, getTestCasesV1, saveTestCasesV1 } from '../mondat/testCases';
@@ -15,95 +17,83 @@ import { deleteTransactionMappingsV1, getTransactionMappingsV1, saveTransactionM
 import { mondatTransactionsV1, transactionStatusV1 } from '../mondat/transactions';
 
 
-// server.get(`${ROUTE_PREFIX}/${ROUTE_VERSION}/healthcheck`, async function (req, res, next) {
-async function healthcheckHandler(req, res, next) {
-  // console.log("Running health check...");
-  var status = {
-    subsystem: 'mondat',
-    status: 'ok'
-  }
-  return res.send(status);
-}
 
 
 async function registerRoutes(server) {
 
-  /*
-  *	Healthcheck page.
-  */
-  const MONITOR_PREFIX = '/mondat'
 
-  defineRoute(server, 'get', false, MONITOR_PREFIX, '/healthcheck', [
-    { versions: '1.0 - 1.0', handler: healthcheckHandler, auth: LOGIN_IGNORED, noTenant: true }
-  ])
-
-  defineRoute(server, 'get', false, MONITOR_PREFIX, '/transactions', [
+  defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/transactions', [
     { versions: '1.0 - 1.0', handler: mondatTransactionsV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
 
-  defineRoute(server, 'get', false, MONITOR_PREFIX, '/stepInstance/:stepId', [
+  defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/stepInstance/:stepId', [
     { versions: '1.0 - 1.0', handler: getStepInstanceDetailsV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
 
-
-  defineRoute(server, 'get', false, MONITOR_PREFIX, '/transaction/:txId', [
+  defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/transaction/:txId', [
     { versions: '1.0 - 1.0', handler: transactionStatusV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
-  defineRoute(server, 'get', false, MONITOR_PREFIX, '/pipelines', [
+  defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/pipelines', [
     { versions: '1.0 - 1.0', handler: listPipelinesV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
-  defineRoute(server, 'post', false, MONITOR_PREFIX, '/pipeline/draft', [
+  defineRoute(server, 'post', false, MONITOR_URL_PREFIX, '/pipeline/draft', [
     { versions: '1.0 - 1.0', handler: savePipelineDraftV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
-  defineRoute(server, 'get', false, MONITOR_PREFIX, '/pipeline/:pipeline/description', [
+  defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/pipeline/:pipeline', [
+    { versions: '1.0 - 1.0', handler: pipelineVersionsV1, auth: LOGIN_IGNORED, noTenant: true }
+  ])
+  defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/pipeline/:pipeline/description', [
     { versions: '1.0 - 1.0', handler: pipelineDescriptionV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
-  defineRoute(server, 'get', false, MONITOR_PREFIX, '/pipeline/:pipeline/definition', [
+  defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/pipeline/:pipeline/definition', [
     { versions: '1.0 - 1.0', handler: pipelineDefinitionV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
 
-  defineRoute(server, 'get', false, MONITOR_PREFIX, '/nodes', [
+  defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/nodes', [
     { versions: '1.0 - 1.0', handler: listNodesV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
 
   /*
    *  Transaction -> Pipeline mapping
    */
-  defineRoute(server, 'get', false, MONITOR_PREFIX, '/transactionMapping', [
+  defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/transactionMapping', [
     { versions: '1.0 - 1.0', handler: getTransactionMappingsV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
-  defineRoute(server, 'post', false, MONITOR_PREFIX, '/transactionMapping', [
+  defineRoute(server, 'post', false, MONITOR_URL_PREFIX, '/transactionMapping', [
     { versions: '1.0 - 1.0', handler: saveTransactionMappingsV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
-  defineRoute(server, 'delete', false, MONITOR_PREFIX, '/transactionMapping/:transactionType', [
+  defineRoute(server, 'delete', false, MONITOR_URL_PREFIX, '/transactionMapping/:transactionType', [
     { versions: '1.0 - 1.0', handler: deleteTransactionMappingsV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
 
   /*
    *  Test cases
    */
-  defineRoute(server, 'get', false, MONITOR_PREFIX, '/testCases', [
+  defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/testCases', [
     { versions: '1.0 - 1.0', handler: getTestCasesV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
-  defineRoute(server, 'post', false, MONITOR_PREFIX, '/testCase', [
+  defineRoute(server, 'post', false, MONITOR_URL_PREFIX, '/testCase', [
     { versions: '1.0 - 1.0', handler: saveTestCasesV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
-  defineRoute(server, 'delete', false, MONITOR_PREFIX, '/testCase/:name', [
+  defineRoute(server, 'delete', false, MONITOR_URL_PREFIX, '/testCase/:name', [
     { versions: '1.0 - 1.0', handler: deleteTestCasesV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
 
   // /*
   //  *  Midi values
   //  */
-  // defineRoute(server, 'get', false, MONITOR_PREFIX, '/midiValues', [
+  // defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/midiValues', [
   //   { versions: '1.0 - 1.0', handler: getMidiValuesV1, auth: LOGIN_IGNORED, noTenant: true }
   // ])
 
   /*
    *  Performance
    */
-  defineRoute(server, 'get', false, MONITOR_PREFIX, '/:nodeId/recentPerformance', [
+  defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/:nodeId/recentPerformance', [
     { versions: '1.0 - 1.0', handler: getRecentPerformanceV1, auth: LOGIN_IGNORED, noTenant: true }
+  ])
+  defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/nodeStats', [
+    { versions: '1.0 - 1.0', handler: getNodeStatsV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
 
 

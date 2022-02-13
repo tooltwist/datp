@@ -12,9 +12,11 @@
     "easymidi": "^2.0.5",
     "esm": "^3.2.25",
     "figlet": "^1.5.2",
-    "mysql2": "^2.3.0",
-    "restify": "^8.5.1",
-    "restify-cors-middleware": "^1.1.1",
+    "hot-shots": "^8.5.2",
+    "ioredis": "^4.28.2",
+    "mysql2": "^2.3.3",
+    "restify": "^8.6.1",
+    "restify-cors-middleware2": "^2.1.2",
     "semver": "^7.3.5",
     "underscore.string": "^3.3.5"
   }

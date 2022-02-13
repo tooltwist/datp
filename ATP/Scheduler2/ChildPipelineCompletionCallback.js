@@ -7,12 +7,13 @@
 import XData from '../XData'
 import assert from 'assert'
 import TransactionCache from './TransactionCache'
-import Scheduler2, { DEFAULT_QUEUE } from './Scheduler2'
+import Scheduler2 from './Scheduler2'
 import { STEP_FAILED } from '../Step'
 import { ROUTERSTEP_VERBOSE } from '../hardcoded-steps/RouterStep'
 import indentPrefix from '../../lib/indentPrefix'
 import { PIPELINES_VERBOSE } from '../hardcoded-steps/PipelineStep'
 import Transaction from './Transaction'
+import { schedulerForThisNode } from '../..'
 
 export const CHILD_PIPELINE_COMPLETION_CALLBACK = 'childPipelineComplete'
 
@@ -92,8 +93,8 @@ export async function childPipelineCompletionCallback (callbackContext, nodeInfo
 
 
         // Send the event back to whoever started this step
-        const queueToParent = Scheduler2.standardQueueName(parentStep.onComplete.nodeGroup, DEFAULT_QUEUE)
-        await Scheduler2.enqueue_StepCompleted(queueToParent, {
+        const queueToParent = Scheduler2.groupQueueName(parentStep.onComplete.nodeGroup)
+        await schedulerForThisNode.enqueue_StepCompleted(queueToParent, {
           txId,
           // parentStepId: '-',
           stepId: parentStepId,

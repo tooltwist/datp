@@ -21,6 +21,7 @@ import Transaction from './ATP/Scheduler2/Transaction'
 import { deepCopy } from './lib/deepCopy'
 import LongPoll from './ATP/Scheduler2/LongPoll'
 import { RETURN_TX_STATUS_WITH_LONGPOLL_CALLBACK } from './ATP/Scheduler2/returnTxStatusViaLongpollCallback'
+import { DuplicateExternalIdError } from './ATP/Scheduler2/TransactionPersistance'
 
 const VERBOSE = 0
 
@@ -31,6 +32,7 @@ export const FormsAndFields = formsAndFields
 export const RouterStep = RouterStepInternal
 
 export const query = dbQuery
+export let schedulerForThisNode = null
 
 async function restifySlaveServer(options) {
   return slaveServer.startSlaveServer(options)
@@ -52,9 +54,9 @@ export async function goLive(server) {
 
   // Start the master Scheduler
   const MASTER_NODE_GROUP = 'master'
-  const scheduler = new Scheduler2(MASTER_NODE_GROUP, null)
+  schedulerForThisNode = new Scheduler2(MASTER_NODE_GROUP, null)
   // await scheduler.drainQueue()
-  await scheduler.start()
+  await schedulerForThisNode.start()
 }
 
 
@@ -146,10 +148,23 @@ export async function startTransactionRoute(req, res, next, tenant, transactionT
   // console.log(`metadataCopy=`, metadataCopy)
   // console.log(`dataCopy=`, dataCopy)
 
-  const tx = await Scheduler2.startTransaction({
-    metadata: metadataCopy,
-    data: dataCopy
-  })
+  let tx
+  try {
+    tx = await schedulerForThisNode.startTransaction({ metadata: metadataCopy, data: dataCopy })
+  } catch (e) {
+
+    // Return a message to the API caller
+    if (e instanceof DuplicateExternalIdError) {
+      res.send({
+        metadata: {
+          status: 'error',
+          message: `A transaction with this externalId already exists`
+        }
+      })
+      return next()
+    }
+    throw e
+  }
   // console.log(`tx=`, tx)
 
   if (isLongpoll) {

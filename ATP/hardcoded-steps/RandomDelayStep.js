@@ -6,6 +6,7 @@
  */
 import Step from "../Step"
 import StepTypes from '../StepTypeRegister'
+import pause from '../../lib/pause'
 
 const MAX_DELAY = 60 * 1000 // One minute
 const VERBOSE = 0
@@ -54,20 +55,12 @@ class RandomDelayStep extends Step {
       console.log(`Delay ${delay}ms (${this.#minDelay}ms - ${this.#maxDelay}ms)`)
     }
 
-    // logbook.log(this.stepId, `RandomDelayStep.invoke()`, {
-    //   level: logbook.LEVEL_DEBUG,
-    //   data: instance.data,
-    // })
-
-    setTimeout(async () => {
-      // instance.trace(`Delay complete`)
-      const note = `${delay}ms`
-      // output.delayTime = note
-      if (VERBOSE) {
-        console.log(`Random delay completed`)
-      }
-      return await instance.succeeded(note, output)
-    }, delay)
+    pause(delay)
+    const note = `${delay}ms`
+    if (VERBOSE) {
+      console.log(`Random delay completed`)
+    }
+    return await instance.succeeded(note, output)
   }//- invoke
 }//- class RandomDelayStep
 

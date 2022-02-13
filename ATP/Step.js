@@ -67,46 +67,6 @@ export default class Step {
 
   }//- constructor
 
-  async invoke_internal(instance) {
-    // console.log(`\n\n\n\n\n INVOKE STEP \n${new Error('YARP').stack}\n\n\n\n`)
-    const hackSource = 'system' // Not sure why, but using Transaction.LOG_SOURCE_SYSTEM causes a compile error
-    instance.trace(`Invoke step ${instance.getStepId()}`, hackSource)
-    await instance.syncLogs()
-
-    // Start the step in the background, immediately
-    setTimeout(async () => {
-      try {
-        await this.invoke(instance) // Provided by the step implementation
-      } catch (e) {
-// console.log(`\n\n\nException in Step:`, e)
-//         instance.trace(``)
-//         // console.log(`Exception occurred while running step ${instance.getStepId()}:`)
-//         instance.trace(`Exception occurred while running step ${instance.getStepId()}:`)
-//         instance.trace(``)
-//         //ZZZZZ
-//         // handle the error better
-//         console.log(e)
-//         instance.trace(``)
-//         instance.trace(``)
-
-        return await instance.exceptionInStep(null, e)
-        // const note = `Exception in step.invoke()`
-        // const data = {
-        //   error: `Exception`
-        // }
-        // instance.succeedeed(note, data)
-      }
-    }, 0)
-      // let reply = this.invoke(instance) // Provided by the step implementation
-      // if (reply) {
-      //   return reply
-      // }
-
-    return {
-      stepId: instance.getStepId(),
-      status: STEP_SLEEPING,
-    }
-  }
 
   static async resolveDefinition(definition) {
     /*

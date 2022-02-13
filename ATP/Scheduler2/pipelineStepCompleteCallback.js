@@ -5,11 +5,12 @@
  * the author or owner be liable for any claim or damages.
  */
 import assert from 'assert'
+import { schedulerForThisNode } from '../..'
 import indentPrefix from '../../lib/indentPrefix'
 import GenerateHash from '../GenerateHash'
 import { PIPELINES_VERBOSE } from '../hardcoded-steps/PipelineStep'
 import { STEP_SUCCESS, STEP_ABORTED, STEP_FAILED, STEP_INTERNAL_ERROR } from '../Step'
-import Scheduler2, { DEFAULT_QUEUE } from './Scheduler2'
+import Scheduler2 from './Scheduler2'
 import Transaction from './Transaction'
 import TransactionCache from './TransactionCache'
 
@@ -77,6 +78,7 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
        *  We've finished this pipeline - return the final respone
        */
       if (PIPELINES_VERBOSE) console.log(indent + `<<<<    PIPELINE COMPLETED ${pipelineStepId}  `.black.bgGreen.bold)
+      if (PIPELINES_VERBOSE) console.log(`pipelineStep.onComplete=`, pipelineStep.onComplete)
       Transaction.bulkLogging(txId, pipelineStepId, [{
         level: Transaction.LOG_LEVEL_TRACE,
         source: Transaction.LOG_SOURCE_SYSTEM,
@@ -91,8 +93,9 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
       })
 
       // Send the event back to whoever started this step
-      const queueToParentOfPipeline = Scheduler2.standardQueueName(pipelineStep.onComplete.nodeGroup, DEFAULT_QUEUE)
-      await Scheduler2.enqueue_StepCompleted(queueToParentOfPipeline, {
+      // const queueToParentOfPipeline = Scheduler2.groupQueueName(pipelineStep.onComplete.nodeGroup)
+      const queueToParentOfPipeline = Scheduler2.nodeExpressQueueName(pipelineStep.onComplete.nodeGroup, pipelineStep.onComplete.nodeId)
+      await schedulerForThisNode.enqueue_StepCompleted(queueToParentOfPipeline, {
         txId,
         // parentStepId: '-',
         stepId: pipelineStepId,
@@ -101,7 +104,9 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
       return
 
     } else {
-      // Initiate the next step
+      /*
+       *  Initiate the next step
+       */
       if (PIPELINES_VERBOSE) console.log(indent + `----    ON TO THE NEXT PIPELINE STEP  `.black.bgGreen.bold)
 
 
@@ -121,9 +126,15 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
       const inputForNewStep = childStep.stepOutput
       const childFullSequence = `${pipelineStep.fullSequence}.${1 + nextStepNo}` // Start sequence at 1
 
-      // The child will run in the same node as this pipeline.
-      const queueToChild = Scheduler2.standardQueueName(nodeInfo.nodeGroup, DEFAULT_QUEUE)
-      await Scheduler2.enqueue_StepStart(queueToChild, {
+      // The child will run in this node - same as this pipeline.
+      // We keep the steps all running on the same node, so they all use the same
+      // cached transaction. We only jump to another node when we are calling a
+      // pipline that runs on another node.
+      const myNodeGroup = schedulerForThisNode.getNodeGroup()
+      const myNodeId = schedulerForThisNode.getNodeId()
+      const queueToChild = Scheduler2.nodeRegularQueueName(myNodeGroup, myNodeId)
+
+      await schedulerForThisNode.enqueue_StepStart(queueToChild, {
         txId,
         nodeGroup: nodeInfo.nodeGroup, // Child runs in same node as the pipeline step
         stepId: childStepId,
@@ -135,7 +146,8 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
         data: inputForNewStep,
         level: pipelineStep.level + 1,
         onComplete: {
-          nodeGroup: nodeInfo.nodeGroup,
+          nodeGroup: myNodeGroup,
+          nodeId: myNodeId,
           callback: PIPELINE_STEP_COMPLETE_CALLBACK,
           context: { txId, parentNodeGroup: nodeInfo.nodeGroup, parentStepId: pipelineStepId, childStepId }
         }
@@ -164,8 +176,8 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
     // console.log(`pipeline step is now`, tx.stepData(pipelineStepId))
 
     // Send the event back to whoever started this step
-    const queueToParentOfPipeline = Scheduler2.standardQueueName(pipelineStep.onComplete.nodeGroup, DEFAULT_QUEUE)
-    await Scheduler2.enqueue_StepCompleted(queueToParentOfPipeline, {
+    const queueToParentOfPipeline = Scheduler2.groupQueueName(pipelineStep.onComplete.nodeGroup)
+    await schedulerForThisNode.enqueue_StepCompleted(queueToParentOfPipeline, {
       txId,
       // parentStepId: '-',
       stepId: pipelineStepId,

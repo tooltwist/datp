@@ -32,7 +32,7 @@ export default class LongPoll {
       delete LongPoll.index[txId]
 
       let summary = await Transaction.getSummary(tenant, txId)
-      console.log(`LongPoll:returnTxStatusAfterDelayWithPotentialEarlyReply - reply after timeout`, summary)
+      if (VERBOSE) console.log(`LongPoll:returnTxStatusAfterDelayWithPotentialEarlyReply - reply after timeout`, summary)
       response.send(summary)
       return next()
     }, duration * 1000)

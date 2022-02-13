@@ -18,7 +18,8 @@ import {
 } from "../Step"
 import XData from "../XData"
 import TransactionPersistance from "./TransactionPersistance"
-import Scheduler2, { DEFAULT_QUEUE } from "./Scheduler2"
+import Scheduler2 from "./Scheduler2"
+import { schedulerForThisNode } from "../.."
 
 // Debug stuff
 const VERBOSE = 0
@@ -374,9 +375,9 @@ export default class Transaction {
             // Notify any event handler
             // console.log(`this.#tx=`, this.#tx)
             if (this.#tx.onChange) {
-              const queueName = Scheduler2.standardQueueName(this.#tx.nodeGroup, DEFAULT_QUEUE)
+              const queueName = Scheduler2.groupQueueName(this.#tx.nodeGroup)
               if (VERBOSE) console.log(`Adding a TRANSACTION_CHANGE_EVENT to queue ${queueName}`)
-              await Scheduler2.enqueue_TransactionChange(queueName, {
+              await schedulerForThisNode.enqueue_TransactionChange(queueName, {
                 owner: this.#owner,
                 txId: this.#txId
               })

@@ -8,7 +8,7 @@ import query from '../database/query'
 import errors from 'restify-errors';
 
 export async function getTestCasesV1(req, res, next) {
-  console.log(`getTestCasesV1()`)
+  // console.log(`getTestCasesV1()`)
 
   const sql = `SELECT
     name,
@@ -25,9 +25,9 @@ export async function getTestCasesV1(req, res, next) {
 }
 
 export async function saveTestCasesV1(req, res, next) {
-  console.log(`saveTestCasesV1()`)
-  console.log(`req.params=`, req.params)
-  console.log(`req.body=`, req.body)
+  // console.log(`saveTestCasesV1()`)
+  // console.log(`req.params=`, req.params)
+  // console.log(`req.body=`, req.body)
   // res.send(new errors.InternalServerError(`Not yet`))
   // return next()
 

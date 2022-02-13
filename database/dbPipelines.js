@@ -18,16 +18,19 @@ export default {
 export async function myPipelines() {
   // console.log(`myPipelines()`)
 
-  const sql = `SELECT name, version, description FROM atp_pipeline`
+  let sql = `SELECT name, version, description FROM atp_pipeline`
   const list = await query(sql)
   if (VERBOSE) {
     console.log(`myPipelines():`, list)
   }
+  sql += ` ORDER BY name. version`
   return list
 }
 
-export async function getPipelines(name, version) {
-  let sql = `SELECT name, node_name AS nodeName, version, description, status, steps_json AS stepsJson FROM atp_pipeline WHERE name=?`
+export async function getPipelines(name, version=null) {
+  // console.log(`dbPipelines.getPipelines(name=${name}, version=${version})`)
+
+  let sql = `SELECT name, version, node_name AS nodeName, description, steps_json AS stepsJson, notes, status, commit_comments AS commitComments, tags FROM atp_pipeline WHERE name=?`
   let params = [ name ]
   if (version) {
     sql +=  ` AND version=?`

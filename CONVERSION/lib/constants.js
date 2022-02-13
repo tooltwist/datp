@@ -19,7 +19,7 @@ export default {
   FRONTEND_RESPONSE_MAPPING_SUFFIX: 'response',
 }
 
-export const MONITOR_URL_PREFIX = '/mondat'
+export const MONITOR_URL_PREFIX = '/mondat-api'
 export const FORMSERVICE_URL_PREFIX = '/formservice'
 export const DATP_URL_PREFIX = '/datp'
 export const LOOKUP_URL_PREFIX = '/lookup'

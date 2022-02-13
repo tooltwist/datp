@@ -8,10 +8,11 @@ import Step from '../Step'
 import StepTypes from '../StepTypeRegister'
 import assert from 'assert'
 import StepInstance from '../StepInstance'
-import Scheduler2, { DEFAULT_QUEUE } from '../Scheduler2/Scheduler2'
+import Scheduler2 from '../Scheduler2/Scheduler2'
 import GenerateHash from '../GenerateHash'
 import TransactionCache from '../Scheduler2/TransactionCache'
 import { PIPELINE_STEP_COMPLETE_CALLBACK } from '../Scheduler2/pipelineStepCompleteCallback'
+import { schedulerForThisNode } from '../..'
 
 // const STEP_COMPLETION_HANDLER = 'pipeline-step-completion-handler'
 export const PIPELINES_VERBOSE = 0
@@ -114,7 +115,7 @@ class Pipeline extends Step {
 //   async initiateChildStep(pipelineInstance, indexOfCurrentChildStep, childStepDefinition, txdata, metadata) {
 //     assert(pipelineInstance instanceof StepInstance)
     // assert(txdata instanceof XData)
-    pipelineInstance.log(``)
+    // pipelineInstance.log(``)
     // const stepNo = pipelineInstance.privateData.indexOfCurrentChildStep
     if (PIPELINES_VERBOSE) {
       console.log(`PipelineStep.initiateChildStep()`)
@@ -144,15 +145,22 @@ class Pipeline extends Step {
     // const txId = pipelineInstance.getTransactionId()//ZZZZ rename
     const parentStepId = pipelineInstance.getStepId()
     // console.log(`parentStepId=`, parentStepId)
-    const parentNodeGroup = pipelineInstance.getNodeGroup()
+    const myNodeGroup = schedulerForThisNode.getNodeGroup()
+    const myNodeId = schedulerForThisNode.getNodeId()
+    const parentNodeGroup = pipelineInstance.getNodeGroup()// Shouldn't this just be the current node group?
     // console.log(`parentNodeGroup=`, parentNodeGroup)
     // const childStepId = GenerateHash('s')
     const childStepId = childStepIds[0]
-    const childNodeGroup = parentNodeGroup
+    const childNodeGroup = myNodeGroup // Step runs in same node as it's pipeline
 
-    // The child will run in the same node as this pipeline.
-    // const nodeGroupWherePipelineRuns = metadata.nodeId
-    const queueToPipelineNode = Scheduler2.standardQueueName(parentNodeGroup, DEFAULT_QUEUE)
+    // The child will run in this node - same as this pipeline.
+    // We keep the steps all running on the same node, so they all use the same
+    // cached transaction. We only jump to another node when we are calling a
+    // pipline that runs on another node.
+    const queueToStep = Scheduler2.nodeRegularQueueName(myNodeGroup, myNodeId)
+
+    // console.log(`Pipline invoking step with ${queueToStep}`)
+    // const queueToPipelineNode = Scheduler2.groupQueueName(parentNodeGroup)
     // console.log(`parentNodeGroup=`, parentNodeGroup)
     // console.log(`queueToPipelineNode=`, queueToPipelineNode)
 
@@ -164,10 +172,10 @@ class Pipeline extends Step {
     // console.log(`metadata=`, metadata)
     // console.log(`txdata=`, txdata)
     // console.log(`parentNodeGroup=`, parentNodeGroup)
-    await Scheduler2.enqueue_StepStart(queueToPipelineNode, {
+    await schedulerForThisNode.enqueue_StepStart(queueToStep, {
       txId,
       nodeGroup: childNodeGroup,
-      nodeId: childNodeGroup,
+      // nodeId: childNodeGroup,
       stepId: childStepId,
       // parentNodeId,
       parentStepId,
@@ -177,7 +185,8 @@ class Pipeline extends Step {
       data: stepInput,
       level: pipelineInstance.getLevel() + 1,
       onComplete: {
-        nodeGroup: parentNodeGroup,
+        nodeGroup: myNodeGroup,
+        nodeId: myNodeId,
         callback: PIPELINE_STEP_COMPLETE_CALLBACK,
         context: { txId, parentNodeGroup, parentStepId, childStepId }
       }

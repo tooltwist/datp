@@ -10,11 +10,12 @@ import Step, { STEP_ABORTED, STEP_FAILED, STEP_INTERNAL_ERROR, STEP_RUNNING, STE
 import dbPipelines from "../database/dbPipelines";
 import XData from "./XData";
 import { STEP_TYPE_PIPELINE } from './StepTypeRegister'
-import Scheduler2, { DEFAULT_QUEUE } from "./Scheduler2/Scheduler2";
+import Scheduler2 from "./Scheduler2/Scheduler2";
 import TransactionCache from "./Scheduler2/TransactionCache";
 import indentPrefix from '../lib/indentPrefix'
 import assert from 'assert'
 import Transaction from './Scheduler2/Transaction';
+import { schedulerForThisNode } from '..';
 
 const VERBOSE = 0
 export const DEEP_SLEEP_DURATION = 2 * 60 // Two minutes
@@ -328,6 +329,7 @@ export default class StepInstance {
 
     const myStepOutput = this._sanitizedOutput(stepOutput)
     if (VERBOSE) console.log(`succeeded: step out is `.magenta, myStepOutput)
+    if (VERBOSE > 1) console.log(`this.#onComplete=`, this.#onComplete)
 
     // Sync any buffered logs
     this.trace(`instance.succeeded() - ${note}`, Transaction.LOG_SOURCE_SYSTEM)
@@ -352,10 +354,25 @@ export default class StepInstance {
       stepOutput: myStepOutput
     })
 
+
     // Tell the parent we've completed.
-    // console.log(`replying to `, this.#onComplete)
-    const queueName = Scheduler2.standardQueueName(this.#onComplete.nodeGroup, DEFAULT_QUEUE)
-    await Scheduler2.enqueue_StepCompleted(queueName, {
+    // If the parent is in the node group of this node, then we assume that
+    // it was invoked from within this node.
+    // We keep the steps all running on the same node as their pipellines, so they all
+    // use the same cached transaction. We only jump to another node when we are calling a
+    // pipline that runs on another node.
+    const myNodeGroup = schedulerForThisNode.getNodeGroup()
+    const myNodeId = schedulerForThisNode.getNodeId()
+    const parentNodeGroup = this.#onComplete.nodeGroup
+    let queueName
+    if (parentNodeGroup === myNodeGroup) {
+      // Use this node's personal express queue
+      queueName = Scheduler2.nodeRegularQueueName(myNodeGroup, myNodeId)
+    } else {
+      // Use this group queue for the different node group
+      queueName = Scheduler2.groupQueueName(myNodeGroup)
+    }
+    await schedulerForThisNode.enqueue_StepCompleted(queueName, {
       txId: this.#txId,
       stepId: this.#stepId,
       completionToken: this.#onComplete.completionToken,
@@ -400,8 +417,8 @@ export default class StepInstance {
     })
 
     // Tell the parent we've completed.
-    const queueName = Scheduler2.standardQueueName(this.#onComplete.nodeGroup, DEFAULT_QUEUE)
-    await Scheduler2.enqueue_StepCompleted(queueName, {
+    const queueName = Scheduler2.groupQueueName(this.#onComplete.nodeGroup)
+    await schedulerForThisNode.enqueue_StepCompleted(queueName, {
       txId: this.#txId,
       stepId: this.#stepId,
       completionToken: this.#onComplete.completionToken,
@@ -445,8 +462,8 @@ export default class StepInstance {
 
     // Tell the parent we've completed.
     // console.log(`replying to `, this.#onComplete)
-    const queueName = Scheduler2.standardQueueName(this.#onComplete.nodeGroup, DEFAULT_QUEUE)
-    await Scheduler2.enqueue_StepCompleted(queueName, {
+    const queueName = Scheduler2.groupQueueName(this.#onComplete.nodeGroup)
+    await schedulerForThisNode.enqueue_StepCompleted(queueName, {
       txId: this.#txId,
       stepId: this.#stepId,
       completionToken: this.#onComplete.completionToken,
@@ -490,8 +507,8 @@ export default class StepInstance {
     })
 
     // Tell the parent we've completed.
-    const queueName = Scheduler2.standardQueueName(this.#onComplete.nodeGroup, DEFAULT_QUEUE)
-    await Scheduler2.enqueue_StepCompleted(queueName, {
+    const queueName = Scheduler2.groupQueueName(this.#onComplete.nodeGroup)
+    await schedulerForThisNode.enqueue_StepCompleted(queueName, {
       txId: this.#txId,
       stepId: this.#stepId,
       completionToken: this.#onComplete.completionToken,
@@ -548,13 +565,13 @@ export default class StepInstance {
     const tx = await TransactionCache.findTransaction(this.#txId, false)
     await tx.delta(this.#stepId, {
       status: STEP_INTERNAL_ERROR,
-      note: `Internal error: exceptiopn in step. Please notify system administrator.`,
+      note: `Internal error: exception in step. Please notify system administrator.`,
       stepOutput: data
     })
 
     // Tell the parent we've completed.
-    const queueName = Scheduler2.standardQueueName(this.#onComplete.nodeGroup, DEFAULT_QUEUE)
-    await Scheduler2.enqueue_StepCompleted(queueName, {
+    const queueName = Scheduler2.groupQueueName(this.#onComplete.nodeGroup)
+    await schedulerForThisNode.enqueue_StepCompleted(queueName, {
       txId: this.#txId,
       stepId: this.#stepId,
       completionToken: this.#onComplete.completionToken,
@@ -615,8 +632,8 @@ sleepDuration = 15
       console.log(`Step will nap for ${sleepDuration} seconds [${this.#stepId}]`)
       setTimeout(async() => {
         console.log(`Restarting step after a nap of ${sleepDuration} seconds [${this.#stepId}]`)
-        const queueName = Scheduler2.standardQueueName(this.#nodeGroup, DEFAULT_QUEUE)
-        await Scheduler2.enqueue_StepRestart(queueName, this.#txId, this.#stepId)
+        const queueName = Scheduler2.groupQueueName(this.#nodeGroup)
+        await schedulerForThisNode.enqueue_StepRestart(queueName, this.#txId, this.#stepId)
       }, sleepDuration * 1000)
     }
   }
@@ -659,7 +676,13 @@ sleepDuration = 15
         this.debug(`  ${obj.pipelineStack.length} pipelines deep`)
         break
 
+      case 'String':
+        this.debug(`Dump: ${obj}`)
+        break
+
       default:
+console.log(`ZZZZ. StepInstance.dump() called with unknown object type ${type}.`)
+console.log(new Error().stack)
         console.log(this.#indent, obj)
       }
   }

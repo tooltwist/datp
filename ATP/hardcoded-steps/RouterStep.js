@@ -4,10 +4,11 @@
  * rights reserved. No warranty, explicit or implicit, provided. In no event shall
  * the author or owner be liable for any claim or damages.
  */
+import { schedulerForThisNode } from '../..'
 import { deepCopy } from '../../lib/deepCopy'
 import GenerateHash from '../GenerateHash'
 import { CHILD_PIPELINE_COMPLETION_CALLBACK } from '../Scheduler2/ChildPipelineCompletionCallback'
-import Scheduler2, { DEFAULT_QUEUE } from '../Scheduler2/Scheduler2'
+import Scheduler2 from '../Scheduler2/Scheduler2'
 import Step from '../Step'
 import StepTypeRegister from '../StepTypeRegister'
 import XData from '../XData'
@@ -79,13 +80,26 @@ export class RouterStep extends Step {
     // Start the child pipeline
     instance.trace(`Start child transaction pipeline - ${pipelineName}`)
     const parentStepId = await parentInstance.getStepId()
-    const parentNodeGroup = parentInstance.getNodeGroup()
+    const parentNodeGroup = parentInstance.getNodeGroup() // ZZZZ shouldn't this be the current node?
+    const myNodeGroup = schedulerForThisNode.getNodeGroup()
+    const myNodeId = schedulerForThisNode.getNodeId()
     const childStepId = GenerateHash('s')
 
-    const childNodeGroup = parentNodeGroup
+    const childNodeGroup = myNodeGroup // Temporary hack - let's start it here
 
-    //ZZZZZ We should check which node this pipeline runs on.
-    const queueToPipelineNode = Scheduler2.standardQueueName(parentNodeGroup, DEFAULT_QUEUE)
+    // If this pipeline runs in a different node group, we'll start it via the group
+    // queue for that nodeGroup. If the pipeline runs in the current node group, we'll
+    // run it in this current node, so it'll have access to the cached transaction.
+    let queueToNewPipeline
+    if (childNodeGroup === myNodeGroup) {
+      // Run the new pipeline in this node - put the event in this node's pipeline.
+      queueToNewPipeline = Scheduler2.nodeRegularQueueName(myNodeGroup, myNodeId)
+    } else {
+      // The new pipeline will run in a different nodeGroup. Put the event in the group queue.
+      queueToNewPipeline = Scheduler2.groupQueueName(childNodeGroup)
+    }
+
+    // const queueToPipelineNode = Scheduler2.groupQueueName(parentNodeGroup)
     // console.log(`parentNodeGroup=`, parentNodeGroup)
     // console.log(`queueToPipelineNode=`, queueToPipelineNode)
 
@@ -99,10 +113,10 @@ export class RouterStep extends Step {
       // console.log(`metadata=`, metadata)
       // console.log(`txdata=`, txdata)
       // console.log(`parentNodeGroup=`, parentNodeGroup)
-      await Scheduler2.enqueue_StepStart(queueToPipelineNode, {
+      await schedulerForThisNode.enqueue_StepStart(queueToNewPipeline, {
         txId,
         nodeGroup: childNodeGroup,
-        nodeId: childNodeGroup,
+        // nodeId: childNodeGroup,
         stepId: childStepId,
         // parentNodeId,
         parentStepId,
@@ -112,7 +126,8 @@ export class RouterStep extends Step {
         data: childData,
         level: parentInstance.getLevel() + 1,
         onComplete: {
-          nodeGroup: parentNodeGroup,
+          nodeGroup: myNodeGroup,
+          nodeId: myNodeId,
           callback: CHILD_PIPELINE_COMPLETION_CALLBACK,
           context: { txId, parentNodeGroup, parentStepId, childStepId }
         }

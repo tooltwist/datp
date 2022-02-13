@@ -8,10 +8,11 @@ import StepInstance from "../StepInstance"
 import XData from "../XData"
 import CallbackRegister from "./CallbackRegister"
 import { getQueueConnection } from "./queuing/Queue2"
-import Scheduler2, { DEFAULT_QUEUE } from "./Scheduler2"
+import Scheduler2 from "./Scheduler2"
 import TransactionCache from "./TransactionCache"
 import assert from 'assert'
 import { STEP_ABORTED, STEP_FAILED, STEP_INTERNAL_ERROR, STEP_QUEUED, STEP_RUNNING, STEP_SLEEPING, STEP_SUCCESS, STEP_TIMEOUT } from "../Step"
+import { schedulerForThisNode } from "../.."
 
 const VERBOSE = 0
 require('colors')
@@ -21,9 +22,10 @@ export default class Worker2 {
   #debugLevel
 
   #nodeGroup
+  #nodeId
   #workerId
-  #fullQueueName
-  #myQueue
+  // #fullQueueName
+  // #myQueue
   #state
 
   static STANDBY = 'standby'
@@ -31,148 +33,106 @@ export default class Worker2 {
   static INUSE = 'inuse'
   static SHUTDOWN = 'shutdown'
 
-  constructor(workerId, nodeGroup, queueName=null) {
+  // constructor(workerId, nodeGroup, queueName=null) {
+  constructor(workerId, nodeGroup, nodeId) {
     // console.log(`Worker2.constructor()`)
     this.#debugLevel = VERBOSE
 
     this.#nodeGroup = nodeGroup
+    this.#nodeId = nodeId
     this.#workerId = workerId
-    this.#fullQueueName = queueName
-    this.#myQueue = null
+    // this.#fullQueueName = queueName
+    // this.#myQueue = null
 
     // this.#queue = new QueueManager()
-    this.#state = Worker2.STANDBY
+    this.#state = Worker2.WAITING
+    if (this.#debugLevel > 0) { console.log(`[worker ${this.#workerId} => WAITING]`.bgRed.white) }
   }
 
   getId() {
     return this.#workerId
   }
 
-  async start() {
-    if (this.#debugLevel > 0) { console.log(`[worker ${this.#workerId} started]`.dim) }
-    if (!this.#myQueue) {
-      this.#myQueue = await getQueueConnection()
+  async processEvent(event) {
+    const typeStr = event.eventType ? ` (${event.eventType})` : ''
+    if (this.#debugLevel > 0) { console.log(`\n[worker ${this.#workerId} processing event${typeStr  }]`.bold) }
+    // console.log(`event=`, event)
+
+    // Process this event
+    this.#state = Worker2.INUSE
+    if (VERBOSE) console.log(`Worker ${this.#workerId} => INUSE`.bgRed.white)
+
+    // If this event came from a different node, then assume the transaction
+    // was modified over there, and so the transaction in our cache is dirty.
+    if (event.fromNodeId !== schedulerForThisNode.getNodeId()) {
+      if (event.txId) {
+        if (VERBOSE) console.log(`Remove TX ${event.txId} from the cache (event from different node)`)
+        await TransactionCache.removeFromCache(event.txId)
+      }
     }
 
-    switch (this.#state) {
-      case Worker2.WAITING:
-      case Worker2.INUSE:
-        // Either waiting for a task, or running a task
-        return
 
-      case Worker2.SHUTDOWN:
-        // Don't shut down
+    // Decide how to handle this event.
+    const eventType = event.eventType
+    delete event.eventType
+    switch (eventType) {
+      case Scheduler2.NULL_EVENT:
+        // Ignore this. We send null events when we are shutting down, so these workers
+        // stop blocking on the queue and get a change to see they are being shut down.
         break
 
-      case Worker2.STANDBY:
-        // Okay, let's go!
-        // Run the event loop in the background
-        this.#state = Worker2.WAITING
-        setTimeout(() => {
-          this.eventLoop()
-        }, 0)
+      case Scheduler2.STEP_START_EVENT:
+        await this.processEvent_StepStart(event)
         break
-      }
-  }
 
-  async eventLoop() {
-    if (VERBOSE) console.log(`Start event loop in worker ${this.#workerId}`)
+      case Scheduler2.STEP_COMPLETED_EVENT:
+        await this.processEvent_StepCompleted(event)
+        break
+
+      case Scheduler2.TRANSACTION_CHANGE_EVENT:
+        await this.processEvent_TransactionChanged(event)
+        break
+
+      case Scheduler2.TRANSACTION_COMPLETED_EVENT:
+        await this.processEvent_TransactionCompleted(event)
+        break
+
+      default:
+        throw new Error(`Unknown event type ${eventType}`)
+    }
+
+    // Was the state changed to shutdown while we were off processing this event?
+    if (this.#state === Worker2.SHUTDOWN) {
+      this.enterStandbyState()
+      return
+    }
+
+    // Not shutting down. Go get another event!
+    if (this.#debugLevel > 0) { console.log(`[worker ${this.#workerId} => WAITING]`.bgRed.white) }
     this.#state = Worker2.WAITING
-    while (this.#state === Worker2.WAITING) {
+  }//- processEvent
 
-      // Get an event from the queue
-      if (this.#debugLevel > 0) { console.log(`[worker ${this.#workerId} waiting for event on queue ${this.#fullQueueName}]`.yellow.bold) }
-      // console.log(`this.#myQueue=`, this.#myQueue)
-      // console.log(`this.#myQueue.dequeue=`, this.#myQueue.dequeue)
-      const event = await this.#myQueue.dequeue(this.#fullQueueName)
-      const typeStr = event.eventType ? ` (${event.eventType})` : ''
-      if (this.#debugLevel > 0) { console.log(`\n[worker ${this.#workerId} processing event${typeStr  }]`.bold) }
-      // console.log(`event=`, event)
-
-      // While we were waiting for the queue to give us an event, was this worker marked for shutdown?
-      let markedForShutdown = false
-      if (this.#state === Worker2.SHUTDOWN) {
-        // Don't look for more events after processing this one
-        markedForShutdown = true
-      }
-
-      // Process this event
-      this.#state = Worker2.INUSE
-      // await this.processEvent(event)
-
-
-
-      // If this event came from a different node, then assume the transaction
-      // was modified over there, and so the transaction in our cache is dirty.
-      //ZZZZZ
-
-
-      // Decide how to handle this event.
-      const eventType = event.eventType
-      delete event.eventType
-      switch (eventType) {
-        case Scheduler2.NULL_EVENT:
-          // Ignore this. We send null events when we are shutting down, so these workers
-          // stop blocking on the queue and get a change to see they are being shut down.
-          break
-
-        case Scheduler2.STEP_START_EVENT:
-          await this.processEvent_StepStart(event)
-          break
-
-        case Scheduler2.STEP_COMPLETED_EVENT:
-          await this.processEvent_StepCompleted(event)
-          break
-
-        case Scheduler2.TRANSACTION_CHANGE_EVENT:
-          await this.processEvent_TransactionChanged(event)
-          break
-
-        case Scheduler2.TRANSACTION_COMPLETED_EVENT:
-          await this.processEvent_TransactionCompleted(event)
-          break
-
-        // case
-        default:
-          throw new Error(`Unknown event type ${eventType}`)
-      }
-
-
-      // Should we shutdown this worker?
-      if (
-        // Was it marked for shutdown before processing, and didn't state wasn't change during processing?
-        (markedForShutdown && this.#state === Worker2.INUSE)
-        ||
-        // Was the state changed to shutdown while we were off processing this event?
-        this.#state === Worker2.SHUTDOWN
-      ) {
-        // Finish up
-        if (this.#debugLevel > 0) { console.log(`[worker ${this.#workerId} going to standby mode]`.dim) }
-        this.#state = Worker2.STANDBY
-        return
-      }
-
-      // Not shutting down. Go get another event!
-      if (this.#debugLevel > 0) { console.log(`[worker ${this.#workerId} ready for more]`.dim) }
-      this.#state = Worker2.WAITING
-    }
-  }
-
-  async stop() {
+  stop() {
     // This worker won't notice this yet, but will after it finishes
     // blocking on it's read of the event queue.
+    if (this.#debugLevel > 0) { console.log(`[worker ${this.#workerId} => SHUTDOWN]`.bgRed.white) }
     this.#state = Worker2.SHUTDOWN
+  }
+
+  enterStandbyState() {
+    if (this.#debugLevel > 0) { console.log(`[worker ${this.#workerId} => STANDBY]`.bgRed.white) }
+    this.#state = Worker2.STANDBY
   }
 
   /**
    * We are finished with this worker.
    * Disconnect from the queue
    */
-  async destroy() {
-    if (this.#myQueue) {
-      this.#myQueue.close()
-    }
-  }
+  // async destroy() {
+  //   if (this.#myQueue) {
+  //     this.#myQueue.close()
+  //   }
+  // }
 
   getState() {
     return this.#state
@@ -183,7 +143,8 @@ export default class Worker2 {
    * @param {XData} event
    */
   async processEvent_StepStart(event) {
-    if (VERBOSE) console.log(`Worker2.processEvent_StepStart()`, event)
+    // if (VERBOSE) console.log(`Worker2.processEvent_StepStart()`)
+    // if (VERBOSE > 1) console.log(`event=`, event)
 
     try {
       assert(typeof(event.txId) === 'string')
@@ -196,23 +157,30 @@ export default class Worker2 {
       const tx = await TransactionCache.findTransaction(txId, true)
       const txData = tx.txData()
       const stepData = tx.stepData(stepId)
+      if (stepData === null) {
+        console.log(`-----------------------------------------`)
+        console.log(`processEvent_StepStart: missing step data`)
+        console.log(`my nodeId=`, schedulerForThisNode.getNodeId())
+        console.log(`event=`, event)
+        console.log(`tx=`, tx)
+        throw new Error(`ZZZZ: missing step`)
+      }
       assert(stepData.status === STEP_QUEUED)
       assert(stepData.fullSequence)
 
       const trace = (typeof(txData.metadata.traceLevel) === 'number') && txData.metadata.traceLevel > 0
-      if (trace || this.#debugLevel > 0) {
-        console.log(`>>> processEvent_StepStart()`.brightGreen, event)
-      }
+      if (trace || this.#debugLevel > 0) console.log(`>>> processEvent_StepStart()`.brightGreen)
+      if (trace || this.#debugLevel > 1) console.log(`event=`, event)
 
       /*
        * See if this is a test step.
        */
-      if (trace || this.#debugLevel > 0) console.log(`stepDefinition is ${stepData.stepDefinition}`)
+      if (trace || this.#debugLevel > 1) console.log(`stepDefinition is ${JSON.stringify(stepData.stepDefinition, '', 2)}`)
       if (stepData.stepDefinition === 'util.ping3') {
 
         // Boounce back via STEP_COMPLETION_EVENT, after creating fake transaction data.
         const description = 'processEvent_StepStart() - util.ping3 - returning via STEP_COMPLETED, without processing step'
-        if (trace || this.#debugLevel > 0) console.log(description.bgBlue.white)
+        if (trace || this.#debugLevel > 0) console.log(`description=`, description.bgBlue.white)
 
         await tx.delta(stepId, {
           stepId,
@@ -222,15 +190,14 @@ export default class Worker2 {
             description
           }
         })
-        const queueName = Scheduler2.standardQueueName(stepData.onComplete.nodeGroup, DEFAULT_QUEUE)
-        await Scheduler2.enqueue_StepCompleted(queueName, {
+        const queueName = Scheduler2.groupQueueName(stepData.onComplete.nodeGroup)
+        await schedulerForThisNode.enqueue_StepCompleted(queueName, {
           txId: event.txId,
           stepId: event.stepId,
           completionToken: stepData.onComplete.completionToken
         })
         return
       }//- ping3
-
 
       /*
        *  Not a test step
@@ -239,9 +206,10 @@ export default class Worker2 {
       event.nodeId = this.#nodeGroup
       event.nodeGroup = this.#nodeGroup
       const instance = new StepInstance()
-      if (VERBOSE) console.log(`------------------------------ ${this.#nodeGroup} materialize ${tx.getTxId()}`)
+      if (this.#debugLevel > 1) console.log(`------------------------------ ${this.#nodeGroup} materialize ${tx.getTxId()}`)
       await instance.materialize(event, tx)
-      if (trace || this.#debugLevel > 0) console.log(`>>>>>>>>>> >>>>>>>>>> >>>>>>>>>> START [${instance.getStepType()}] ${instance.getStepId()}`, tx.stepData(stepId))
+      if (trace || this.#debugLevel > 0) console.log(`>>>>>>>>>> >>>>>>>>>> >>>>>>>>>> START [${instance.getStepType()}] ${instance.getStepId()}`)
+      if (trace || this.#debugLevel > 1) console.log(`stepData=`, tx.stepData(stepId))
 
       await tx.delta(stepId, {
         stepId,
@@ -252,7 +220,23 @@ export default class Worker2 {
        *  Start the step - we don't wait for it to complete
        */
       const stepObject = instance.getStepObject()
-      await stepObject.invoke_internal(instance)
+
+      const hackSource = 'system' // Not sure why, but using Transaction.LOG_SOURCE_SYSTEM causes a compile error
+      instance.trace(`Invoke step ${instance.getStepId()}`, hackSource)
+      await instance.syncLogs()
+
+      // Start the step in the background, immediately
+      // setTimeout(async () => {
+        try {
+          if (this.#debugLevel > 0) { console.log(`[worker ${this.#workerId} STARTING STEP ${stepId} ]`.green) }
+          await stepObject.invoke(instance) // Provided by the step implementation
+          if (this.#debugLevel > 0) { console.log(`[worker ${this.#workerId} COMPLETED STEP ${stepId}]`.green) }
+        } catch (e) {
+          if (this.#debugLevel > 0) { console.log(`[worker ${this.#workerId} EXCEPTION IN STEP ${stepId}]`.green, e) }
+          return await instance.exceptionInStep(null, e)
+        }
+      // }, 0)
+
 
     } catch (e) {
       console.log(`DATP internal error: processEvent_StepStart:`, e)
@@ -280,6 +264,11 @@ export default class Worker2 {
       const tx = await TransactionCache.findTransaction(txId, true)
       const stepData = tx.stepData(stepId)
       // console.log(`stepData for step ${stepId}`, stepData)
+if (!stepData) {
+  console.log(`--------------`)
+  console.log(`YARP 6625: Could not get stepData of tx ${txId}, step ${stepId}`)
+  console.log(`tx=`, tx)
+}
       assert(
         stepData.status === STEP_ABORTED
         || stepData.status === STEP_FAILED

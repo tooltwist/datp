@@ -7,8 +7,14 @@
 import query from "../../database/query";
 import TransactionIndexEntry from "../TransactionIndexEntry";
 import Transaction from "./Transaction";
-
 const VERBOSE = 0
+
+export class DuplicateExternalIdError extends Error {
+  constructor() {
+    super('Transaction with this externalId already exists')
+  }
+}
+
 
 export default class TransactionPersistance {
   /**
@@ -25,22 +31,29 @@ export default class TransactionPersistance {
     // const nodeId = tx.getNodeId()
     // const pipeline = tx.getPipeline()
 
-    // const sql = `INSERT INTO atp_transaction2 (
-    //   transaction_id, external_id, transaction_type, transaction_status, owner, initial_data, node_id, pipeline
-    // ) VALUES (?,?,?,?,?,?,?,?)`
-    // const status = TransactionIndexEntry.RUNNING //ZZZZ YARP2
-    // const params = [ txId, externalId, type, status, owner, input.getJson(), nodeId, pipeline ]
-    const sql = `INSERT INTO atp_transaction2 (transaction_id, owner, external_id, transaction_type, status) VALUES (?,?,?,?,?)`
-    const status = TransactionIndexEntry.RUNNING //ZZZZ YARP2
-    const params = [ txId, owner, externalId, transactionType, status ]
-    await query(sql, params)
-    // console.log(`result=`, result)
-  }
+
+    try {
+      const sql = `INSERT INTO atp_transaction2 (transaction_id, owner, external_id, transaction_type, status) VALUES (?,?,?,?,?)`
+      const status = TransactionIndexEntry.RUNNING //ZZZZ YARP2
+      const params = [ txId, owner, externalId, transactionType, status ]
+      await query(sql, params)
+      // console.log(`result=`, result)
+    } catch (e) {
+      // See if there was a problem with the externalId
+      if (e.code === 'ER_DUP_ENTRY') {
+        // A transaction already exists with this externalId
+        console.log(`TransactionPersistance:DuplicateExternalIdError - detected duplicate externalId during DB insert`)
+        throw new DuplicateExternalIdError()
+      }
+      throw e
+    }
+}
 
 
   static async persistDelta(owner, txId, delta) {
     if (VERBOSE) console.log(`TransactionPersistance.persistDeltas()`, delta)
-
+//ZZZZZ
+return
     const json = JSON.stringify(delta.data)
 
     // Save the deltas

@@ -5,9 +5,19 @@
  * the author or owner be liable for any claim or damages.
  */
 import ATP from '../ATP/ATP'
-import dbPipelines from '../database/dbPipelines'
+import dbPipelines, { getPipelines } from '../database/dbPipelines'
 import errors from 'restify-errors'
 import { STEP_TYPE_PIPELINE } from '../ATP/StepTypeRegister'
+
+export async function pipelineVersionsV1(req, res, next) {
+  console.log(`pipelineVersionsV1()`)
+
+  const pipeline = req.params.pipeline
+  const pipelines = await getPipelines(pipeline, null)
+  console.log(`JSON.stringify(pipelines, '', 2)=`, JSON.stringify(pipelines, '', 2))
+  res.send(pipelines)
+  return next()
+}
 
 export async function pipelineDescriptionV1(req, res, next) {
   console.log(`pipelineDescriptionV1()`)
