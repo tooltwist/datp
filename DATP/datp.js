@@ -6,7 +6,7 @@
  */
 import ATP from '../ATP/ATP'
 // import ResultReceiver from '../ATP/ResultReceiver'
-import master from '../restify/master'
+// import master from '../restify/master'
 import apiVersions from '../extras/apiVersions'
 // import { monitorMidi } from '../mondat/midi'
 import errors from 'restify-errors';
@@ -384,7 +384,7 @@ async function run() {
 
 export default {
   routesForRestify,
-  registerAsMaster: master.registerAsMaster,
+  // registerAsMaster: master.registerAsMaster,
   // monitorMidi,
   run,
   initiateTransactionOLDE,

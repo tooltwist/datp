@@ -7,19 +7,23 @@
 import { QueueManager } from './QueueManager';
 import juice from '@tooltwist/juice-client'
 import assert from 'assert'
+import { stat } from 'fs';
 const Redis = require('ioredis');
-const util = require('util');
+// const util = require('util');
 
 // This adds colors to the String class
 require('colors')
 
 const STRING_PREFIX = 'string:::'
 const REDIS_LIST_PREFIX = 'datp:queue:'
+const NODE_REGISTRATION_PREFIX = 'datp:node:'
 const POP_TIMEOUT = 0
 
 const VERBOSE = 0
 
-// let initialRedisConnection = null
+// Each node must register itself every minute
+export const NODE_REGISTRATION_INTERVAL = 60 // seconds
+
 let allocatedQueues = 0
 
 export class RedisQueue extends QueueManager {
@@ -309,6 +313,90 @@ export class RedisQueue extends QueueManager {
     return (count > 1)
   }
 
+  /**
+   *
+   * @param {*} nodeGroup
+   * @param {*} nodeId
+   * @param {*} status
+   */
+  async registerNode(nodeGroup, nodeId, status) {
+    // console.log(`registerNode(${nodeGroup}, ${nodeId})`)
+    await this._checkLoaded()
+    const key = `${NODE_REGISTRATION_PREFIX}${nodeGroup}:${nodeId}`
+    status.timestamp = Date.now()
+    const json = JSON.stringify(status, '', 2)
+    await this.#adminRedis.set(key, json, 'ex', NODE_REGISTRATION_INTERVAL + 30)
+  }
+
+  /**
+   *
+   */
+  async getNodeIds() {
+    // console.log(`getNodeIds()`)
+    const keys = await this.#adminRedis.keys(`${NODE_REGISTRATION_PREFIX}*`)
+    // console.log(`keys=`, keys)
+
+    // Group by nodeGroup
+    const groups = { }
+    for (const key of keys) {
+      // Get the nodeGroup and nodeId from the key
+      const arr = key.split(':')
+      if (arr.length === 4) {
+        const nodeGroup = arr[2]
+        const nodeId = arr[3]
+        if (!groups[nodeGroup]) {
+          groups[nodeGroup] = { nodeGroup, nodes: [ nodeId ] }
+        } else {
+          groups[nodeGroup].nodes.push(nodeId)
+        }
+      } else {
+        console.log(`Internal error: REDIS contains invalid JSON definition in node registration ${key}`)
+      }
+    }
+
+    // Convert the groups to a list
+    const list = [ ]
+    for (const nodeGroup in groups) {
+      const group = groups[nodeGroup]
+      group.nodes.sort() // Sort the nodeIds
+      list.push(group)
+    }
+    list.sort((g1, g2) => {
+      const masterFirst1 = (g1.nodeGroup === 'master') ? 0 : 1
+      const masterFirst2 = (g2.nodeGroup === 'master') ? 0 : 1
+      if (masterFirst1 < masterFirst2) return -1
+      if (masterFirst1 > masterFirst2) return +1
+      if (g1.nodeGroup < g2.nodeGroup) return -1
+      if (g1.nodeGroup > g2.nodeGroup) return +1
+      return 0
+    })
+    // console.log(`list=`, list)
+    return list
+  }
+
+  /**
+   *
+   * @returns { stepTypes }
+   */
+  async getNodeDetails(nodeGroup, nodeId) {
+    const key = `${NODE_REGISTRATION_PREFIX}${nodeGroup}:${nodeId}`
+    const json = await this.#adminRedis.get(key)
+    console.log(`json=`, json)
+    try {
+      const status = JSON.parse(nodeJSON)
+      // status.nodeGroup = nodeGroup
+      // stat.nodeId = nodeId
+      console.log(`status=`, status)
+      return status
+    } catch (e) {
+      console.log(`Internal error: REDIS contains invalid JSON definition in node registration ${key}`)
+      return null
+    }
+  }
+
+  /**
+   *
+   */
   async close() {
     if (this.#queueRedis) {
       VERBOSE && console.log(`{disconnecting from REDIS}`.gray)

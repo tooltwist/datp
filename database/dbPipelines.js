@@ -5,7 +5,6 @@
  * the author or owner be liable for any claim or damages.
  */
 import query from './query'
-import me from '../ATP/me'
 
 const VERBOSE = false
 
@@ -59,7 +58,7 @@ export async function savePipelineDraft(definition) {
   const stepsJson = JSON.stringify(definition.steps, '', 2)
   // console.log(`stepsJson=`, stepsJson)
 
-  const nodeName = await me.getName()
+  const nodeName = 'unknown'
   // const version = 'draft'
   // const status = 'draft'
   const version = '1.0'//ZZZZZ

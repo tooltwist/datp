@@ -17,8 +17,10 @@ import assert from 'assert'
 import { STEP_QUEUED, STEP_SUCCESS } from '../Step'
 import { schedulerForThisNode } from '../..'
 import StatsCollector from '../../lib/statsCollector'
-import pause from '../../lib/pause'
 import { DuplicateExternalIdError } from './TransactionPersistance'
+import { QueueManager } from './queuing/QueueManager'
+import { NODE_REGISTRATION_INTERVAL } from './queuing/RedisQueue-ioredis'
+import StepTypeRegister from '../StepTypeRegister'
 
 // Debug related
 const VERBOSE = 0
@@ -45,6 +47,8 @@ export default class Scheduler2 {
    */
   #nodeGroup // Group of this node
   #nodeId
+  #name
+  #description
 
   // Queueing
   #queueObject
@@ -105,6 +109,10 @@ export default class Scheduler2 {
 
     this.#nodeGroup = groupName
     this.#nodeId = GenerateHash('nodeId')
+    this.#name = (options.name) ? options.name : this.#nodeGroup
+    this.#description = (options.description) ? options.description : this.#description
+
+    // Queues
     this.#groupQueue = Scheduler2.groupQueueName(groupName)
     this.#nodeRegularQueue = Scheduler2.nodeRegularQueueName(groupName, this.#nodeId)
     this.#nodeExpressQueue = Scheduler2.nodeExpressQueueName(groupName, this.#nodeId)
@@ -288,6 +296,17 @@ export default class Scheduler2 {
 
     // Let's start the event loop in the background
     setTimeout(eventLoop, 0)
+
+
+    // Register this node periodically
+    const registerMe = async () => {
+      // console.log(`registerMe()\n\n\n`)
+      await this.#queueObject.registerNode(this.#nodeGroup, this.#nodeId, {
+        stepTypes: await StepTypeRegister.myStepTypes()
+      })
+      setTimeout(registerMe, NODE_REGISTRATION_INTERVAL * 1000)
+    }
+    await registerMe()
   }
 
   /**
@@ -824,32 +843,32 @@ export default class Scheduler2 {
   }//- enqueue_TransactionChange
 
 
-  /**
-   *
-   * @param {string} eventType
-   * @param {object} data
-   */
-  async enqueue_NoOperation(queueName) {
-    if (VERBOSE) {
-      console.log(`\n<<< enqueue_NoOperation(${queueName})`.green)
-    }
+  // /**
+  //  *
+  //  * @param {string} eventType
+  //  * @param {object} data
+  //  */
+  // async enqueue_NoOperation(queueName) {
+  //   if (VERBOSE) {
+  //     console.log(`\n<<< enqueue_NoOperation(${queueName})`.green)
+  //   }
 
-    assert(typeof(queueName) === 'string')
+  //   assert(typeof(queueName) === 'string')
 
-    // Add to the event queue
-    const event = {
-      eventType: Scheduler2.NULL_EVENT,
-      fromNodeId: this.#nodeId
-    }
-    // console.log(`Adding ${event.eventType} event to queue ${queueName}`.brightGreen)
-    // const queue = await getQueueConnection()
-    await this._checkConnectedToQueue()
-    await this.#queueObject.enqueue(queueName, event)
+  //   // Add to the event queue
+  //   const event = {
+  //     eventType: Scheduler2.NULL_EVENT,
+  //     fromNodeId: this.#nodeId
+  //   }
+  //   // console.log(`Adding ${event.eventType} event to queue ${queueName}`.brightGreen)
+  //   // const queue = await getQueueConnection()
+  //   await this._checkConnectedToQueue()
+  //   await this.#queueObject.enqueue(queueName, event)
 
-    // Update our statistics
-    this.#enqueuePastMinute.add(1)
-    this.#enqueuePastHour.add(1)
-  }//- enqueue_NoOperation
+  //   // Update our statistics
+  //   this.#enqueuePastMinute.add(1)
+  //   this.#enqueuePastHour.add(1)
+  // }//- enqueue_NoOperation
 
 
 
@@ -950,12 +969,25 @@ export default class Scheduler2 {
     // }
     this.#workers = [ ] // Free up the workers
 
+    await this._checkConnectedToQueue()
     if (this.#queueObject) {
       this.#queueObject.close()
     }
 
     // Make this scheduler unusable
     this.#state = Scheduler2.DESTROYED
+  }
+
+  async getNodeIds() {
+    // if (VERBOSE) console.log(`Scheduler2.getNodeIds()`)
+    await this._checkConnectedToQueue()
+    return await this.#queueObject.getNodeIds()
+  }
+
+  async getNodeDetails(nodeGroup, nodeId) {
+    // if (VERBOSE) console.log(`Scheduler2.getNodeDetails(${nodeGroup}, ${nodeId})`)
+    await this._checkConnectedToQueue()
+    await this.#queueObject.getNodeDetails(nodeGroup, nodeId)
   }
 
   async getStatus() {

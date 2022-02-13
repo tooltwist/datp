@@ -8,15 +8,15 @@ import DATP from '../DATP/datp'
 import corsMiddleware from "restify-cors-middleware2";
 import figlet from 'figlet'
 import juice from '@tooltwist/juice-client'
-import me from '../ATP/me'
-import { registerAsSlave } from './registerAsSlave'
-
+import mondat from './mondat'
 
 const restify = require('restify');
 
-async function startSlaveServer(options) {
-  console.log(`slaveServer()`)
-  const server = restify.createServer({
+
+export async function startDatpServer(options) {
+  // console.log(`startServer()`)
+
+  var server = restify.createServer({
     handleUncaughtExceptions: false,
   })
 
@@ -38,7 +38,7 @@ async function startSlaveServer(options) {
 
   // See http://restify.com/docs/plugins-api/#queryparser
   server.use(restify.plugins.queryParser({
-    mapParams: false
+    mapParams: false,
   }));
 
   // See http://restify.com/docs/plugins-api/#bodyparser
@@ -49,12 +49,16 @@ async function startSlaveServer(options) {
     keepExtensions: true,
   }));
 
-
-
-  // Start DATP (Distributed Asynchronous Transaction Engine)
   await DATP.run()
   await DATP.routesForRestify(server)
-  await registerAsSlave(server)
+  // await DATP.registerAsMaster(server)
+
+  // If this is a master node, provide routes for MONDAT to call
+  const nodeGroup = await juice.string('datp.nodeGroup', null) // Checked elsewhere
+  if (nodeGroup === 'master') {
+    mondat.registerRoutes(server)
+    // await DATP.monitorMidi()
+  }
 
   /*
   *  Display a nice message.
@@ -62,8 +66,7 @@ async function startSlaveServer(options) {
   const JUICE_CONFIG = process.env['JUICE_CONFIG']
   console.log(`JUICE_CONFIG=`, JUICE_CONFIG)
   console.log();
-  const name = await me.getName()
-  console.log(figlet.textSync(name, {
+  console.log(figlet.textSync(nodeGroup, {
     horizontalLayout: 'fitted'
   }));
   console.log();
@@ -71,11 +74,17 @@ async function startSlaveServer(options) {
   /*
   *  Start the server.
   */
-  const port = await juice.int('datp.port', 8081)
+  const port = await juice.int('datp.port', 8080)
   console.log(`Starting server on port ${port}`)
   server.listen(port, '0.0.0.0');
+
+  return server
 }
 
-export default {
-  startSlaveServer
+export async function serveMondatApi(server) {
+  const port = await juice.int('datp.port', 8080)
+  console.log(`Hosting Mondat application at http://0.0.0.0:${port}/mondat`)
+  const staticFilesDir = `${__dirname}/../../MONDAT/dist`
+  console.log(`staticFilesDir=`, staticFilesDir)
+  server.get('/*', restify.plugins.serveStaticFiles(staticFilesDir))
 }

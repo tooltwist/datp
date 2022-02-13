@@ -4,9 +4,8 @@
  * rights reserved. No warranty, explicit or implicit, provided. In no event shall
  * the author or owner be liable for any claim or damages.
  */
-import masterServer from './restify/masterServer'
-import slaveServer from './restify/slaveServer'
-import step, { STEP_RUNNING } from './ATP/Step'
+import { serveMondatApi, startDatpServer } from './restify/startServer'
+import step from './ATP/Step'
 import stepTypeRegister from './ATP/StepTypeRegister'
 import conversionHandler from './CONVERSION/lib/ConversionHandler'
 import formsAndFields from './CONVERSION/lib/formsAndFields'
@@ -35,30 +34,42 @@ export const query = dbQuery
 export let schedulerForThisNode = null
 
 async function restifySlaveServer(options) {
-  return slaveServer.startSlaveServer(options)
+  return startDatpServer(options)
 }
 
 async function restifyMasterServer(options) {
-  return masterServer.startMasterServer(options)
+  return startDatpServer(options)
 }
 
 export async function goLive(server) {
+  const nodeGroup = await juice.string('datp.nodeGroup', null)
+  if (!nodeGroup) {
+    console.log(`FATAL ERROR: Config does not specify datp.nodeGroup. Shutting down.`)
+    process.exit(1)
+  }
+  const name = await juice.string('datp.name', juice.OPTIONAL)
+  const description = await juice.string('datp.description', juice.OPTIONAL)
+  const serveMondat = await juice.boolean('datp.serveMondat', false)
+  // const serveMondatApi = await juice.boolean('datp.serveMondatApi', nodeGroup === 'master')
+
   // Registering the healthcheck will allow the Load Balancer to recognise the server is active.
   healthcheck.registerRoutes(server)
 
-  // Perhaps serve up MONDAT
-  const serveMondat = await juice.boolean('datp.serveMondat', false)
-  if (serveMondat) {
-    await masterServer.serveMondat(server)
-  }
-
   // Start the master Scheduler
-  const MASTER_NODE_GROUP = 'master'
-  schedulerForThisNode = new Scheduler2(MASTER_NODE_GROUP, null)
+  schedulerForThisNode = new Scheduler2(nodeGroup, { name, description })
   // await scheduler.drainQueue()
   await schedulerForThisNode.start()
+
+  // Perhaps serve up MONDAT
+  if (serveMondat) {
+    await serveMondatApi(server)
+  }
 }
 
+/**
+ * For unit testing, we do not want to start the restify server. This function
+ * allows the scheduler to be started without the full DATP server functinoality.
+ */
 export async function prepareForUnitTesting() {
   // Start the master Scheduler
   const MASTER_NODE_GROUP = 'master'

@@ -7,7 +7,7 @@
 import { MONITOR_URL_PREFIX } from '../CONVERSION/lib/constants';
 import { defineRoute, LOGIN_IGNORED } from '../extras/apiVersions'
 // import { getMidiValuesV1 } from '../mondat/midi';
-import { listNodesV1 } from '../mondat/nodes'
+import { routeListNodesV1 } from '../mondat/nodes'
 import { getNodeStatsV1 } from '../mondat/nodeStats';
 import { listPipelinesV1, pipelineDefinitionV1, pipelineDescriptionV1, pipelineVersionsV1, savePipelineDraftV1 } from '../mondat/pipelines'
 import { getRecentPerformanceV1 } from '../mondat/recentPerformance';
@@ -50,7 +50,7 @@ async function registerRoutes(server) {
   ])
 
   defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/nodes', [
-    { versions: '1.0 - 1.0', handler: listNodesV1, auth: LOGIN_IGNORED, noTenant: true }
+    { versions: '1.0 - 1.0', handler: routeListNodesV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
 
   /*

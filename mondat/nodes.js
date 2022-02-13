@@ -4,17 +4,15 @@
  * rights reserved. No warranty, explicit or implicit, provided. In no event shall
  * the author or owner be liable for any claim or damages.
  */
-import NodeRegister from '../DATP/NodeRegister'
+import { schedulerForThisNode } from '..';
 
-export async function listNodesV1(req, res, next) {
-  // console.log(`listNodesV1()`)
+export async function routeListNodesV1(req, res, next) {
+  // console.log(`routeListNodesV1()`)
   try {
-    const includeMe = true
-    const nodeList = await NodeRegister.getNodes(includeMe)
-    // console.log(`nodeList=`, nodeList)
+    const nodeList = await schedulerForThisNode.getNodeIds()
     res.send(nodeList)
     return next();
   } catch (e) {
-    console.log(`Error in listNodesV1():`, e)
+    console.log(`Error in routeListNodesV1():`, e)
   }
 }

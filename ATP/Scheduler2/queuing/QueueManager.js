@@ -34,4 +34,16 @@ export class QueueManager {
   async repeatEventDetection(key, interval) {
     throw new Error(`Fatal error: class ${this.constructor.name} does not extend QueueManager.repeatEventDetection()`)
   }
+
+  async registerNode(nodeId, status) {
+    throw new Error(`Fatal error: class ${this.constructor.name} does not extend QueueManager.registerNode()`)
+  }
+
+  async getNodeIds() {
+    throw new Error(`Fatal error: class ${this.constructor.name} does not extend QueueManager.getNodeIds()`)
+  }
+
+  async getNodeDetails() {
+    throw new Error(`Fatal error: class ${this.constructor.name} does not extend QueueManager.getNodeDetails()`)
+  }
 }
