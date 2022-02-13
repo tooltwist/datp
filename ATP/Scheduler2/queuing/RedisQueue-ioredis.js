@@ -281,7 +281,9 @@ export class RedisQueue extends QueueManager {
     const len =  await this.#queueRedis.llen(list)
     if (VERBOSE) console.log(` - ${await this.#queueRedis.llen(list)} before`)
     if (len > 0) {
-      await this.#queueRedis.ltrim(list, 1, 0)
+      // See https://stackoverflow.com/questions/9828160/delete-all-entries-in-a-redis-list
+      // await this.#queueRedis.ltrim(list, 0, 0)
+      await this.#queueRedis.del(list)
       // console.log()
       // console.log(`   WARNING  WARNING  WARNING  WARNING  WARNING  WARNING  WARNING  WARNING  WARNING`)
       console.log(`   ${len} events in queue [${list}] have been drained, so will not be run.`.gray)
@@ -298,6 +300,7 @@ export class RedisQueue extends QueueManager {
    */
   async repeatEventDetection(key, interval) {
     // console.log(`repeatEventDetection(${key}, ${interval})`)
+    await this._checkLoaded()
     key = `datp:repeat-detection:${key}`
     const count = await this.#adminRedis.incr(key)
     // console.log(`count=`, count)

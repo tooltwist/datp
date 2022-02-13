@@ -3,7 +3,7 @@ import Transaction from '../../../ATP/Scheduler2/Transaction'
 import createTestTransaction from '../helpers/createTestTransaction'
 
 // https://github.com/avajs/ava/blob/master/docs/01-writing-tests.md
-test.beforeEach(async t => {
+test.before(async t => {
   const num = Math.round(Math.random() * 100000000000)
   t.context.txId = `t-${num}`
 })

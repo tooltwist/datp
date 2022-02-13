@@ -52,8 +52,10 @@ export default class TransactionPersistance {
 
   static async persistDelta(owner, txId, delta) {
     if (VERBOSE) console.log(`TransactionPersistance.persistDeltas()`, delta)
-//ZZZZZ
-return
+
+// //ZZZZZ
+// return
+
     const json = JSON.stringify(delta.data)
 
     // Save the deltas

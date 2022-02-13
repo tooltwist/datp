@@ -7,7 +7,7 @@ import { STEP_RUNNING, STEP_SLEEPING, STEP_SUCCESS } from '../../../ATP/Step'
 
 
 // https://github.com/avajs/ava/blob/master/docs/01-writing-tests.md
-test.beforeEach(async t => {
+test.before(async t => {
 })
 
 

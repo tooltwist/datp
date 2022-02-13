@@ -4,7 +4,7 @@ import createTestTransaction from '../helpers/createTestTransaction'
 
 
 // https://github.com/avajs/ava/blob/master/docs/01-writing-tests.md
-test.beforeEach(async t => {
+test.before(async t => {
 })
 
 

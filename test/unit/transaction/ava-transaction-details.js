@@ -1,11 +1,11 @@
 import test from 'ava'
-import Scheduler2 from '../../../ATP/Scheduler2/Scheduler2'
 import CallbackRegister from '../../../ATP/Scheduler2/CallbackRegister'
 import pause from '../../../lib/pause'
 import PipelineStep from '../../../ATP/hardcoded-steps/PipelineStep'
 import ExampleStep from '../../../ATP/hardcoded-steps/ExampleStep'
 import RandomDelayStep from '../../../ATP/hardcoded-steps/RandomDelayStep'
 import { STEP_SUCCESS } from '../../../ATP/Step'
+import { schedulerForThisNode, prepareForUnitTesting } from '../../..'
 
 /*
  *  We need to use a different node name for each test file, as they run in different
@@ -13,14 +13,15 @@ import { STEP_SUCCESS } from '../../../ATP/Step'
  *  then they draw from the same queue, but the worker might not know the callback handler.
  */
 const OWNER = 'fred'
-const NODE_GROUP = 'tx-details'
+const NODE_GROUP = 'master'
 
 
 // https://github.com/avajs/ava/blob/master/docs/01-writing-tests.md
-test.beforeEach(async t => {
+test.before(async t => {
   await PipelineStep.register()
   await ExampleStep.register()
   await RandomDelayStep.register()
+  await prepareForUnitTesting()
 })
 
 
@@ -42,13 +43,10 @@ test.serial('Call ping4 test transaction', async t => {
     // endTime = Date.now()
   })
 
-  // Start the scheduler and give it time to work
-  const scheduler = new Scheduler2(NODE_GROUP, null)
-  await scheduler.drainQueue()
-  await scheduler.start()
+  await schedulerForThisNode.drainQueue()
 
   // Start the test transaction
-  const tx = await Scheduler2.startTransaction({
+  const tx = await schedulerForThisNode.startTransaction({
     metadata: {
       owner: OWNER,
       nodeGroup: NODE_GROUP,
@@ -69,7 +67,7 @@ test.serial('Call ping4 test transaction', async t => {
   // await scheduler.dump()
   // Give it time to complete
   await pause(3000)
-  await scheduler.stop()
+  // await scheduler.stop()
 
 
   // Okay, we've finished running, now check we can get the details
@@ -123,6 +121,6 @@ test.serial('Call ping4 test transaction', async t => {
   //   const elapsed = endTime - startTime
   //   console.log(`ping4 completed in ${elapsed}ms`)
   // }
-  await scheduler.destroy()
+  // await scheduler.destroy()
 })
 

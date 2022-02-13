@@ -59,6 +59,13 @@ export async function goLive(server) {
   await schedulerForThisNode.start()
 }
 
+export async function prepareForUnitTesting() {
+  // Start the master Scheduler
+  const MASTER_NODE_GROUP = 'master'
+  schedulerForThisNode = new Scheduler2(MASTER_NODE_GROUP, null)
+  await schedulerForThisNode.start()
+}
+
 
 /**
  * Start a new transaction, based on the HTTP request we received.
@@ -239,6 +246,7 @@ export default {
   // initiateTransaction,
   RouterStep,
   pause,
+  prepareForUnitTesting,
 
   // New v2.0 functions
   startTransactionRoute,

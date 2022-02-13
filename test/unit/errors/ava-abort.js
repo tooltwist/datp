@@ -6,6 +6,7 @@ import PipelineStep from '../../../ATP/hardcoded-steps/PipelineStep'
 import ExampleStep from '../../../ATP/hardcoded-steps/ExampleStep'
 import RandomDelayStep from '../../../ATP/hardcoded-steps/RandomDelayStep'
 import { STEP_ABORTED } from '../../../ATP/Step'
+import { schedulerForThisNode, prepareForUnitTesting } from '../../..'
 
 /*
  *  We need to use a different node name for each test file, as they run in different
@@ -13,14 +14,16 @@ import { STEP_ABORTED } from '../../../ATP/Step'
  *  then they draw from the same queue, but the worker might not know the callback handler.
  */
 const OWNER = 'fred'
-const NODE_GROUP = 'abort'
+const NODE_GROUP = 'master'
 
 
 // https://github.com/avajs/ava/blob/master/docs/01-writing-tests.md
-test.beforeEach(async t => {
+test.before(async t => {
   await PipelineStep.register()
   await ExampleStep.register()
   await RandomDelayStep.register()
+
+  await prepareForUnitTesting()
 })
 
 
@@ -41,13 +44,10 @@ test.serial('Run a sucessful transaction', async t => {
     endTime = Date.now()
   })
 
-  // Start the scheduler and give it time to work
-  const scheduler = new Scheduler2(NODE_GROUP, null)
-  await scheduler.drainQueue()
-  await scheduler.start()
+  await schedulerForThisNode.drainQueue()
 
   // Start the test transaction
-  await Scheduler2.startTransaction({
+  await schedulerForThisNode.startTransaction({
     metadata: {
       owner: OWNER,
       nodeGroup: NODE_GROUP,
@@ -67,7 +67,7 @@ test.serial('Run a sucessful transaction', async t => {
 
   // await scheduler.dump()
   await pause(500)
-  await scheduler.stop()
+  // await scheduler.stop()
 
 
   // Check that the callback was called
@@ -83,6 +83,6 @@ test.serial('Run a sucessful transaction', async t => {
     const elapsed = endTime - startTime
     // console.log(`ping4 completed in ${elapsed}ms`)
   }
-  await scheduler.destroy()
+  // await scheduler.destroy()
 })
 

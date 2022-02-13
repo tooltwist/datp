@@ -31,6 +31,7 @@ for test in ${*} ; do
   echo Running test ${test}...
 
   npx ava --verbose test/unit/${test}
+  #npx ava --verbose --trace-deprecation test/unit/${test}
 done
 
 # Show the Mock directories

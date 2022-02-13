@@ -7,7 +7,7 @@ import TransactionCache from '../../../ATP/Scheduler2/TransactionCache'
 
 
 // https://github.com/avajs/ava/blob/master/docs/01-writing-tests.md
-test.beforeEach(async t => {
+test.before(async t => {
 })
 
 

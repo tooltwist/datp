@@ -2,6 +2,7 @@ import test from 'ava'
 import { STEP_QUEUED, STEP_RUNNING, STEP_SUCCESS } from '../../../ATP/Step'
 import TransactionCache from '../../../ATP/Scheduler2/TransactionCache'
 import createTestTransaction from '../helpers/createTestTransaction'
+import { schedulerForThisNode, prepareForUnitTesting } from '../../..'
 
 /*
  *  We need to use a different node name for each test file, as they run in different
@@ -11,7 +12,8 @@ import createTestTransaction from '../helpers/createTestTransaction'
 
 
 // https://github.com/avajs/ava/blob/master/docs/01-writing-tests.md
-test.beforeEach(async t => {
+test.before(async t => {
+  // await prepareForUnitTesting()
 })
 
 

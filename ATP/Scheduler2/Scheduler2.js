@@ -406,6 +406,7 @@ export default class Scheduler2 {
       // return 2, etc. This will continue until the key is removed after 30 seconds. By that
       // time the externalId should certainly be stored in the darabase.
       if (metadata.externalId) {
+        await this._checkConnectedToQueue()
         const key = `externalId-${metadata.externalId}`
         if (await this.#queueObject.repeatEventDetection(key, DUP_EXTERNAL_ID_DELAY)) {
           // A transaction already exists with this externalId
@@ -710,12 +711,12 @@ export default class Scheduler2 {
       console.log(`\n<<< enqueue_StepCompleted(${queueName})`.green)
       if (VERBOSE > 1) console.log(`event=`, event)
     }
-    if (queueName.startsWith(Scheduler2.GROUP_QUEUE_PREFIX)) {
-      console.log(`////////////////////////////////////////////`.magenta)
-      console.log(`enqueue_StepCompleted with group queue ${queueName}`.magenta)
-      console.log(new Error('for debug').stack.magenta)
-      console.log(`////////////////////////////////////////////`.magenta)
-    }
+    // if (queueName.startsWith(Scheduler2.GROUP_QUEUE_PREFIX)) {
+    //   // console.log(`////////////////////////////////////////////`.magenta)
+    //   console.log(`enqueue_StepCompleted with group queue ${queueName}`.magenta)
+    //   // console.log(new Error('for debug').stack.magenta)
+    //   // console.log(`////////////////////////////////////////////`.magenta)
+    // }
 
     // Validate the event data
     assert(typeof(queueName) == 'string')
@@ -752,12 +753,12 @@ export default class Scheduler2 {
     if (VERBOSE) {
       console.log(`\n<<< enqueue_TransactionCompleted(${queueName})`.green, event)
     }
-    if (queueName.startsWith(Scheduler2.GROUP_QUEUE_PREFIX)) {
-      console.log(`////////////////////////////////////////////`.magenta)
-      console.log(`enqueue_TransactionCompleted with group queue ${queueName}`.magenta)
-      console.log(new Error('for debug').stack.magenta)
-      console.log(`////////////////////////////////////////////`.magenta)
-    }
+    // if (queueName.startsWith(Scheduler2.GROUP_QUEUE_PREFIX)) {
+    //   // console.log(`////////////////////////////////////////////`.magenta)
+    //   console.log(`enqueue_TransactionCompleted with group queue ${queueName}`.magenta)
+    //   // console.log(new Error('for debug').stack.magenta)
+    //   // console.log(`////////////////////////////////////////////`.magenta)
+    // }
 
     if (!queueName) {
       throw new Error(`enqueue_TransactionCompleted() requires queueName parameter`)
@@ -869,7 +870,9 @@ export default class Scheduler2 {
 
   async drainQueue() {
     await this._checkConnectedToQueue()
-    return await this.#queueObject.drainQueue(this.#groupQueue)
+    await this.#queueObject.drainQueue(this.#groupQueue)
+    await this.#queueObject.drainQueue(this.#nodeRegularQueue)
+    await this.#queueObject.drainQueue(this.#nodeExpressQueue)
   }
 
   /**
@@ -930,10 +933,10 @@ export default class Scheduler2 {
     // will need to read (and process) an event before they can go to standby mode
     // again, and this won't happen if there are no events in the queue.
     // To help them clear out we'll send a bunch of null events down the queue.
-    for (const worker of this.#workers) {
-      // console.log(`Sending null event`)
-      await schedulerForThisNode.enqueue_NoOperation(this.#groupQueue)
-    }
+    // for (const worker of this.#workers) {
+    //   // console.log(`Sending null event`)
+    //   await schedulerForThisNode.enqueue_NoOperation(this.#groupQueue)
+    // }
   }
 
   async destroy() {

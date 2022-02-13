@@ -8,7 +8,7 @@ const OWNER = 'fred'
 const TRANSACTION_TYPE = 'example'
 
 // https://github.com/avajs/ava/blob/master/docs/01-writing-tests.md
-test.beforeEach(async t => {
+test.before(async t => {
 })
 
 test.serial('Get summary by transaction ID', async t => {

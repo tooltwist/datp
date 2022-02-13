@@ -1,8 +1,8 @@
 import test from 'ava'
-import Scheduler2 from '../../../ATP/Scheduler2/Scheduler2'
 import CallbackRegister from '../../../ATP/Scheduler2/CallbackRegister'
 import pause from '../../../lib/pause'
 import { STEP_SUCCESS } from '../../../ATP/Step'
+import { schedulerForThisNode, prepareForUnitTesting } from '../../..'
 
 /*
  *  We need to use a different node name for each test file, as they run in different
@@ -10,11 +10,13 @@ import { STEP_SUCCESS } from '../../../ATP/Step'
  *  then they draw from the same queue, but the worker might not know the callback handler.
  */
 const OWNER = 'fred'
-const NODE_GROUP = 'ping2'
+const NODE_GROUP = 'master'
 
 
 // https://github.com/avajs/ava/blob/master/docs/01-writing-tests.md
-test.beforeEach(async t => { })
+test.before(async t => {
+  await prepareForUnitTesting()
+})
 
 
 test.serial('Call ping2 test transaction', async t => {
@@ -35,11 +37,11 @@ test.serial('Call ping2 test transaction', async t => {
   })
 
   // Prepare the scheduler and ensure the queue is empty
-  const scheduler = new Scheduler2(NODE_GROUP, null)
-  await scheduler.drainQueue()
+  // const scheduler = new Scheduler2(NODE_GROUP, null)
+  await schedulerForThisNode.drainQueue()
 
   // Start the test transaction
-  await Scheduler2.startTransaction({
+  await schedulerForThisNode.startTransaction({
     metadata: {
       owner: OWNER,
       nodeGroup: NODE_GROUP,
@@ -56,10 +58,7 @@ test.serial('Call ping2 test transaction', async t => {
     }
   })
 
-  // Start the scheduler and give it time to work
-  await scheduler.start()
   await pause(500)
-  await scheduler.stop()
 
   // Check that the callback was called
   t.truthy(returnedContext)
@@ -74,5 +73,5 @@ test.serial('Call ping2 test transaction', async t => {
     const elapsed = endTime - startTime
     // console.log(`ping2 completed in ${elapsed}ms`)
   }
-  await scheduler.destroy()
+  // await scheduler.destroy()
 })

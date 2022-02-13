@@ -1,7 +1,7 @@
 import test from 'ava'
-import Scheduler2 from '../../../ATP/Scheduler2/Scheduler2'
 import CallbackRegister from '../../../ATP/Scheduler2/CallbackRegister'
 import pause from '../../../lib/pause'
+import { schedulerForThisNode, prepareForUnitTesting } from '../../..'
 
 /*
  *  We need to use a different node name for each test file, as they run in different
@@ -9,12 +9,14 @@ import pause from '../../../lib/pause'
  *  then they draw from the same queue, but the worker might not know the callback handler.
  */
 const OWNER = 'fred'
-const NODE_GROUP = 'many-ping2'
+const NODE_GROUP = 'master'
 const NUM_TESTS = 100
 
 
 // https://github.com/avajs/ava/blob/master/docs/01-writing-tests.md
-test.beforeEach(async t => { })
+test.before(async t => {
+  await prepareForUnitTesting()
+})
 
 
 test.serial('Warm up', async t => {
@@ -31,15 +33,12 @@ test.serial('Warm up', async t => {
     // Do nothing
   })
 
-  // Start the scheduler and give it time to work
-  const scheduler = new Scheduler2(NODE_GROUP, null, { numWorkers: 1 })
-  await scheduler.drainQueue()
-  await scheduler.start()
+  await schedulerForThisNode.drainQueue()
 
   // Start the test transaction
   for (const tx of transactionList) {
     // console.log(`=> add ${tx.i} to queue`)
-    await Scheduler2.startTransaction({
+    await schedulerForThisNode.startTransaction({
       metadata: {
         owner: OWNER,
         nodeGroup: NODE_GROUP,
@@ -57,7 +56,7 @@ test.serial('Warm up', async t => {
 
   // await scheduler.dump()
   await pause(1000)
-  await scheduler.stop()
+  // await scheduler.stop()
   t.truthy(true)
 })
 
@@ -90,15 +89,12 @@ test.serial('Large number of ping2 transactions, single worker', async t => {
     }
   })
 
-  // Start the scheduler and give it time to work
-  const scheduler = new Scheduler2(NODE_GROUP, null, { numWorkers: 1 })
-  await scheduler.drainQueue()
-  await scheduler.start()
+  await schedulerForThisNode.drainQueue()
 
   // Start the test transaction
   for (const tx of transactionList) {
     // console.log(`=> add ${tx.i} to queue`)
-    await Scheduler2.startTransaction({
+    await schedulerForThisNode.startTransaction({
       metadata: {
         owner: OWNER,
         nodeGroup: NODE_GROUP,
@@ -116,7 +112,7 @@ test.serial('Large number of ping2 transactions, single worker', async t => {
 
   // await scheduler.dump()
   await pause(2000)
-  await scheduler.stop()
+  // await scheduler.stop()
 
   // Look for any duplicated, or incomplete transactions.
   for (const tx of transactionList) {
@@ -125,7 +121,7 @@ test.serial('Large number of ping2 transactions, single worker', async t => {
 
   // Check that the callback was called
   t.is(completionCounter, NUM_TESTS)
-  await scheduler.destroy()
+  // await scheduler.destroy()
 
   // Check they completed in order
   for (const tx of transactionList) {
@@ -168,16 +164,12 @@ test.serial('Large number of ping2 transactions, multiple workers', async t => {
     }
   })
 
-  // Start the scheduler and give it time to work
-  const scheduler = new Scheduler2(NODE_GROUP, null, { numWorkers: NUM_WORKERS })
-  await scheduler.drainQueue()
-  await scheduler.start()
-  // await scheduler.dump()
+  await schedulerForThisNode.drainQueue()
 
   // Start the test transaction
   for (const tx of transactionList) {
     // console.log(`=> add ${tx.i} to queue`)
-    await Scheduler2.startTransaction({
+    await schedulerForThisNode.startTransaction({
       metadata: {
         owner: OWNER,
         nodeGroup: NODE_GROUP,
@@ -195,7 +187,7 @@ test.serial('Large number of ping2 transactions, multiple workers', async t => {
 
   // await scheduler.dump()
   await pause(200)
-  await scheduler.stop()
+  // await scheduler.stop()
 
   // Look for any duplicated, or incomplete transactions.
   for (const tx of transactionList) {
@@ -209,7 +201,7 @@ test.serial('Large number of ping2 transactions, multiple workers', async t => {
 
   // Check that the callback was called
   t.is(completionCounter, NUM_TESTS)
-  await scheduler.destroy()
+  // await scheduler.destroy()
 
   const elapsed = endTime - startTime
   const each = elapsed / NUM_TESTS

@@ -11,7 +11,7 @@ import Transaction from './Transaction'
 import TransactionPersistance from './TransactionPersistance'
 import assert from 'assert'
 
-const VERBOSE = 1
+const VERBOSE = 0
 
 class TransactionCache {
   #cache
