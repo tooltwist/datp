@@ -21,23 +21,17 @@ import { DuplicateExternalIdError } from './TransactionPersistance'
 import { QueueManager } from './queuing/QueueManager'
 import { NODE_REGISTRATION_INTERVAL } from './queuing/RedisQueue-ioredis'
 import StepTypeRegister from '../StepTypeRegister'
+import { getNodeGroup } from '../../database/dbNodeGroup'
 
 // Debug related
 const VERBOSE = 0
 require('colors')
 
 
-const DEFAULT_NUM_WORKERS = 100
-const DELAY_WHEN_ALL_WORKERS_ARE_BUSY = 20
-const DELAY_WHEN_QUEUES_ARE_EMPTY = 50
-const DELAY_BEFORE_RESTARTING_EVENTLOOP = 5 // Give the workers time to set state=RUNNING, before checking again.
-
-// How long REDIS should keep the record while checking for an externalId. This
-// just need to be long enough that we csn be certain the database will have been
+// How long REDIS should stote the key while checking for an externalId. This
+// just needs to be long enough that we csn be certain the database will have been
 // written to all/any distributed copies of the database.
 const DUP_EXTERNAL_ID_DELAY = 60
-const DUP_EXTERNAL_ID_TESTING_HACK = true
-
 
 export default class Scheduler2 {
   #debugLevel
@@ -59,6 +53,27 @@ export default class Scheduler2 {
   // Worker threads
   #requiredWorkers
   #workers
+
+  // Event loop parameters
+  #eventloopPauseBusy
+  #eventloopPauseIdle
+  #eventloopPause
+  #delayToEnterSlothMode
+  #timeSinceLastEvent
+
+  // Options for debug levels
+  #debugScheduler
+  #debugWorkers
+  #debugSteps
+  #debugPipelines
+  #debugRouters
+  #debugLongpolling
+  #debugWebhooks
+  #debugTransactions
+  #debugTransactionCache
+  #debugRedis
+  #debugDb
+
 
   // Timeout handler for each clock tick
   // #timeout
@@ -110,7 +125,8 @@ export default class Scheduler2 {
     this.#nodeGroup = groupName
     this.#nodeId = GenerateHash('nodeId')
     this.#name = (options.name) ? options.name : this.#nodeGroup
-    this.#description = (options.description) ? options.description : this.#description
+    this.#description = (options.description) ? options.description : this.#nodeGroup
+
 
     // Queues
     this.#groupQueue = Scheduler2.groupQueueName(groupName)
@@ -119,7 +135,6 @@ export default class Scheduler2 {
     this.#queueObject = null
 
     // Allocate some StepWorkers
-    this.#requiredWorkers = (options.numWorkers ? options.numWorkers : DEFAULT_NUM_WORKERS)
     this.#workers = [ ]
 
     // this.#timeout = null
@@ -131,7 +146,7 @@ export default class Scheduler2 {
     // console.log(`  #nodeRegularQueue=`, this.#nodeRegularQueue)
     // console.log(`  #nodeExpressQueue=`, this.#nodeExpressQueue)
 
-    // Statistocs collection
+    // Statistics collection
     this.#transactionsInPastMinute = new StatsCollector(1000, 60)
     this.#transactionsInPastHour = new StatsCollector(60 * 1000, 60)
     this.#transactionsOutPastMinute = new StatsCollector(1000, 60)
@@ -142,6 +157,19 @@ export default class Scheduler2 {
     this.#enqueuePastHour = new StatsCollector(60 * 1000, 60)
     this.#dequeuePastMinute = new StatsCollector(1000, 60)
     this.#dequeuePastHour = new StatsCollector(60 * 1000, 60)
+
+    // Initialize with no debug
+    this.#debugScheduler = 0
+    this.#debugWorkers = 0
+    this.#debugSteps = 0
+    this.#debugPipelines = 0
+    this.#debugRouters = 0
+    this.#debugLongpolling = 0
+    this.#debugWebhooks = 0
+    this.#debugTransactions = 0
+    this.#debugTransactionCache = 0
+    this.#debugRedis = 0
+    this.#debugDb = 0
   }
 
   getNodeGroup() {
@@ -171,6 +199,9 @@ export default class Scheduler2 {
       return
     }
     this.#state = Scheduler2.RUNNING
+
+    // Get node group parameters from the database
+    await this.loadNodeGroupParameters()
 
     // Allocate and start workers
     if (VERBOSE) console.log(`Creating ${this.#requiredWorkers} workers`)
@@ -205,7 +236,7 @@ export default class Scheduler2 {
       if (workersWaiting.length === 0) {
         // if (VERBOSE)
         // console.log(`All workers are busy - Event loop sleeping a bit`)
-        setTimeout(eventLoop, DELAY_WHEN_ALL_WORKERS_ARE_BUSY)
+        setTimeout(eventLoop, this.#eventloopPauseBusy)
         return
       }
 
@@ -226,7 +257,7 @@ export default class Scheduler2 {
       if (events.length === 0) {
         // if (VERBOSE)
         // console.log(`Event queue is empty - Event loop sleeping a bit`)
-        setTimeout(eventLoop, DELAY_WHEN_QUEUES_ARE_EMPTY)
+        setTimeout(eventLoop, this.#eventloopPauseIdle)
         return
       }
 
@@ -252,7 +283,7 @@ export default class Scheduler2 {
       // We use the timeout, so the stack can reset itself.
       // A tiny delay is required, to ensure processEvent has time to set the
       // state away from WAITING.
-      setTimeout(eventLoop, DELAY_BEFORE_RESTARTING_EVENTLOOP)
+      setTimeout(eventLoop, this.#eventloopPause)
 
 
       // // Find an event for each of these workers that are waiting
@@ -308,6 +339,50 @@ export default class Scheduler2 {
     }
     await registerMe()
   }
+
+  async loadNodeGroupParameters() {
+    const group = await getNodeGroup(this.#nodeGroup)
+    if (!group) {
+      // Node group is not in the database
+      throw new Error(`Fatal error: node group '${nodeGroup}' is not defined in the database`)
+    }
+    this.#requiredWorkers = group.numWorkers
+    this.#eventloopPause = group.eventloopPause
+    this.#eventloopPauseBusy = group.eventloopPauseBusy
+    this.#eventloopPauseIdle = group.eventloopPauseIdle
+    this.#delayToEnterSlothMode = group.delayToEnterSlothMode
+    console.log(`  requiredWorkers=`, this.#requiredWorkers)
+    console.log(`  eventloopPause=`, this.#eventloopPause)
+    console.log(`  eventloopPauseBusy=`, this.#eventloopPauseBusy)
+    console.log(`  eventloopPauseIdle=`, this.#eventloopPauseIdle)
+    console.log(`  delayToEnterSlothMode=`, this.#delayToEnterSlothMode)
+
+    this.#delayToEnterSlothMode = group.delayToEnterSlothMode
+
+    this.#debugScheduler = group.debugScheduler
+    this.#debugWorkers = group.debugWorkers
+    this.#debugSteps = group.debugSteps
+    this.#debugPipelines = group.debugPipelines
+    this.#debugRouters = group.debugRouters
+    this.#debugLongpolling = group.debugLongpolling
+    this.#debugWebhooks = group.debugWebhooks
+    this.#debugTransactions = group.debugTransactions
+    this.#debugTransactionCache = group.debugTransactionCache
+    this.#debugRedis = group.debugRedis
+    this.#debugDb = group.debugDb
+  }
+
+  async getDebugScheduler() { return this.#debugScheduler }
+  async getDebugWorkers() { return this.#debugWorkers }
+  async getDebugSteps() { return this.#debugSteps }
+  async getDebugPipelines() { return this.#debugPipelines }
+  async getDebugRouters() { return this.#debugRouters }
+  async getDebugLongpolling() { return this.#debugLongpolling }
+  async getDebugWebhooks() { return this.#debugWebhooks }
+  async getDebugTransactions() { return this.#debugTransactions }
+  async getDebugTransactionCache() { return this.#debugTransactionCache }
+  async getDebugRedis() { return this.#debugRedis }
+  async getDebugDb() { return this.#debugDb }
 
   /**
    * Display extra debug information if turned on.
@@ -432,16 +507,6 @@ export default class Scheduler2 {
           console.log(`Scheduler2.startTransaction: detected duplicate externalId via REDIS`)
           throw new DuplicateExternalIdError()
         }
-        // if (DUP_EXTERNAL_ID_TESTING_HACK) {
-        //   // The intention here is to give us time to test the REDIS check
-        //   // before the database error detects the duplicate.
-        //   console.log(``)
-        //   console.log(`WARNING!!!!!!`)
-        //   console.log(`DUP_EXTERNAL_ID_TESTING_HACK is set.`)
-        //   console.log(`Inserting the transaction record is delayed 10 seconds, so you have time to test the backup duplicate externalId check...`)
-        //   await pause(10 * 1000)
-        //   console.log(`Database insert proceeding now..`)
-        // }
       }
 
 
