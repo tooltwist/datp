@@ -8,23 +8,34 @@ import { schedulerForThisNode } from '..';
 import TransactionCache from '../ATP/Scheduler2/TransactionCache';
 import LongPoll from '../ATP/Scheduler2/LongPoll'
 import Scheduler2 from '../ATP/Scheduler2/Scheduler2'
+import { getNodeGroups } from '../database/dbNodeGroup';
 
-export async function getNodeStatsV1(req, res, next) {
-  // console.log(`getNodeStatsV1()`)
+export async function getQueueStatsV1(req, res, next) {
+  // console.log(`getQueueStatsV1()`)
 
   const stats = { }
   const getGroup = (nodeGroup) => {
     let grp = stats[nodeGroup]
     if (!grp) {
-      grp = { nodeGroup, queueLength: 0, nodes: { } }
+      grp = { nodeGroup, queueLength: 0, nodes: { }, orphanNodes: { } }
       stats[nodeGroup] = grp
     }
     return grp
   }
   const intArray = (size) => { const arr = [ ]; for (let i = 0; i < size; i++) arr.push(0); return arr }
-  const getNode = (group, nodeId) => {
+  const getNode = (group, nodeId, shouldBeKnown) => {
     let node = group.nodes[nodeId]
     if (!node) {
+
+      // The node was not found in the main list. Perhaps it is already
+      // registered as an orphan?
+      node = group.orphanNodes[nodeId]
+      if (node) {
+        // console.log(`Found node ${nodeId} in orphan list`)
+        return node
+      }
+
+      // Create a new node
       node = {
         nodeId,
         queueLength: 0,
@@ -44,12 +55,43 @@ export async function getNodeStatsV1(req, res, next) {
           dequeuePastHour: intArray(60),
         }
       }
-      group.nodes[nodeId] = node
+      if (shouldBeKnown) {
+        // Should be in the main node list but was not. Must be an orphan.
+        group.orphanNodes[nodeId] = node
+        // console.log(`orphan node ${nodeId}`)
+      } else {
+        // Add to list
+        group.nodes[nodeId] = node
+      }
     }
     return node
   }
 
-  // Create the initial stats containing entries for all known nodes.
+  // Get the groups from the database
+  const groups = await getNodeGroups()
+  // console.log(`groups=`, groups)
+  // Index them by nodeGroup name
+  // const index =  { }
+  for (const group of groups) {
+    // Check it's in the list
+    getGroup(group.nodeGroup)
+  }
+
+  // Get a list of currently active nodes (grouped by nodeGroup)
+  const activeNodes = await schedulerForThisNode.getNodeIds()
+  // console.log(`activeNodes=`, activeNodes)
+  for (const activeGroup of activeNodes) {
+    // Add the group and node to our lists
+    const group = getGroup(activeGroup.nodeGroup)
+    console.log(`activeGroup=`, activeGroup)
+    for (const nodeId of activeGroup.nodes) {
+      getNode(group, nodeId)
+    }
+  }
+
+
+
+
 {
   const nodeGroup = 'master'
   const nodeId = schedulerForThisNode.getNodeId()
@@ -66,7 +108,7 @@ export async function getNodeStatsV1(req, res, next) {
   grp.nodes[nodeId]
 
   if (nodeId) {
-    const node = getNode(grp, nodeId)
+    const node = getNode(grp, nodeId, false)
     node.workers = myStatus.workers
     node.stats = myStatus.stats
     node.transactionsInCache = transactionsInCache
@@ -99,17 +141,21 @@ export async function getNodeStatsV1(req, res, next) {
         case Scheduler2.REGULAR_QUEUE_PREFIX:
           {
             // Regular node queue
-            const node = getNode(grp, nodeId)
-            node.queueLength += queue.length
-            node.regularQueueLength = queue.length
+            const node = getNode(grp, nodeId, true)
+            if (node) {
+              node.queueLength += queue.length
+              node.regularQueueLength += queue.length
+            }
           }
           break
         case Scheduler2.EXPRESS_QUEUE_PREFIX:
           {
             // Express queue for the node
-            const node = getNode(grp, nodeId)
-            node.queueLength += queue.length
-            node.expressQueueLength = queue.length
+            const node = getNode(grp, nodeId, true)
+            if (node) {
+              node.queueLength += queue.length
+              node.expressQueueLength += queue.length
+            }
           }
           break
       }

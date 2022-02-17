@@ -22,6 +22,7 @@ import { QueueManager } from './queuing/QueueManager'
 import { NODE_REGISTRATION_INTERVAL } from './queuing/RedisQueue-ioredis'
 import StepTypeRegister from '../StepTypeRegister'
 import { getNodeGroup } from '../../database/dbNodeGroup'
+import { appVersion, datpVersion, buildTime } from '../../build-version'
 
 // Debug related
 const VERBOSE = 0
@@ -333,7 +334,10 @@ export default class Scheduler2 {
     const registerMe = async () => {
       // console.log(`registerMe()\n\n\n`)
       await this.#queueObject.registerNode(this.#nodeGroup, this.#nodeId, {
-        stepTypes: await StepTypeRegister.myStepTypes()
+        appVersion,
+        datpVersion,
+        buildTime,
+        stepTypes: await StepTypeRegister.myStepTypes(),
       })
       setTimeout(registerMe, NODE_REGISTRATION_INTERVAL * 1000)
     }
@@ -344,7 +348,9 @@ export default class Scheduler2 {
     const group = await getNodeGroup(this.#nodeGroup)
     if (!group) {
       // Node group is not in the database
-      throw new Error(`Fatal error: node group '${nodeGroup}' is not defined in the database`)
+      console.log(`Fatal error: node group '${this.#nodeGroup}' is not defined in the database.`)
+      console.log(`This error is too dangerous to contine. Shutting down now.`)
+      process.exit(1)
     }
     this.#requiredWorkers = group.numWorkers
     this.#eventloopPause = group.eventloopPause
@@ -996,6 +1002,25 @@ export default class Scheduler2 {
   }
 
   /**
+   * If a node dies, there will be noone to process the events in it's queues.
+   * This function moves the events from it's regular and express queues over
+   * to the group queue so they can be processed by another node.
+   *
+   * @param {*} nodeGroup
+   * @param {*} nodeId
+   */
+  async handleOrphanQueues(nodeGroup, nodeId) {
+    console.log(`handleOrphanQueues(${nodeGroup}, ${nodeId})`)
+    this._checkConnectedToQueue()
+    const regularQueue = Scheduler2.nodeRegularQueueName(nodeGroup, nodeId)
+    const expressQueue = Scheduler2.nodeExpressQueueName(nodeGroup, nodeId)
+    const groupQueue = Scheduler2.groupQueueName(nodeGroup)
+    let num = await this.#queueObject.moveElementsToAnotherQueue(regularQueue, groupQueue)
+    num += await this.#queueObject.moveElementsToAnotherQueue(expressQueue, groupQueue)
+    return num
+  }
+
+  /**
    * Stop the scheduler from processing ticks.
    */
   async stop() {
@@ -1113,6 +1138,38 @@ export default class Scheduler2 {
     // if (VERBOSE) console.log(`getStatus returning`, obj)
     return obj
   }
+
+  /**
+   * Store a value for _duration_ seconds. During this period the
+   * value can be accessed using _getTemporaryValue_. This is commonly used
+   * with the following design pattern to cache slow-access information.
+   * ```javascript
+   * const value = await getTemporaryValue(key)
+   * if (!value) {
+   *    value = await get_value_from_slow_location()
+   *    await setTemporaryValue(key, value, EXOPIRY_TIME_IN_SECONDS)
+   * }
+   * ```
+   * @param {string} key
+   * @param {string}} value
+   * @param {num} duration Expiry time in seconds
+   */
+   async setTemporaryValue(key, value, duration) {
+     this._checkConnectedToQueue()
+     await this.#queueObject.setTemporaryValue(key, value, duration)
+  }
+
+  /**
+   * Access a value saved using _setTemporaryValue_. If the expiry duration for
+   * the temporary value has passed, null will be returned.
+   *
+   * @param {string} key
+   * @returns The value saved using _setTemporaryValue_.
+   */
+  async getTemporaryValue(key) {
+    this._checkConnectedToQueue()
+    return await this.#queueObject.getTemporaryValue(key)
+ }
 
   async dump() {
     await this._checkConnectedToQueue()

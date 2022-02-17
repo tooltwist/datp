@@ -8,13 +8,15 @@ import { MONITOR_URL_PREFIX } from '../CONVERSION/lib/constants';
 import { defineRoute, LOGIN_IGNORED } from '../extras/apiVersions'
 // import { getMidiValuesV1 } from '../mondat/midi';
 import { routeListNodesV1 } from '../mondat/nodes'
-import { getNodeStatsV1 } from '../mondat/nodeStats';
+import { routeListNodeGroupsV1 } from '../mondat/nodeGroups'
+import { getQueueStatsV1 } from '../mondat/queueStats';
 import { listPipelinesV1, pipelineDefinitionV1, pipelineDescriptionV1, pipelineVersionsV1, savePipelineDraftV1 } from '../mondat/pipelines'
 import { getRecentPerformanceV1 } from '../mondat/recentPerformance';
 import { getStepInstanceDetailsV1 } from '../mondat/stepInstances';
 import { deleteTestCasesV1, getTestCasesV1, saveTestCasesV1 } from '../mondat/testCases';
 import { deleteTransactionMappingsV1, getTransactionMappingsV1, saveTransactionMappingsV1 } from '../mondat/transactionMapping';
 import { mondatTransactionsV1, transactionStatusV1 } from '../mondat/transactions';
+import { handleOrphanQueuesV1 } from '../mondat/handleOrphanQueues';
 
 
 
@@ -51,6 +53,10 @@ async function registerRoutes(server) {
 
   defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/nodes', [
     { versions: '1.0 - 1.0', handler: routeListNodesV1, auth: LOGIN_IGNORED, noTenant: true }
+  ])
+
+  defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/nodeGroups', [
+    { versions: '1.0 - 1.0', handler: routeListNodeGroupsV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
 
   /*
@@ -92,10 +98,16 @@ async function registerRoutes(server) {
   defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/:nodeId/recentPerformance', [
     { versions: '1.0 - 1.0', handler: getRecentPerformanceV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
-  defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/nodeStats', [
-    { versions: '1.0 - 1.0', handler: getNodeStatsV1, auth: LOGIN_IGNORED, noTenant: true }
+  defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/queueStats', [
+    { versions: '1.0 - 1.0', handler: getQueueStatsV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
 
+  /*
+   *  Admin functions
+   */
+  defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/handleOrphanQueues/:nodeGroup/:nodeId', [
+    { versions: '1.0 - 1.0', handler: handleOrphanQueuesV1, auth: LOGIN_IGNORED, noTenant: true }
+  ])
 
 }
 

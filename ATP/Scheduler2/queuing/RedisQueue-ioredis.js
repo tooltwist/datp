@@ -22,7 +22,7 @@ const POP_TIMEOUT = 0
 const VERBOSE = 0
 
 // Each node must register itself every minute
-export const NODE_REGISTRATION_INTERVAL = 60 // seconds
+export const NODE_REGISTRATION_INTERVAL = 30 // seconds
 
 let allocatedQueues = 0
 
@@ -298,6 +298,30 @@ export class RedisQueue extends QueueManager {
   }
 
   /**
+   * Move elements from one queue to another.
+   * This is typically called when a node has died, to move elements from the
+   * element's regular and express queues to the group queue, so they can be
+   * processed by another node.
+   *
+   * @param {string} fromQueue
+   * @param {string} toQueue
+   * @returns Number of elements moved
+   */
+  async moveElementsToAnotherQueue(fromQueueName, toQueueName) {
+    console.log(`moveElementsToAnotherQueue(${fromQueueName}, ${toQueueName})`)
+    const fromQueue = listName(fromQueueName)
+    const toQueue = listName(toQueueName)
+    for (let i = 0; ; i++) {
+      const value = await this.#adminRedis.lmove(fromQueue, toQueue, 'left', 'right')
+      if (!value) {
+        // None left
+        return i
+      }
+// return 1
+    }
+  }
+
+  /**
    * Detect if something happens more than once, within the specified number of seconds.
    *  See https://redis.io/commands/incr
    *  See https://redis.io/commands/expire
@@ -311,6 +335,41 @@ export class RedisQueue extends QueueManager {
     // console.log(`count=`, typeof(count))
     await this.#adminRedis.expire(key, interval)
     return (count > 1)
+  }
+
+  /**
+   * Store a value for _duration_ seconds. During this period the
+   * value can be accessed using _getTemporaryValue_. This is commonly used
+   * with the following design pattern to cache slow-access information.
+   * ```javascript
+   * const value = await getTemporaryValue(key)
+   * if (!value) {
+   *    value = await get_value_from_slow_location()
+   *    await setTemporaryValue(key, value, EXOPIRY_TIME_IN_SECONDS)
+   * }
+   * ```
+   * @param {string} key
+   * @param {string}} value
+   * @param {num} duration Expiry time in seconds
+   */
+  async setTemporaryValue(key, value, duration) {
+    await this._checkLoaded()
+    key = `datp:temporary-value:${key}`
+    await this.#adminRedis.set(key, value, 'ex', duration)
+  }
+
+  /**
+   * Access a value saved using _setTemporaryValue_. If the expiry duration for
+   * the temporary value has passed, null will be returned.
+   *
+   * @param {string} key
+   * @returns The value saved using _setTemporaryValue_.
+   */
+  async getTemporaryValue(key) {
+    await this._checkLoaded()
+    key = `datp:temporary-value:${key}`
+    const value = await this.#adminRedis.get(key)
+    return value
   }
 
   /**

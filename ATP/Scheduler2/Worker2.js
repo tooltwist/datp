@@ -155,6 +155,12 @@ export default class Worker2 {
 
       // Sanity check - check the status, before doing anything.
       const tx = await TransactionCache.findTransaction(txId, true)
+      if (!tx) {
+        // This should be flagged as a serious system error.ZZZZZ
+        const msg = `SERIOUS ERROR: stepStart event for unknown transaction ${txId}. Step ID is ${stepId}. Where did this come from?`
+        console.log(msg)
+        return
+      }
       const txData = tx.txData()
       const stepData = tx.stepData(stepId)
       if (stepData === null) {
@@ -262,6 +268,12 @@ export default class Worker2 {
 
       // See what we saved before calling the step
       const tx = await TransactionCache.findTransaction(txId, true)
+      if (!tx) {
+        // This should be flagged as a serious system error.ZZZZZ
+        const msg = `SERIOUS ERROR: stepCompleted event for unknown transaction ${txId}. Step ID is ${stepId}. Where did this come from?`
+        console.log(msg)
+        return
+      }
       const stepData = tx.stepData(stepId)
       // console.log(`stepData for step ${stepId}`, stepData)
 if (!stepData) {
@@ -311,6 +323,12 @@ if (!stepData) {
     try {
       const txId = event.txId
       const tx = await TransactionCache.findTransaction(txId, true)
+      if (!tx) {
+        // This should be flagged as a serious system error.ZZZZZ
+        const msg = `SERIOUS ERROR: transactionChanged event for unknown transaction ${txId}. Step ID is ${stepId}. Where did this come from?`
+        console.log(msg)
+        return
+      }
       const txData = tx.txData()
 
       if (this.#debugLevel > 1) {
@@ -357,6 +375,12 @@ if (!stepData) {
     try {
       const txId = event.txId
       const tx = await TransactionCache.findTransaction(txId, true)
+      if (!tx) {
+        // This should be flagged as a serious system error.ZZZZZ
+        const msg = `SERIOUS ERROR: transactionCompleted event for unknown transaction ${txId}. Step ID is ${stepId}. Where did this come from?`
+        console.log(msg)
+        return
+      }
       const txData = tx.txData()
       // console.log(`txData=`, txData)
 

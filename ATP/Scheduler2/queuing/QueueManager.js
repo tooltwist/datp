@@ -46,4 +46,17 @@ export class QueueManager {
   async getNodeDetails() {
     throw new Error(`Fatal error: class ${this.constructor.name} does not extend QueueManager.getNodeDetails()`)
   }
+
+  async moveElementsToAnotherQueue(fromQueueName, toQueueName) {
+    throw new Error(`Fatal error: class ${this.constructor.name} does not extend QueueManager.moveElementsToAnotherQueue()`)
+  }
+
+  async setTemporaryValue(key, value, duration) {
+    throw new Error(`Fatal error: class ${this.constructor.name} does not extend QueueManager.setTemporaryValue()`)
+  }
+
+  async getTemporaryValue(key) {
+    throw new Error(`Fatal error: class ${this.constructor.name} does not extend QueueManager.getTemporaryValue()`)
+  }
+
 }
