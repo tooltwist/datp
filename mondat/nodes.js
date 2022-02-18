@@ -5,14 +5,39 @@
  * the author or owner be liable for any claim or damages.
  */
 import { schedulerForThisNode } from '..';
+import { getNodeGroups } from '../database/dbNodeGroup';
 
-export async function routeListNodesV1(req, res, next) {
-  // console.log(`routeListNodesV1()`)
+export async function route_activeNodesV1(req, res, next) {
+  // console.log(`route_activeNodesV1()`)
   try {
-    const nodeList = await schedulerForThisNode.getNodeIds()
+    let withStepTypes = false
+    if (req.query.stepTypes) {
+      withStepTypes = true
+    }
+
+    // Get the list of active nodes.
+    const nodeList = await schedulerForThisNode.getDetailsOfActiveNodes(withStepTypes)
+
+    // If any defined groups are missing, add them even though the group is not active.
+    const existingNodeGroups = new Set()
+    nodeList.forEach(group => existingNodeGroups.add(group.nodeGroup))
+    const groups = await getNodeGroups()
+    for (const group of groups) {
+      // If this group is not in our index, we need to add an empty group to our result.
+      if (!existingNodeGroups.has(group.nodeGroup)) {
+        // console.log(`append an empty node group ${group.nodeGroup}`)
+        nodeList.push({
+          nodeGroup: group.nodeGroup,
+          nodes: [ ],
+          stepTypes: [ ],
+          warnings: [ ]
+        })
+      }
+    }
+
     res.send(nodeList)
     return next();
   } catch (e) {
-    console.log(`Error in routeListNodesV1():`, e)
+    console.log(`Error in route_activeNodesV1():`, e)
   }
 }

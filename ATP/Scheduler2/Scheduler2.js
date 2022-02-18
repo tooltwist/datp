@@ -1068,10 +1068,10 @@ export default class Scheduler2 {
     this.#state = Scheduler2.DESTROYED
   }
 
-  async getNodeIds() {
-    // if (VERBOSE) console.log(`Scheduler2.getNodeIds()`)
+  async getDetailsOfActiveNodes(withStepTypes=false) {
+    // if (VERBOSE) console.log(`Scheduler2.getDetailsOfActiveNodes(withStepTypes=${withStepTypes})`)
     await this._checkConnectedToQueue()
-    return await this.#queueObject.getNodeIds()
+    return await this.#queueObject.getDetailsOfActiveNodes(withStepTypes)
   }
 
   async getNodeDetails(nodeGroup, nodeId) {
@@ -1152,7 +1152,7 @@ export default class Scheduler2 {
    * ```
    * @param {string} key
    * @param {string}} value
-   * @param {num} duration Expiry time in seconds
+   * @param {number} duration Expiry time in seconds
    */
    async setTemporaryValue(key, value, duration) {
      this._checkConnectedToQueue()

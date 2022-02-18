@@ -39,8 +39,8 @@ export class QueueManager {
     throw new Error(`Fatal error: class ${this.constructor.name} does not extend QueueManager.registerNode()`)
   }
 
-  async getNodeIds() {
-    throw new Error(`Fatal error: class ${this.constructor.name} does not extend QueueManager.getNodeIds()`)
+  async getDetailsOfActiveNodes(withStepTypes=false) {
+    throw new Error(`Fatal error: class ${this.constructor.name} does not extend QueueManager.getDetailsOfActiveNodes()`)
   }
 
   async getNodeDetails() {

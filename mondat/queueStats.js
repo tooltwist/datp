@@ -78,7 +78,8 @@ export async function getQueueStatsV1(req, res, next) {
   }
 
   // Get a list of currently active nodes (grouped by nodeGroup)
-  const activeNodes = await schedulerForThisNode.getNodeIds()
+  const withSteptypes = false
+  const activeNodes = await schedulerForThisNode.getDetailsOfActiveNodes(withSteptypes)
   // console.log(`activeNodes=`, activeNodes)
   for (const activeGroup of activeNodes) {
     // Add the group and node to our lists

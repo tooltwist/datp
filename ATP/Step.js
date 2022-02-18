@@ -81,19 +81,26 @@ export default class Step {
         const sql = `SELECT node_name, name, version, description, steps_json, notes FROM atp_pipeline WHERE name=?`
         const params = [ pipelineName ]
         const result = await query(sql, params)
-
+        if (result.length < 1) {
+          console.log(`Unknown pipeline [${pipelineName}]`)
+          return null
+        }
         const row = result[0]
         // console.log(`row=`, row)
         // console.log(`row.steps_json=`, row.steps_json)
-        const steps = JSON.parse(row.steps_json)
-        definition = {
-          stepType: STEP_TYPE_PIPELINE,
-          name: row.name,
-          description: row.description,
-          notes: row.notes,
-          steps,
+        try {
+          const steps = JSON.parse(row.steps_json)
+          definition = {
+            stepType: STEP_TYPE_PIPELINE,
+            name: row.name,
+            description: row.description,
+            notes: row.notes,
+            steps,
+          }
+          // console.log(`PIPELINE definition=`, definition)
+        } catch (e) {
+          console.log(`Error parsing definition of pipeline ${definition}:`, e)
         }
-        // console.log(`PIPELINE definition=`, definition)
 
     case 'object':
       // console.log(`already have definition`)

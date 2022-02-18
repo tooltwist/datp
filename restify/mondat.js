@@ -7,8 +7,8 @@
 import { MONITOR_URL_PREFIX } from '../CONVERSION/lib/constants';
 import { defineRoute, LOGIN_IGNORED } from '../extras/apiVersions'
 // import { getMidiValuesV1 } from '../mondat/midi';
-import { routeListNodesV1 } from '../mondat/nodes'
-import { routeListNodeGroupsV1 } from '../mondat/nodeGroups'
+import { route_activeNodesV1 } from '../mondat/nodes'
+import { route_nodeGroupsV1 } from '../mondat/nodeGroups'
 import { getQueueStatsV1 } from '../mondat/queueStats';
 import { listPipelinesV1, pipelineDefinitionV1, pipelineDescriptionV1, pipelineVersionsV1, savePipelineDraftV1 } from '../mondat/pipelines'
 import { getRecentPerformanceV1 } from '../mondat/recentPerformance';
@@ -51,12 +51,15 @@ async function registerRoutes(server) {
     { versions: '1.0 - 1.0', handler: pipelineDefinitionV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
 
-  defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/nodes', [
-    { versions: '1.0 - 1.0', handler: routeListNodesV1, auth: LOGIN_IGNORED, noTenant: true }
+  // Return a list of active node groups and nodes. If the stepTypes parameter is set,
+  // the group records will contain a list of available step types in the group.
+  defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/activeNodes', [
+    { versions: '1.0 - 1.0', handler: route_activeNodesV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
 
+  // List all defined node groups, with number of running nodes for each.
   defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/nodeGroups', [
-    { versions: '1.0 - 1.0', handler: routeListNodeGroupsV1, auth: LOGIN_IGNORED, noTenant: true }
+    { versions: '1.0 - 1.0', handler: route_nodeGroupsV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
 
   /*

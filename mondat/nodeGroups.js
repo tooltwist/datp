@@ -7,8 +7,8 @@
 import { schedulerForThisNode } from '..';
 import { getNodeGroups } from '../database/dbNodeGroup';
 
-export async function routeListNodeGroupsV1(req, res, next) {
-  // console.log(`routeListNodeGroupsV1()`)
+export async function route_nodeGroupsV1(req, res, next) {
+  // console.log(`route_nodeGroupsV1()`)
   try {
 
     // Get the groups from the database
@@ -23,8 +23,9 @@ export async function routeListNodeGroupsV1(req, res, next) {
     }
 
     // Get the details of active nodes from REDIS
-    const nodeList = await schedulerForThisNode.getNodeIds()
-    // console.log(`nodeList=`, nodeList)
+    const withStepTypes = true
+    const nodeList = await schedulerForThisNode.getDetailsOfActiveNodes(withStepTypes)
+    console.log(`nodeList=`, nodeList)
 
     // Overlay the active node details onto the groups
     for (const activeGroup of nodeList) {
@@ -41,6 +42,6 @@ export async function routeListNodeGroupsV1(req, res, next) {
     return next();
 
   } catch (e) {
-    console.log(`Error in routeListNodesV1():`, e)
+    console.log(`Error in route_activeNodesV1():`, e)
   }
 }

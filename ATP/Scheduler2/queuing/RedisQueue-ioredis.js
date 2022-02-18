@@ -355,6 +355,12 @@ export class RedisQueue extends QueueManager {
   async setTemporaryValue(key, value, duration) {
     await this._checkLoaded()
     key = `datp:temporary-value:${key}`
+    if (typeof(value) === 'string') {
+      value = `${STRING_PREFIX}${value}`
+    } else {
+      value = JSON.stringify(value)
+    }
+    console.log(`SET value=`, value)
     await this.#adminRedis.set(key, value, 'ex', duration)
   }
 
@@ -368,8 +374,21 @@ export class RedisQueue extends QueueManager {
   async getTemporaryValue(key) {
     await this._checkLoaded()
     key = `datp:temporary-value:${key}`
-    const value = await this.#adminRedis.get(key)
-    return value
+    let value = await this.#adminRedis.get(key)
+    if (value === null) {
+      return null
+    }
+    else if (value.startsWith(STRING_PREFIX)) {
+      return value.substring(STRING_PREFIX.length)
+    } else {
+      try {
+        return JSON.parse(value)
+      } catch (e) {
+        // Invalid JSON - not much we can do except consider it expired
+        console.log(`Corrupt temporary value in REDIS [${key}]`)
+        return null
+      }
+    }
   }
 
   /**
@@ -388,10 +407,35 @@ export class RedisQueue extends QueueManager {
   }
 
   /**
+   * Return currently active nodes, grouped by nodeGroup.
+   *```javascript
+   *   [
+   *     {
+   *       nodeGroup: 'master',
+   *       nodes: [ 'nodeId-46988093e9bdaa6c29df4674bf3b8136e7853516' ],
+   *       stepTypes: [
+   *         {
+   *           name: 'example/demo',
+   *           description: 'An example of a simple step',
+   *           defaultDefinition: [Object],
+   *           availableInEveryNode: true
+   *         },
+   *         ...
+   *       ]
+   *     },
+   *     ...
+   *   ]
+   * ```
+   * If _withStepTypes_ is false or not specified the _stepTypes_ list will
+   * be omitted.
+   * If a stepType is supported by one or more nodes, but not all nodes, then
+   * _availableInEveryNode_ will be false.
    *
+   * @param {boolean} withStepTypes Should the reply include step types
+   * @returns
    */
-  async getNodeIds() {
-    // console.log(`getNodeIds()`)
+  async getDetailsOfActiveNodes(withStepTypes=false) {
+    // console.log(`getDetailsOfActiveNodes()`)
     const keys = await this.#adminRedis.keys(`${NODE_REGISTRATION_PREFIX}*`)
     // console.log(`keys=`, keys)
 
@@ -403,14 +447,35 @@ export class RedisQueue extends QueueManager {
       if (arr.length === 4) {
         const nodeGroup = arr[2]
         const nodeId = arr[3]
-        if (!groups[nodeGroup]) {
-          groups[nodeGroup] = { nodeGroup, nodes: [ nodeId ] }
+        let group = groups[nodeGroup]
+        if (!group) {
+          group = { nodeGroup, nodes: [ nodeId ], stepTypes: [ ], _nodeDefinitions: { }, warnings: [ ] }
+          groups[nodeGroup] = group
         } else {
-          groups[nodeGroup].nodes.push(nodeId)
+          group.nodes.push(nodeId)
+        }
+
+        // Are we collecting stepTypes also?
+        if (withStepTypes) {
+          const nodeJSON = await this.#adminRedis.get(key)
+          try {
+            const definition = JSON.parse(nodeJSON)
+            // console.log(`definition=`, definition)
+            group._nodeDefinitions[nodeId] = definition
+          } catch (e) {
+            console.log(`Internal error: REDIS contains invalid JSON definition in node registration ${key}`)
+            group._nodeDefinitions[nodeId] = { stepTypes: [ ] }
+          }
         }
       } else {
         console.log(`Internal error: REDIS contains invalid JSON definition in node registration ${key}`)
       }
+    }
+
+    // Combine the stepType definitions for all the nodes in each group, to create the group's stepTypes.
+    for (const nodeGroup in groups) {
+      const group = groups[nodeGroup]
+      this._mergeStepTypesInGroup(group)
     }
 
     // Convert the groups to a list
@@ -429,9 +494,44 @@ export class RedisQueue extends QueueManager {
       if (g1.nodeGroup > g2.nodeGroup) return +1
       return 0
     })
+
     // console.log(`list=`, list)
+    // console.log(`RedisQueue-ioredis.getDetailsOfActiveNodes():`, JSON.stringify(list, '', 2))
     return list
   }
+
+  _mergeStepTypesInGroup(group) {
+    const types = { } // stepTypeName => stepTypeDefinition
+
+    // We add a '_nodeCount' to the step definition and increment it for each node with the stepType
+    let nodeCount = 0
+    for (let nodeId in group._nodeDefinitions) {
+      nodeCount++
+      const definition = group._nodeDefinitions[nodeId]
+      console.log(`definition=`, definition)
+      for (const st of definition.stepTypes) {
+        const name = st.name
+        const type = types[name]
+        if (type) {
+          type.count++
+        } else {
+          st.count = 1
+          types[name] = st
+          // console.log(`st=`, st)
+        }
+      }//- for
+    }//- for
+
+    // Add the types to the group
+    for (let name in types) {
+      const type = types[name]
+      group.stepTypes.push(type)
+      type.availableInEveryNode = (type.count === nodeCount)
+      delete type.count
+    }
+    delete group._nodeDefinitions
+    // console.log(`group=`, group)
+  }// _mergeStepTypesInGroup
 
   /**
    *
