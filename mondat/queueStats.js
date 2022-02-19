@@ -84,7 +84,7 @@ export async function getQueueStatsV1(req, res, next) {
   for (const activeGroup of activeNodes) {
     // Add the group and node to our lists
     const group = getGroup(activeGroup.nodeGroup)
-    console.log(`activeGroup=`, activeGroup)
+    // console.log(`activeGroup=`, activeGroup)
     for (const nodeId of activeGroup.nodes) {
       getNode(group, nodeId)
     }

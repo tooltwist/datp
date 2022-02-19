@@ -6,6 +6,7 @@
  */
 import assert from 'assert'
 import { schedulerForThisNode } from '../..'
+import dbLogbook from '../../database/dbLogbook'
 import indentPrefix from '../../lib/indentPrefix'
 import GenerateHash from '../GenerateHash'
 import { PIPELINES_VERBOSE } from '../hardcoded-steps/PipelineStep'
@@ -55,9 +56,9 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
   const indexOfCurrentChildStep = pipelineStep.indexOfCurrentChildStep
   const childStatus = childStep.status
 
-  Transaction.bulkLogging(txId, pipelineStepId, [{
-    level: Transaction.LOG_LEVEL_TRACE,
-    source: Transaction.LOG_SOURCE_SYSTEM,
+  dbLogbook.bulkLogging(txId, pipelineStepId, [{
+    level: dbLogbook.LOG_LEVEL_TRACE,
+    source: dbLogbook.LOG_SOURCE_SYSTEM,
     message: `Pipeline child #${indexOfCurrentChildStep} completed with status ${childStep.status}`
   }])
 
@@ -79,9 +80,9 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
        */
       if (PIPELINES_VERBOSE) console.log(indent + `<<<<    PIPELINE COMPLETED ${pipelineStepId}  `.black.bgGreen.bold)
       if (PIPELINES_VERBOSE) console.log(`pipelineStep.onComplete=`, pipelineStep.onComplete)
-      Transaction.bulkLogging(txId, pipelineStepId, [{
-        level: Transaction.LOG_LEVEL_TRACE,
-        source: Transaction.LOG_SOURCE_SYSTEM,
+      dbLogbook.bulkLogging(txId, pipelineStepId, [{
+        level: dbLogbook.LOG_LEVEL_TRACE,
+        source: dbLogbook.LOG_SOURCE_SYSTEM,
         message: `Pipeline completed with status ${childStep.status}`
       }])
 
@@ -114,9 +115,9 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
       await tx.delta(pipelineStepId, {
         indexOfCurrentChildStep: nextStepNo,
       })
-      Transaction.bulkLogging(txId, pipelineStepId, [{
-        level: Transaction.LOG_LEVEL_TRACE,
-        source: Transaction.LOG_SOURCE_SYSTEM,
+      dbLogbook.bulkLogging(txId, pipelineStepId, [{
+        level: dbLogbook.LOG_LEVEL_TRACE,
+        source: dbLogbook.LOG_SOURCE_SYSTEM,
         message: `Start pipeline child #${nextStepNo}`
       }])
 

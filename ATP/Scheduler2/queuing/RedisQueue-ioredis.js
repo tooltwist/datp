@@ -360,7 +360,7 @@ export class RedisQueue extends QueueManager {
     } else {
       value = JSON.stringify(value)
     }
-    console.log(`SET value=`, value)
+    // console.log(`SET value=`, value)
     await this.#adminRedis.set(key, value, 'ex', duration)
   }
 
@@ -385,7 +385,7 @@ export class RedisQueue extends QueueManager {
         return JSON.parse(value)
       } catch (e) {
         // Invalid JSON - not much we can do except consider it expired
-        console.log(`Corrupt temporary value in REDIS [${key}]`)
+        console.log(`Corrupt, non-JSON, temporary value in REDIS [${key}]`)
         return null
       }
     }

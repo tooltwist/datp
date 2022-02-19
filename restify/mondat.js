@@ -15,7 +15,7 @@ import { getRecentPerformanceV1 } from '../mondat/recentPerformance';
 import { getStepInstanceDetailsV1 } from '../mondat/stepInstances';
 import { deleteTestCasesV1, getTestCasesV1, saveTestCasesV1 } from '../mondat/testCases';
 import { deleteTransactionMappingsV1, getTransactionMappingsV1, saveTransactionMappingsV1 } from '../mondat/transactionMapping';
-import { mondatTransactionsV1, transactionStatusV1 } from '../mondat/transactions';
+import { mondatTransactionsV1, route_transactionStatusV1 } from '../mondat/transactions';
 import { handleOrphanQueuesV1 } from '../mondat/handleOrphanQueues';
 
 
@@ -33,7 +33,7 @@ async function registerRoutes(server) {
   ])
 
   defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/transaction/:txId', [
-    { versions: '1.0 - 1.0', handler: transactionStatusV1, auth: LOGIN_IGNORED, noTenant: true }
+    { versions: '1.0 - 1.0', handler: route_transactionStatusV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
   defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/pipelines', [
     { versions: '1.0 - 1.0', handler: listPipelinesV1, auth: LOGIN_IGNORED, noTenant: true }

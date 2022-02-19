@@ -52,20 +52,6 @@ export default class Transaction {
   // a delta before the previous delta has been completed.
   #processingDelta
 
-  static LOG_LEVEL_DEBUG = 'debug'
-  static LOG_LEVEL_TRACE = 'trace'
-  static LOG_LEVEL_WARNING = 'warning'
-  static LOG_LEVEL_ERROR = 'error'
-  static LOG_LEVEL_UNKNOWN = 'unknown'
-
-  static LOG_SOURCE_INVOKE = 'invoke'
-  static LOG_SOURCE_ROLLBACK = 'rollback'
-  static LOG_SOURCE_EXCEPTION = 'exception'
-  static LOG_SOURCE_DEFINITION = 'definition'
-  static LOG_SOURCE_SYSTEM = 'system'
-  static LOG_SOURCE_PROGRESS_REPORT = 'progReport'
-  static LOG_SOURCE_UNKNOWN = 'unknown'
-
   /**
    *
    * @param {String} txId Transaction ID
@@ -791,87 +777,6 @@ export default class Transaction {
     const deltas = this.#deltas
     this.#deltas = [ ]
     return deltas
-  }
-
-  /**
-   * Get the log entries for a transaction.
-   *
-   * @param {string} txId Transaction ID
-   * @returns A list of { stepId, level, source, message, created }
-   */
-  static async getLog(txId) {
-    const sql = `SELECT
-      step_id AS stepId,
-      level,
-      source,
-      message,
-      created
-    FROM atp_logbook WHERE transaction_id = ?`
-    const params = [ txId ]
-    const rows = await query(sql, params)
-    return rows
-  }
-
-  /**
-   * Save a list of log entries
-   *
-   * @param {string} txId Transaction ID
-   * @param {string} stepId If null, the log message applies to the transaction
-   * @param {*} array Array of { level, source, message }
-   */
-  static async bulkLogging(txId, stepId, array) {
-    // console.log(`bulkLogging(${txId}, ${stepId})`, array)
-    if (array.length < 1) {
-      return
-    }
-    let sql = `INSERT INTO atp_logbook (transaction_id, step_id, level, source, message) VALUES`
-    const params = [ ]
-    let sep = '\n'
-    for (const entry of array) {
-      let source = entry.source
-      switch (source) {
-        case this.LOG_SOURCE_DEFINITION:
-        case this.LOG_SOURCE_EXCEPTION:
-        case this.LOG_SOURCE_INVOKE:
-        case this.LOG_SOURCE_PROGRESS_REPORT:
-        case this.LOG_SOURCE_ROLLBACK:
-        case this.LOG_SOURCE_SYSTEM:
-          break
-        default:
-          source = this.LOG_SOURCE_UNKNOWN
-      }
-      let level = entry.level
-      switch (level) {
-        case this.LOG_LEVEL_DEBUG:
-        case this.LOG_LEVEL_ERROR:
-        case this.LOG_LEVEL_TRACE:
-        case this.LOG_LEVEL_WARNING:
-          break
-        default:
-          level = this.LOG_LEVEL_UNKNOWN
-      }
-      let message = entry.message
-      if (typeof(message) === 'object') {
-        message = JSON.stringify(message, '', 0)
-      }
-      sql += `${sep}(?,?,?,?,?)`
-      params.push(txId)
-      params.push(stepId)
-      params.push(level)
-      params.push(source)
-      params.push(message)
-      sep = ',\n'
-    }// for
-    // console.log(`sql=`, sql)
-    // console.log(`params=`, params)
-    const result = await query(sql, params)
-    // console.log(`result=`, result)
-    if (result.affectedRows !== array.length) {
-      console.log(`**************************************************************************`)
-      console.log(`INTERNAL ERROR: Could not save atp_logbook records - logging not occurring`)
-      console.log(`NEEED TO SAVE ${array.length} RECORDS BUT ONLY SAVED ${result.affectedRows}`)
-      console.log(`**************************************************************************`)
-    }
   }
 
   toString() {

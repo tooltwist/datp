@@ -9,6 +9,7 @@ import Transaction from '../ATP/Scheduler2/Transaction';
 import TransactionCache from '../ATP/Scheduler2/TransactionCache';
 import { STEP_ABORTED, STEP_FAILED, STEP_SUCCESS } from '../ATP/Step';
 import errors from 'restify-errors'
+import dbLogbook from '../database/dbLogbook';
 
 export async function dumpAllTransactionsV1(req, res, next) {
   console.log(`dumpAllTransactionsV1()`)
@@ -57,8 +58,8 @@ export async function mondatTransactionsV1(req, res, next) {
   return next();
 }
 
-export async function transactionStatusV1(req, res, next) {
-  // console.log(`transactionStatusV1()`)
+export async function route_transactionStatusV1(req, res, next) {
+  // console.log(`route_transactionStatusV1()`)
 
 
   const txId = req.params.txId
@@ -89,7 +90,7 @@ export async function transactionStatusV1(req, res, next) {
   }
 
   // Load the log entries for this transaction
-  const logEntries = await Transaction.getLog(txId)
+  const logEntries = await dbLogbook.getLog(txId)
   // console.log(`logEntries=`, logEntries)
   for (const entry of logEntries) {
     const step = index[entry.stepId]

@@ -32,7 +32,6 @@ import WaitStep from './hardcoded-steps/WaitStep'
 // import dbTransactionInstance from '../database/dbTransactionInstance'
 // import dbTransactionType from '../database/dbTransactionType'
 import colors from 'colors'
-// import Logbook from './Logbook'
 
 const ANTI_BRUTE_FORCE_DELAY = 2000 // 2 seconds
 

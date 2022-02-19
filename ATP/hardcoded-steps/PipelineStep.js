@@ -105,7 +105,7 @@ class Pipeline extends Step {
 //     this.initiateChildStep(pipelineInstance, indexOfCurrentChildStep, childStepDefinition, txdata, metadata)
 
 //     // logbook.log(id, `DummyStep.invoke()`, {
-//     //   level: logbook.LEVEL_DEBUG,
+//     //   level: dbLogbook.LOG_LEVEL_DEBUG,
 //     //   data
 //     // })
 //   }//- invoke

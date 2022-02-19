@@ -227,7 +227,7 @@ export default class Worker2 {
        */
       const stepObject = instance.getStepObject()
 
-      const hackSource = 'system' // Not sure why, but using Transaction.LOG_SOURCE_SYSTEM causes a compile error
+      const hackSource = 'system' // Not sure why, but using dbLogbook.LOG_SOURCE_SYSTEM causes a compile error
       instance.trace(`Invoke step ${instance.getStepId()}`, hackSource)
       await instance.syncLogs()
 

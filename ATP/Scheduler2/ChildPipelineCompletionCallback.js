@@ -14,6 +14,7 @@ import indentPrefix from '../../lib/indentPrefix'
 import { PIPELINES_VERBOSE } from '../hardcoded-steps/PipelineStep'
 import Transaction from './Transaction'
 import { schedulerForThisNode } from '../..'
+import dbLogbook from '../../database/dbLogbook'
 
 export const CHILD_PIPELINE_COMPLETION_CALLBACK = 'childPipelineComplete'
 
@@ -65,9 +66,9 @@ export async function childPipelineCompletionCallback (callbackContext, nodeInfo
       assert(childStatus !== STEP_FAILED) // Should not happen. Pipelines either succeed, rollback to success, or abort.
       // if (childStatus === STEP_SUCCESS || childStatus === STEP_ABORTED) {
 
-      Transaction.bulkLogging(txId, parentStepId, [{
-        level: Transaction.LOG_LEVEL_TRACE,
-        source: Transaction.LOG_SOURCE_SYSTEM,
+      dbLogbook.bulkLogging(txId, parentStepId, [{
+        level: dbLogbook.LOG_LEVEL_TRACE,
+        source: dbLogbook.LOG_SOURCE_SYSTEM,
         message: `Child pipeline completed with status #${childStatus}`
       }])
 
@@ -85,9 +86,9 @@ export async function childPipelineCompletionCallback (callbackContext, nodeInfo
           status: childStep.status
         })
 
-        Transaction.bulkLogging(txId, parentStepId, [{
-          level: Transaction.LOG_LEVEL_TRACE,
-          source: Transaction.LOG_SOURCE_SYSTEM,
+        dbLogbook.bulkLogging(txId, parentStepId, [{
+          level: dbLogbook.LOG_LEVEL_TRACE,
+          source: dbLogbook.LOG_SOURCE_SYSTEM,
           message: `This step will complete with status ${childStep.status}`
         }])
 

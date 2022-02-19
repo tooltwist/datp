@@ -30,10 +30,6 @@ class MockStep extends Step {
 
     instance.privateData.dummy = 'Dummy was here!'
 
-    // logbook.log(this.stepId, `MockStep.invoke()`, {
-    //   level: logbook.LEVEL_DEBUG,
-    //   data: instance.data,
-    // })
     const reply = await query(`SELECT * from map_service`)
     // console.log(`++++++++++++++++++++++++++++++++++++++++++ reply=`, reply)
 

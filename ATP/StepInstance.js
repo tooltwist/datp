@@ -4,7 +4,6 @@
  * rights reserved. No warranty, explicit or implicit, provided. In no event shall
  * the author or owner be liable for any claim or damages.
  */
-import Logbook from './Logbook'
 import StepTypes from './StepTypeRegister'
 import Step, { STEP_ABORTED, STEP_FAILED, STEP_INTERNAL_ERROR, STEP_RUNNING, STEP_SLEEPING, STEP_SUCCESS } from './Step'
 import dbPipelines from "../database/dbPipelines";
@@ -16,6 +15,7 @@ import indentPrefix from '../lib/indentPrefix'
 import assert from 'assert'
 import Transaction from './Scheduler2/Transaction';
 import { schedulerForThisNode } from '..';
+import dbLogbook from '../database/dbLogbook';
 
 const VERBOSE = 0
 export const DEEP_SLEEP_DURATION = 2 * 60 // Two minutes
@@ -143,7 +143,7 @@ export default class StepInstance {
     //   transactionId: this.#txId,
     //   description: `Pipeline logbook`
     // })
-    // this.trace(`Materialize stepInstance ${this.#stepId}`, Transaction.LOG_SOURCE_SYSTEM)
+    // this.trace(`Materialize stepInstance ${this.#stepId}`, dbLogbook.LOG_SOURCE_SYSTEM)
 
 
     // Prepare an indent string to prepend to messages
@@ -332,7 +332,7 @@ export default class StepInstance {
     if (VERBOSE > 1) console.log(`this.#onComplete=`, this.#onComplete)
 
     // Sync any buffered logs
-    this.trace(`instance.succeeded() - ${note}`, Transaction.LOG_SOURCE_SYSTEM)
+    this.trace(`instance.succeeded() - ${note}`, dbLogbook.LOG_SOURCE_SYSTEM)
     await this.syncLogs()
 
     // Quick sanity check - make sure this step is actually running, and has not already exited.
@@ -389,7 +389,7 @@ export default class StepInstance {
     if (VERBOSE) console.log(`StepInstance.aborted(note=${note}, ${typeof stepOutput})`, stepOutput)
 
     // Sync any buffered logs
-    this.trace(`instance.aborted()`, Transaction.LOG_SOURCE_SYSTEM)
+    this.trace(`instance.aborted()`, dbLogbook.LOG_SOURCE_SYSTEM)
     await this.syncLogs()
 
 
@@ -434,7 +434,7 @@ export default class StepInstance {
     if (VERBOSE) console.log(`StepInstance.failed(note=${note}, ${typeof stepOutput})`, stepOutput)
 
     // Sync any buffered logs
-    this.trace(`instance.failed(${note})`, Transaction.LOG_SOURCE_SYSTEM)
+    this.trace(`instance.failed(${note})`, dbLogbook.LOG_SOURCE_SYSTEM)
     await this.syncLogs()
 
     const myStepOutput = this._sanitizedOutput(stepOutput)
@@ -479,7 +479,7 @@ export default class StepInstance {
     console.log(`StepInstance.badDefinition(${msg})`)
 
     // Sync any buffered logs
-    this.trace(msg, Transaction.LOG_SOURCE_DEFINITION)
+    this.trace(msg, dbLogbook.LOG_SOURCE_DEFINITION)
     await this.syncLogs()
 
     // Write this to the admin log.
@@ -487,7 +487,7 @@ export default class StepInstance {
 
     // Write to the transaction / step
     this.error(msg)
-    await this.log(Logbook.LEVEL_TRACE, `Step reported bad definition [${msg}]`)
+    await this.log(dbLogbook.LOG_LEVEL_TRACE, `Step reported bad definition [${msg}]`)
     // await this.artifact('badStepDefinition', this.#stepDefinition)
 
     // Finish the step
@@ -521,7 +521,7 @@ export default class StepInstance {
    * @returns
    */
   async exceptionInStep(message, e) {
-    // console.log(Logbook.LEVEL_TRACE, `StepInstance.exceptionInStep()`)
+    // console.log(dbLogbook.LOG_LEVEL_TRACE, `StepInstance.exceptionInStep()`)
     console.log(this.#indent + `StepInstance.exceptionInStep(${message})`, e)
     // console.log(new Error('YARP').stack)
 
@@ -529,12 +529,12 @@ export default class StepInstance {
     if (!message) {
       message = 'Exception in step'
     }
-    this.trace(message, Transaction.LOG_SOURCE_EXCEPTION)
+    this.trace(message, dbLogbook.LOG_SOURCE_EXCEPTION)
     if (e instanceof Error) {
       const str = `${message}\n${e.stack}`
-      this.trace(str, Transaction.LOG_SOURCE_EXCEPTION)
+      this.trace(str, dbLogbook.LOG_SOURCE_EXCEPTION)
     // } else {
-    //   this.trace(message, Transaction.LOG_SOURCE_EXCEPTION)
+    //   this.trace(message, dbLogbook.LOG_SOURCE_EXCEPTION)
     }
     await this.syncLogs()
 
@@ -543,7 +543,7 @@ export default class StepInstance {
 
     // Write to the transaction / step
     await this.error(`Exception in step: ${e.stack}`)
-    await this.log(Logbook.LEVEL_TRACE, `Exception in step.`, e)
+    await this.log(dbLogbook.LOG_LEVEL_TRACE, `Exception in step.`, e)
     // this.artifact('exception', { stacktrace: e.stack })
 
     // Trim down the stacktract and save it
@@ -589,7 +589,7 @@ export default class StepInstance {
     if (VERBOSE) console.log(`StepInstance.progressReport()`, object)
 
     // Sync any buffered logs
-    this.trace(JSON.stringify(object, '', 2), Transaction.LOG_SOURCE_PROGRESS_REPORT)
+    this.trace(JSON.stringify(object, '', 2), dbLogbook.LOG_SOURCE_PROGRESS_REPORT)
     await this.syncLogs()
 
     // Save the progressReport
@@ -613,7 +613,7 @@ export default class StepInstance {
     if (VERBOSE) console.log(`StepInstance.retryLater(nameOfSwitch=${nameOfSwitch}, sleepDuration=${sleepDuration})`)
 
     // Sync any buffered logs
-    this.trace(`instance.retryLater()`, Transaction.LOG_SOURCE_SYSTEM)
+    this.trace(`instance.retryLater()`, dbLogbook.LOG_SOURCE_SYSTEM)
     await this.syncLogs()
 
     // Update the transaction status
@@ -693,14 +693,14 @@ console.log(new Error().stack)
 
   debug(...args) {
     const { message, source } = this._checkLogParams(args)
-    const level = Transaction.LOG_LEVEL_DEBUG
+    const level = dbLogbook.LOG_LEVEL_DEBUG
     this.#logBuffer.push({ level, source, message })
   }
 
   // trace(message, source=null) {
   trace(...args) {
     const { message, source } = this._checkLogParams(args)
-    const level = Transaction.LOG_LEVEL_TRACE
+    const level = dbLogbook.LOG_LEVEL_TRACE
     assert(typeof(source) !== 'undefined')
     assert(typeof(message) !== 'undefined')
     this.#logBuffer.push({ level, source, message })
@@ -708,7 +708,7 @@ console.log(new Error().stack)
 
   warning(...args) {
     const { message, source } = this._checkLogParams(args)
-    const level = Transaction.LOG_LEVEL_WARNING
+    const level = dbLogbook.LOG_LEVEL_WARNING
     assert(typeof(source) !== 'undefined')
     assert(typeof(message) !== 'undefined')
     this.#logBuffer.push({ level, source, message })
@@ -716,7 +716,7 @@ console.log(new Error().stack)
 
   error(...args) {
     const { message, source } = this._checkLogParams(args)
-    const level = Transaction.LOG_LEVEL_ERROR
+    const level = dbLogbook.LOG_LEVEL_ERROR
     assert(typeof(source) !== 'undefined')
     assert(typeof(message) !== 'undefined')
     this.#logBuffer.push({ level, source, message })
@@ -729,7 +729,7 @@ console.log(new Error().stack)
   async syncLogs() {
     // console.log(`\n\n\n\n\n********************\n\n\nsyncLogs()`)
     if (this.#logBuffer.length > 0) {
-      await Transaction.bulkLogging(this.#txId, this.#stepId, this.#logBuffer)
+      await dbLogbook.bulkLogging(this.#txId, this.#stepId, this.#logBuffer)
       this.#logBuffer = [ ]
     }
   }
@@ -749,18 +749,18 @@ console.log(new Error().stack)
   _checkLogParams(args) {
     // console.log(`_checkLogParams`, args)
     let message = ''
-    let source = this.#rollingBack ? Transaction.LOG_SOURCE_ROLLBACK : Transaction.LOG_SOURCE_INVOKE
+    let source = this.#rollingBack ? dbLogbook.LOG_SOURCE_ROLLBACK : dbLogbook.LOG_SOURCE_INVOKE
     if (args.length > 0) {
       const lastArg = args[args.length - 1]
       switch (lastArg) {
-        case Transaction.LOG_SOURCE_DEFINITION:
-        case Transaction.LOG_SOURCE_INVOKE:
-        case Transaction.LOG_SOURCE_ROLLBACK:
-        case Transaction.LOG_SOURCE_EXCEPTION:
-        case Transaction.LOG_SOURCE_DEFINITION:
-        case Transaction.LOG_SOURCE_SYSTEM:
-        case Transaction.LOG_SOURCE_PROGRESS_REPORT:
-        case Transaction.LOG_SOURCE_UNKNOWN:
+        case dbLogbook.LOG_SOURCE_DEFINITION:
+        case dbLogbook.LOG_SOURCE_INVOKE:
+        case dbLogbook.LOG_SOURCE_ROLLBACK:
+        case dbLogbook.LOG_SOURCE_EXCEPTION:
+        case dbLogbook.LOG_SOURCE_DEFINITION:
+        case dbLogbook.LOG_SOURCE_SYSTEM:
+        case dbLogbook.LOG_SOURCE_PROGRESS_REPORT:
+        case dbLogbook.LOG_SOURCE_UNKNOWN:
           message = checkMessage(args, args.length - 1)
           source = lastArg
           break
