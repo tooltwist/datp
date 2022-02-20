@@ -5,7 +5,9 @@
  * the author or owner be liable for any claim or damages.
  */
 import { ConversionHandler, FormsAndFields } from '../..'
+// import ConversionHandler from '../../CONVERSION/lib/ConversionHandler'
 import Step from '../Step'
+import StepInstance from '../StepInstance'
 import StepTypes from '../StepTypeRegister'
 
 const FORM_TENANT = 'datp'
@@ -34,11 +36,20 @@ class MapFieldsStep extends Step {
   #mappingId
   #targetView
 
+  // Additional conversion definitions
+  #convertAmounts
+  #convertDates
+  #appendFields
+
   constructor(definition) {
     super(definition)
     // console.log(`definition=`, definition)
     this.#mappingId = definition.mappingId
     this.#targetView = definition.targetView ? definition.targetView : this.#mappingId
+
+    this.#convertAmounts = definition.convertAmounts ? definition.convertAmounts : [ ]
+    this.#convertDates = definition.convertDates ? definition.convertDates : [ ]
+    this.#appendFields = definition.appendFields ? definition.appendFields : [ ]
   }
 
   /**
@@ -93,10 +104,23 @@ class MapFieldsStep extends Step {
     // Convert the objects
     const handler = new ConversionHandler()
     handler.addSource('request', null, data)
-    const newData = handler.convert(instance, mapping, targetFieldIndex)
+    handler.convert(instance, mapping, targetFieldIndex)
     // instance.debug(`newData=`, newData)
 
+    // Handle any conversion or append operations.
+    if (
+      await this.doConvertAmounts(instance, handler)
+      ||
+      await this.doConvertDates(instance, handler)
+      ||
+      await this.doAppendFields(instance, handler)
+    ) {
+      // Already finished the step with an error.
+      return
+    }
 
+    // Prepare the output
+    const newData = handler.getResult()
     if (data._mapFields) {
       newData._mapFields = data._mapFields
     } else {
@@ -110,6 +134,173 @@ class MapFieldsStep extends Step {
     // Time to complete the step and send a result
     return instance.succeeded('', newData)
   }
+
+  async doConvertAmounts(instance, handler) {
+    console.log(`doConvertAmounts() have ${this.#convertAmounts.length} rules`)
+
+    // Iterate through the rules
+    for (const rule of this.#convertAmounts) {
+      console.log(`rule=`, rule)
+
+      if (!Array.isArray(rule.from)) {
+        await instance.badDefinition(`convertAmounts rule: 'from' must be provided as an array of { path, type }`)
+        return true
+      }
+      if (!Array.isArray(rule.to)) {
+        await instance.badDefinition(`convertAmounts rule: 'to' must be provided as an array of { path, type }`)
+        return true
+      }
+
+      // Get the values from the source
+      let currency = 'PHP'
+      let unscaledAmount = 12345
+      let scale = 2
+      for (const fromField of rule.from) {
+        if (typeof(fromField) !== 'object') {
+          await instance.badDefinition(`convertAmounts rule: 'from' must be provided as an array of { path, type }`)
+          return true
+        }
+        if (typeof(fromField.path) !== 'string') {
+          await instance.badDefinition(`convertAmounts rule: 'from' must be provided as an array of { path, type }`)
+          return true
+        }
+        if (typeof(fromField.type) !== 'string') {
+          await instance.badDefinition(`convertAmounts rule: 'from' must be provided as an array of { path, type }`)
+          return true
+        }
+        const value = handler.getSourceValue(`request:${fromField.path}`)
+        console.log(`Got value ${value} from ${fromField.path}`)
+        switch (fromField.type.toLowerCase()) {
+          case 'iso':
+          case 'amount3':
+            currency = value.currency
+            unscaledAmount = value.unscaledAmount
+            scale = value.scale
+            console.log(`From amount3 (${currency}, ${unscaledAmount}, ${scale})`)
+            break
+          case 'currency':
+            currency = value
+            console.log(`From currency (${currency})`)
+            break
+          case 'unscaledAmount':
+            unscaledAmount = value
+            console.log(`From unscaledAmount (${unscaledAmount})`)
+            break
+          case 'scale':
+            scale = value
+            console.log(`From scale (${scale})`)
+            break
+          default:
+            await instance.badDefinition(`convertAmounts rule: 'type' must be one of iso|amount3|currency|unscaledAmpount|scale`)
+            return true
+        }//- switch
+      }//- fromField
+
+      // Save value(s)
+      for (const toField of rule.to) {
+        if (typeof(toField) !== 'object') {
+          await instance.badDefinition(`convertAmounts rule: 'to' must be provided as an array of { path, type }`)
+          return true
+        }
+        if (typeof(toField.path) !== 'string') {
+          await instance.badDefinition(`convertAmounts rule: 'to' must be provided as an array of { path, type }`)
+          return true
+        }
+        if (typeof(toField.type) !== 'string') {
+          await instance.badDefinition(`convertAmounts rule: 'to' must be provided as an array of { path, type }`)
+          return true
+        }
+        switch (toField.type.toLowerCase()) {
+          case 'iso':
+          case 'amount3':
+            handler.setTargetValue(`${toField.path}.currency`, currency)
+            handler.setTargetValue(`${toField.path}.unscaledAmount`, unscaledAmount)
+            handler.setTargetValue(`${toField.path}.scale`, scale)
+            console.log(`To amount3 (${currency}, ${unscaledAmount}, ${scale})`)
+            break
+          case 'currency':
+            handler.setTargetValue(toField.path, currency)
+            console.log(`To currency (${currency})`)
+            break
+          case 'unscaledAmount':
+            handler.setTargetValue(toField.path, unscaledAmount)
+            console.log(`To unscaledAmount (${unscaledAmount})`)
+            break
+          case 'scale':
+            handler.setTargetValue(toField.path, scale)
+            console.log(`To scale (${scale})`)
+            break
+          case 'amount':
+            let amount = unscaledAmount
+            // for (let i = 0; i < scale; i++) { amount /= 10.0 }
+            // for (let i = 0; i > scale; i--) { amount *= 10.0 }
+            // amount = Math.round(amount)
+            handler.setTargetValue(toField.path, amount)
+            console.log(`To amount (${amount})`)
+            break
+          default:
+            await instance.badDefinition(`convertAmounts rule: 'type' must be one of iso|amount3|currency|unscaledAmpount|scale`)
+            return true
+          }//- switch
+      }//- toField
+    }//- next rule
+    return false
+  }
+
+  async doConvertDates(instance, handler) {
+    console.log(`doConvertDates() have ${this.#convertDates.length} rules`)
+
+    //ZZZZZ Not yet
+    return false
+  }
+
+  /**
+   * Handle the field appending rule. For example:
+   *```
+   *  "appendFields": [
+   *    {
+   *        "from": [
+   *            "beneficiary.name.firstName",
+   *            "beneficiary.name.middleName",
+   *            "beneficiary.name.lastName"
+   *        ],
+   *        "to": "beneficiary.name"
+   *    }
+   *  ]
+   *```
+   * @param {StepInstance} instance
+   * @param {ConversionHandler} handler
+   */
+  async doAppendFields(instance, handler) {
+    console.log(`doAppendFields() have ${this.#appendFields.length} rules`)
+
+    // Iterate through the rules
+    for (const rule of this.#appendFields) {
+      // console.log(`rule=`, rule)
+      if (!Array.isArray(rule.from)) {
+        await instance.badDefinition(`appendField rule: 'from' must be provided as an array of field paths`)
+        return true
+      }
+      if (typeof(rule.to) !== 'string') {
+        await instance.badDefinition(`appendField rule: 'to' must be provided as a field path`)
+        return true
+      }
+
+      // Concatenate the fields
+      let s = ''
+      let sep = ''
+      for (const fromField of rule.from) {
+        const value = handler.getSourceValue(`request:${fromField}`)
+        s += `${sep}${value}`
+        sep = ' '
+      }
+
+      // Save the result
+      handler.setTargetValue(rule.to, s)
+    }//- next rule
+    return false
+  }//- doAppendFields
+
 }
 
 /**

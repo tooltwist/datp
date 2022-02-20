@@ -65,7 +65,7 @@ export default class ConversionHandler {
     }
 
     return this.#target
-  }
+  }//- convert
 
   getSourceValue(path) {
     const pos = path.indexOf(':')
@@ -86,7 +86,11 @@ export default class ConversionHandler {
     const value = this.getValue(sourceObject, fieldName)
     // console.log(`      value=`, value)
     return value
-  }
+  }//- getSourceValue
+
+  setTargetValue(path, value) {
+    this.setValue(this.#target, path, value)
+  }//- setTargetValue
 
   recurseThroughAllFields(sourceName, fn) {
     const sourceObject = this.sources[sourceName]
@@ -95,7 +99,7 @@ export default class ConversionHandler {
       throw new Error(`Unknown source (${sourceName})`)
     }
     this.recurseThroughAllFieldsRecurse(sourceObject, '', fn)
-  }
+  }//- recurseThroughAllFields
 
   recurseThroughAllFieldsRecurse(object, prefix, fn) {
     for (let property in object) {
@@ -107,7 +111,7 @@ export default class ConversionHandler {
         fn(path, value)
       }
     }
-  }
+  }//- recurseThroughAllFieldsRecurse
 
   getValue(object, field) {
     // console.log(`        - getValue(object, ${field})`, object)
@@ -130,7 +134,7 @@ export default class ConversionHandler {
       }
       return this.getValue(fieldObj, subField)
     }
-  }
+  }//- getValue
 
   setValue(object, path, value) {
     // console.log(`ConversionHandler.setValue(${path}, ${value} (${typeof(value)}))`)
@@ -157,6 +161,11 @@ export default class ConversionHandler {
       }
       this.setValue(nestedObject, suffix, value)
     }
+  }//- setValue
+
+  getResult() {
+    return this.#target
   }
+
 
 }
