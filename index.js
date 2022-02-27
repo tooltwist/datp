@@ -21,6 +21,7 @@ import { deepCopy } from './lib/deepCopy'
 import LongPoll from './ATP/Scheduler2/LongPoll'
 import { RETURN_TX_STATUS_WITH_LONGPOLL_CALLBACK } from './ATP/Scheduler2/returnTxStatusViaLongpollCallback'
 import { DuplicateExternalIdError } from './ATP/Scheduler2/TransactionPersistance'
+import DatpCron from './cron/cron'
 
 const VERBOSE = 0
 
@@ -32,6 +33,7 @@ export const RouterStep = RouterStepInternal
 
 export const query = dbQuery
 export let schedulerForThisNode = null
+export let cron = null
 
 async function restifySlaveServer(options) {
   return startDatpServer(options)
@@ -59,6 +61,10 @@ export async function goLive(server) {
   schedulerForThisNode = new Scheduler2(nodeGroup, { name, description })
   // await scheduler.drainQueue()
   await schedulerForThisNode.start()
+
+  // Cron
+  cron = new DatpCron()
+  await cron.start()
 
   // Perhaps serve up MONDAT
   if (serveMondat) {

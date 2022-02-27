@@ -228,7 +228,8 @@ export default class Worker2 {
       const stepObject = instance.getStepObject()
 
       const hackSource = 'system' // Not sure why, but using dbLogbook.LOG_SOURCE_SYSTEM causes a compile error
-      instance.trace(`Invoke step ${instance.getStepId()}`, hackSource)
+      // instance.trace(`Invoke step ${instance.getStepId()}`, hackSource)
+      instance.trace(`Step invoked`)
       await instance.syncLogs()
 
       // Start the step in the background, immediately

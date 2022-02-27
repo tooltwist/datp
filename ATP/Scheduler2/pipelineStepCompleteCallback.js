@@ -59,7 +59,7 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
   dbLogbook.bulkLogging(txId, pipelineStepId, [{
     level: dbLogbook.LOG_LEVEL_TRACE,
     source: dbLogbook.LOG_SOURCE_SYSTEM,
-    message: `Pipeline child #${indexOfCurrentChildStep} completed with status ${childStep.status}`
+    message: `Pipeline step #${indexOfCurrentChildStep+1} completed with status ${childStep.status}`
   }])
 
 
@@ -118,7 +118,7 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
       dbLogbook.bulkLogging(txId, pipelineStepId, [{
         level: dbLogbook.LOG_LEVEL_TRACE,
         source: dbLogbook.LOG_SOURCE_SYSTEM,
-        message: `Start pipeline child #${nextStepNo}`
+        message: `Start pipeline step #${nextStepNo+1}`
       }])
 
 

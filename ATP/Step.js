@@ -139,4 +139,13 @@ export default class Step {
     }
   }//- stepDescription
 
+  /**
+   * 
+   * @param {*} instance 
+   */
+  async invoke(instance) {
+    throw new Error(`Class ${this.__proto__.constructor.name} does not define function invoke()`)
+  }
+
+
 }

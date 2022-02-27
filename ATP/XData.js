@@ -71,6 +71,27 @@ export default class XData {
 
 }
 
+/**
+ * This function ges passed either an XData or an Object, and
+ * returns an Javascrip object. This allows data to be passed around in
+ * either format, and then converted to a Javascript object only
+ * when required.
+ * 
+ * @param {XData|Object} xdataOrObject A reference to data.
+ * @param {string} errorMessage Message if an exception is thrown
+ * @returns Object
+ */
+export function dataFromXDataOrObject (xdataOrObject, errorMessage) {
+  if (xdataOrObject instanceof XData) {
+    return xdataOrObject.getData()
+  } else if (typeof(xdataOrObject) === 'object') {
+    return xdataOrObject
+  } else {
+    throw new Error(errorMessage)
+  }
+
+}
+
 // XData.prototype.toString = function() {
 //   return 'ZEYARP'
 // }

@@ -7,32 +7,27 @@
 import dbTransactionType from '../../database/dbTransactionType'
 import GenerateHash from '../GenerateHash'
 import TransactionIndexEntry from '../TransactionIndexEntry'
-import XData from '../XData'
+import XData, { dataFromXDataOrObject } from '../XData'
 import CallbackRegister from './CallbackRegister'
 import { getQueueConnection } from './queuing/Queue2'
 import { ROOT_STEP_COMPLETE_CALLBACK } from './rootStepCompleteCallback'
 import TransactionCache from './TransactionCache'
 import Worker2 from './Worker2'
 import assert from 'assert'
-import { STEP_QUEUED, STEP_SUCCESS } from '../Step'
+import { STEP_QUEUED, STEP_RUNNING, STEP_SUCCESS } from '../Step'
 import { schedulerForThisNode } from '../..'
 import StatsCollector from '../../lib/statsCollector'
 import { DuplicateExternalIdError } from './TransactionPersistance'
-import { QueueManager } from './queuing/QueueManager'
-import { NODE_REGISTRATION_INTERVAL } from './queuing/RedisQueue-ioredis'
 import StepTypeRegister from '../StepTypeRegister'
 import { getNodeGroup } from '../../database/dbNodeGroup'
 import { appVersion, datpVersion, buildTime } from '../../build-version'
+import { validateEvent_StepCompleted, validateEvent_StepStart, validateEvent_TransactionChange, validateEvent_TransactionCompleted } from './eventValidation'
+import { DUP_EXTERNAL_ID_DELAY } from '../../datp-constants'
 
 // Debug related
 const VERBOSE = 0
 require('colors')
 
-
-// How long REDIS should stote the key while checking for an externalId. This
-// just needs to be long enough that we csn be certain the database will have been
-// written to all/any distributed copies of the database.
-const DUP_EXTERNAL_ID_DELAY = 60
 
 export default class Scheduler2 {
   #debugLevel
@@ -100,8 +95,6 @@ export default class Scheduler2 {
 
   // Event types
   static NULL_EVENT = 'no-op'
-  // static TRANSACTION_START_EVENT = 'tx-start'
-  // static TRANSACTION_PROGRESS_EVENT = 'tx-progress' //ZZZZZ Is this used ???
   static TRANSACTION_COMPLETED_EVENT = 'tx-completed'
   static TRANSACTION_CHANGE_EVENT = 'tx-changed'
   static STEP_START_EVENT = 'step-start'
@@ -112,11 +105,6 @@ export default class Scheduler2 {
   static GROUP_QUEUE_PREFIX = 'group'
   static REGULAR_QUEUE_PREFIX = 'node'
   static EXPRESS_QUEUE_PREFIX = 'express'
-
-  /**
-   * Remember the response object for if the user wants long polling.
-   */
-  // #responsesForSynchronousReturn //ZZZZ Separate this out
 
   constructor(groupName, queueName=null, options= { }) {
     if (VERBOSE) console.log(`Scheduler2.constructor(${groupName}, ${queueName})`)
@@ -184,11 +172,10 @@ export default class Scheduler2 {
   async _checkConnectedToQueue() {
     // console.log(`_checkConnectedToQueue`)
     if (!this.#queueObject) {
-      if (VERBOSE) console.log(`Getting a new connection`)
       // Get a connection to my queue
+      if (VERBOSE) console.log(`Getting a new connection`)
       this.#queueObject = await getQueueConnection()
     }
-    // if (VERBOSE) console.log(`this.#queueObject=`, this.#queueObject)
   }
 
   async start() {
@@ -211,7 +198,6 @@ export default class Scheduler2 {
       // const worker = new Worker2(id, this.#nodeGroup, this.#groupQueue)
       const worker = new Worker2(id, this.#nodeGroup, this.#nodeId)
       this.#workers.push(worker)
-      // await worker.start()
     }
     // console.log(`  - created ${this.#workers.length} workers`)
 
@@ -220,8 +206,7 @@ export default class Scheduler2 {
     // We count how many workers are waiting for an event, then
     // hand out that many events before counting again.
     const eventLoop = async () => {
-      // if (VERBOSE)
-      // console.log(`######## Start event loop.`)
+      // if (VERBOSE) console.log(`######## Start event loop.`)
 
       // Create a list of all the workers waiting for an event
       const workersWaiting = [ ]
@@ -231,7 +216,6 @@ export default class Scheduler2 {
           workersWaiting.push(worker)
         }
       }
-      // if (VERBOSE)
 
       // If no workers are available, wait a bit and try again
       if (workersWaiting.length === 0) {
@@ -256,8 +240,7 @@ export default class Scheduler2 {
       const events = await this.#queueObject.dequeue(queues, numEvents, block)
       // console.log(`events=`, events)
       if (events.length === 0) {
-        // if (VERBOSE)
-        // console.log(`Event queue is empty - Event loop sleeping a bit`)
+        // if (VERBOSE) console.log(`Event queue is empty - Event loop sleeping a bit`)
         setTimeout(eventLoop, this.#eventloopPauseIdle)
         return
       }
@@ -286,62 +269,24 @@ export default class Scheduler2 {
       // state away from WAITING.
       setTimeout(eventLoop, this.#eventloopPause)
 
-
-      // // Find an event for each of these workers that are waiting
-      // while (workersWaiting.length > 0) {
-
-      //   // Get the next worker that WAS waiting for an event.
-      //   // It's possible the worker has been marked for shutdown while we've been
-      //   // waiting for events here. If so, put it in standby state now.
-      //   const worker = workersWaiting.pop()
-
-      //   // If this worker is now needing to go to
-      //   const state = worker.getState()
-      //   if (state === Worker2.SHUTDOWN) {
-      //     worker.enterStandbyState()
-      //     continue
-      //   }
-      //   //  else  if (state !== Worker2.WAITING) {
-      //   //   // Maybe it's shut down
-      //   //   continue
-      //   // }
-      //   // if (VERBOSE) console.log(`Getting an event for worker`)
-
-      //   // Get an event for this worker
-      //   const numEvents = 1
-      //   const event = events[0]
-      //   console.log(`- event -> worker`)
-      //   if (VERBOSE) {
-      //     console.log(`\n<<< dequeued EVENT`.green)
-      //     // console.log(`event=`, event)
-      //   }
-
-      //   // Process the event
-      //   // Do NOT wait for it to complete. It will set it's state back to 'waiting' when it's ready.
-      //   worker.processEvent(event)
-      // }
-
-      // // Let's start all over again, because some workers may be available by now.
-      // // We use the timeout, so the stack can reset itself.
-      // setTimeout(eventLoop, 0)
     }
 
     // Let's start the event loop in the background
     setTimeout(eventLoop, 0)
+  }
 
-
-    // Register this node periodically
-    const registerMe = async () => {
-      // console.log(`registerMe()\n\n\n`)
-      await this.#queueObject.registerNode(this.#nodeGroup, this.#nodeId, {
-        appVersion,
-        datpVersion,
-        buildTime,
-        stepTypes: await StepTypeRegister.myStepTypes(),
-      })
-      setTimeout(registerMe, NODE_REGISTRATION_INTERVAL * 1000)
-    }
-    await registerMe()
+  /**
+   * This function gets called periodically, to allow this node
+   * to keep itself registered within REDIS.
+   */
+  async keepAlive () {
+    // console.log(`keepAlive()`)
+    await this.#queueObject.registerNode(this.#nodeGroup, this.#nodeId, {
+      appVersion,
+      datpVersion,
+      buildTime,
+      stepTypes: await StepTypeRegister.myStepTypes(),
+    })
   }
 
   async loadNodeGroupParameters() {
@@ -541,28 +486,6 @@ export default class Scheduler2 {
         }
       }
       await tx.delta(null, def)
-      // console.log(`txData=`, tx.txData())
-
-
-      // console.log(`tx=`, tx.toString())
-
-      // tx.persist() //YARP2
-
-      // Remember the transaction
-      // const transactionIndexEntry = new TransactionIndexEntry(txId, transactionType, status, initiatedBy, initialTxData)
-      // const txId = await transactionIndexEntry.getTxId()
-
-      // Persist the transaction
-      // const inquiryToken = await dbTransactionInstance.persist(transactionIndexEntry, pipelineName)
-      // console.log(`inquiryToken=`, inquiryToken)//YARP2
-      // this.#transactionIndex[txId] = transactionIndexEntry
-
-
-      // Create a logbook for this transaction/pipeline
-      // const logbook = new Logbook.cls({
-      //   txId: txId,
-      //   description: `Pipeline logbook`
-      // })
 
       // Generate a new ID for this step
       const txId = tx.getTxId()
@@ -630,7 +553,7 @@ export default class Scheduler2 {
   }//- TRANSACTION_START
 
   /**
-   * How replying works
+   * How step replying works
    * ------------------
    * In this function we persist these fields to the step:
    *    callback          // A callback name, registered with CallbackRegister.js
@@ -673,32 +596,8 @@ export default class Scheduler2 {
     }
 
     assert(typeof(queueName) === 'string')
-    let obj
-    if (data instanceof XData) {
-      obj = data.getData()
-    } else if (typeof(data) === 'object') {
-      obj = data
-    } else {
-      throw new Error('enqueueStepStart() - data parameter must be XData or object')
-    }
-
-    // Verify the event data
-    assert (typeof(obj.txId) === 'string')
-    assert (typeof(obj.stepId) === 'string')
-
-    assert (typeof(obj.fullSequence) === 'string')
-    assert (typeof(obj.stepDefinition) !== 'undefined')
-    assert (typeof(obj.data) === 'object')
-    assert ( !(obj.data instanceof XData))
-    assert (typeof(obj.metadata) === 'object')
-    assert (typeof(obj.level) === 'number')
-
-    // How to reply when complete
-    assert (typeof(obj.onComplete) === 'object')
-    assert (typeof(obj.onComplete.nodeGroup) === 'string')
-    assert (typeof(obj.onComplete.nodeId) === 'string')
-    assert (typeof(obj.onComplete.callback) === 'string')
-    assert (typeof(obj.onComplete.context) === 'object')
+    const obj = dataFromXDataOrObject(data, 'enqueueStepStart() - data parameter must be XData or object')
+    validateEvent_StepStart(obj)
 
     // Add a completionToken to the event, so we can check that the return EVENT is legitimate
     obj.onComplete.completionToken = GenerateHash('ctok')
@@ -758,16 +657,24 @@ export default class Scheduler2 {
 
   }//- enqueueStepStart
 
-  async enqueue_StepRestart(queueName, txId, stepId) {
+  async enqueue_StepRestart(nodeGroup, txId, stepId) {
     if (VERBOSE) {
-      console.log(`\n<<< enqueue_StepRestart EVENT(${queueName})`.green, data)
+      console.log(`\n<<< enqueue_StepRestart EVENT(${nodeGroup})`.green)
     }
-    assert(typeof(queueName) === 'string')
+    assert(typeof(nodeGroup) === 'string')
     assert(typeof(txId) === 'string')
     assert(typeof(stepId) === 'string')
 
+    const queueName = Scheduler2.groupQueueName(this.#nodeGroup)
+
     // Change the step status
-    const tx = await TransactionCache.findTransaction(txId, false)
+    const tx = await TransactionCache.findTransaction(txId, true)
+    if (!tx) {
+      throw new Error(`enqueue_StepRestart: unknown transaction ${txId}`)
+    }
+    await tx.delta(null, {
+      status: STEP_RUNNING
+    })
     await tx.delta(stepId, {
       status: STEP_QUEUED
     })
@@ -810,15 +717,7 @@ export default class Scheduler2 {
 
     // Validate the event data
     assert(typeof(queueName) == 'string')
-    assert(typeof(event) == 'object')
-    assert (typeof(event.txId) === 'string')
-    // assert (typeof(event.parentStepId) === 'string')
-    assert (typeof(event.stepId) === 'string')
-    assert (typeof(event.completionToken) === 'string')
-
-    // DO NOT try to reply stuff
-    assert (typeof(event.status) === 'undefined')
-    assert (typeof(event.stepOutput) === 'undefined')
+    validateEvent_StepCompleted(event)
 
     // Add the event to the queue
     event.eventType = Scheduler2.STEP_COMPLETED_EVENT
@@ -855,9 +754,7 @@ export default class Scheduler2 {
     }
     // Validate the event data
     assert(typeof(queueName) == 'string')
-    assert(typeof(event) == 'object')
-    assert (typeof(event.txId) === 'string')
-    assert (typeof(event.transactionOutput) === 'undefined')
+    validateEvent_TransactionCompleted(event)
 
     // Add to the event queue
     event.eventType = Scheduler2.TRANSACTION_COMPLETED_EVENT
@@ -896,9 +793,7 @@ export default class Scheduler2 {
     }
     // Validate the event data
     assert(typeof(queueName) == 'string')
-    assert(typeof(event) == 'object')
-    assert (typeof(event.txId) === 'string')
-    assert (typeof(event.transactionOutput) === 'undefined')
+    validateEvent_TransactionChange(event)
 
     // Add to the event queue
     event.eventType = Scheduler2.TRANSACTION_CHANGE_EVENT

@@ -12,7 +12,7 @@ class DummyStep extends Step {
   constructor(definition) {
     super(definition)
     this.msg = definition.msg
-  }//- contructor
+  }//- constructor
 
   async invoke(instance) {
     // instance.trace(`*****`)

@@ -5,6 +5,9 @@
  * the author or owner be liable for any claim or damages.
  */
 import query from './query'
+import { HACK_TO_BYPASS_LOGGING_WHILE_TESTING } from '../datp-constants'
+let hackCount = 0
+
 
 export default class dbLogbook {
 
@@ -31,6 +34,13 @@ export default class dbLogbook {
 
     if (typeof(json) !== 'string') {
       throw new Error('log() requires string value for msg parameter')
+    }
+    if (HACK_TO_BYPASS_LOGGING_WHILE_TESTING) {
+      if (hackCount++ == 0) {
+        console.log(`WARNING!!!!!`)
+        console.log(`Not saving log entries (HACK_TO_BYPASS_LOGGING_WHILE_TESTING=true)`)
+      }
+      return
     }
     const sql = `INSERT INTO atp_logbook (transaction_id, step_id, sequence, message) VALUES (?, ?, ?, ?)`
     const params = [ transactionId, stepId, sequence, msg ]

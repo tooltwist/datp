@@ -7,7 +7,10 @@
 import query from "../../database/query";
 import TransactionIndexEntry from "../TransactionIndexEntry";
 import Transaction from "./Transaction";
+import { HACK_TO_BYPASS_TXDELTAS_WHILE_TESTING } from '../../datp-constants'
+
 const VERBOSE = 0
+let hackCount = 0
 
 export class DuplicateExternalIdError extends Error {
   constructor() {
@@ -53,8 +56,13 @@ export default class TransactionPersistance {
   static async persistDelta(owner, txId, delta) {
     if (VERBOSE) console.log(`TransactionPersistance.persistDeltas()`, delta)
 
-// //ZZZZZ
-// return
+    if (HACK_TO_BYPASS_TXDELTAS_WHILE_TESTING) {
+      if (hackCount++ == 0) {
+        console.log(`WARNING!!!!!`)
+        console.log(`Not saving transaction deltas (HACK_TO_BYPASS_TXDELTAS_WHILE_TESTING=true)`)
+      }
+      return
+    }
 
     const json = JSON.stringify(delta.data)
 

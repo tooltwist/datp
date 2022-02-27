@@ -19,7 +19,7 @@ test.serial('Sleep counter before sleeping', async t => {
 
   t.truthy(tx)
   t.is(tx.getTxId(), txId)
-  t.is(tx.getSleepCounter(), 0)
+  t.is(tx.getRetryCounter(), 0)
   t.is(tx.getSleepingSince(), null)
   t.is(tx.getWakeTime(), null)
   t.is(tx.getWakeSwitch(), null)
@@ -31,7 +31,7 @@ test.serial('Sleep counter starts with status change to sleep', async t => {
 
   t.truthy(tx)
   t.is(tx.getTxId(), txId)
-  t.is(tx.getSleepCounter(), 0)
+  t.is(tx.getRetryCounter(), 0)
   t.is(tx.getSleepingSince(), null)
   t.is(tx.getWakeTime(), null)
   t.is(tx.getWakeSwitch(), null)
@@ -41,7 +41,7 @@ test.serial('Sleep counter starts with status change to sleep', async t => {
     sleepDuration: 60,
     wakeSwitch: 'abc'
   })
-  t.is(tx.getSleepCounter(), 1)
+  t.is(tx.getRetryCounter(), 1)
   t.not(tx.getSleepingSince(), null)
   t.truthy(tx.getSleepingSince() instanceof Date)
   t.not(tx.getWakeTime(), null)
@@ -55,7 +55,7 @@ test.serial('Sleep counter increments after sleep-run-sleep', async t => {
 
   t.truthy(tx)
   t.is(tx.getTxId(), txId)
-  t.is(tx.getSleepCounter(), 0)
+  t.is(tx.getRetryCounter(), 0)
   t.is(tx.getSleepingSince(), null)
   t.is(tx.getWakeTime(), null)
   t.is(tx.getWakeSwitch(), null)
@@ -65,7 +65,7 @@ test.serial('Sleep counter increments after sleep-run-sleep', async t => {
     sleepDuration: 60,
     wakeSwitch: 'abc'
   })
-  t.is(tx.getSleepCounter(), 1)
+  t.is(tx.getRetryCounter(), 1)
   t.not(tx.getSleepingSince(), null)
   t.truthy(tx.getSleepingSince() instanceof Date)
   t.not(tx.getWakeTime(), null)
@@ -77,7 +77,7 @@ test.serial('Sleep counter increments after sleep-run-sleep', async t => {
     sleepDuration: 60,
     wakeSwitch: 'abc'
   })
-  t.is(tx.getSleepCounter(), 1)
+  t.is(tx.getRetryCounter(), 1)
   t.not(tx.getSleepingSince(), null)
   t.truthy(tx.getSleepingSince() instanceof Date)
   t.not(tx.getWakeTime(), null)
@@ -89,7 +89,7 @@ test.serial('Sleep counter increments after sleep-run-sleep', async t => {
     sleepDuration: 60,
     wakeSwitch: 'abc'
   })
-  t.is(tx.getSleepCounter(), 2)
+  t.is(tx.getRetryCounter(), 2)
   t.not(tx.getSleepingSince(), null)
   t.truthy(tx.getSleepingSince() instanceof Date)
   t.not(tx.getWakeTime(), null)
@@ -103,7 +103,7 @@ test.serial('Sleep counter does not increment with repeat setting to sleep statu
 
   t.truthy(tx)
   t.is(tx.getTxId(), txId)
-  t.is(tx.getSleepCounter(), 0)
+  t.is(tx.getRetryCounter(), 0)
   t.is(tx.getSleepingSince(), null)
   t.is(tx.getWakeTime(), null)
   t.is(tx.getWakeSwitch(), null)
@@ -113,7 +113,7 @@ test.serial('Sleep counter does not increment with repeat setting to sleep statu
     sleepDuration: 60,
     wakeSwitch: 'abc'
   })
-  t.is(tx.getSleepCounter(), 1)
+  t.is(tx.getRetryCounter(), 1)
   t.not(tx.getSleepingSince(), null)
   t.truthy(tx.getSleepingSince() instanceof Date)
   t.not(tx.getWakeTime(), null)
@@ -126,7 +126,7 @@ test.serial('Sleep counter does not increment with repeat setting to sleep statu
     sleepDuration: 60,
     wakeSwitch: 'abc'
   })
-  t.is(tx.getSleepCounter(), 1)
+  t.is(tx.getRetryCounter(), 1)
   t.not(tx.getSleepingSince(), null)
   t.truthy(tx.getSleepingSince() instanceof Date)
   t.not(tx.getWakeTime(), null)
@@ -139,7 +139,7 @@ test.serial('Sleep fields reset on success status', async t => {
 
   t.truthy(tx)
   t.is(tx.getTxId(), txId)
-  t.is(tx.getSleepCounter(), 0)
+  t.is(tx.getRetryCounter(), 0)
   t.is(tx.getSleepingSince(), null)
   t.is(tx.getWakeTime(), null)
   t.is(tx.getWakeSwitch(), null)
@@ -149,7 +149,7 @@ test.serial('Sleep fields reset on success status', async t => {
     sleepDuration: 60,
     wakeSwitch: 'abc'
   })
-  t.is(tx.getSleepCounter(), 1)
+  t.is(tx.getRetryCounter(), 1)
   t.not(tx.getSleepingSince(), null)
   t.truthy(tx.getSleepingSince() instanceof Date)
   t.not(tx.getWakeTime(), null)
@@ -160,7 +160,7 @@ test.serial('Sleep fields reset on success status', async t => {
   await tx.delta(null, {
     status: STEP_SUCCESS,
   })
-  t.is(tx.getSleepCounter(), 0)
+  t.is(tx.getRetryCounter(), 0)
   t.is(tx.getSleepingSince(), null)
   t.is(tx.getWakeTime(), null)
   t.is(tx.getWakeSwitch(), null)
@@ -171,7 +171,7 @@ test.serial('Sleep start time does not change with sleep-run-sleep', async t => 
 
   t.truthy(tx)
   t.is(tx.getTxId(), txId)
-  t.is(tx.getSleepCounter(), 0)
+  t.is(tx.getRetryCounter(), 0)
   t.is(tx.getSleepingSince(), null)
   t.is(tx.getWakeTime(), null)
   t.is(tx.getWakeSwitch(), null)
@@ -181,7 +181,7 @@ test.serial('Sleep start time does not change with sleep-run-sleep', async t => 
     sleepDuration: 60,
     wakeSwitch: 'abc'
   })
-  t.is(tx.getSleepCounter(), 1)
+  t.is(tx.getRetryCounter(), 1)
   const sleepingSince1 = tx.getSleepingSince()
 
   await tx.delta(null, {
@@ -205,7 +205,7 @@ test.serial('Persist sleep fields to database as delta', async t => {
 
   t.truthy(tx)
   t.is(tx.getTxId(), txId)
-  t.is(tx.getSleepCounter(), 0)
+  t.is(tx.getRetryCounter(), 0)
   t.is(tx.getSleepingSince(), null)
   t.is(tx.getWakeTime(), null)
   t.is(tx.getWakeSwitch(), null)
@@ -215,7 +215,7 @@ test.serial('Persist sleep fields to database as delta', async t => {
     sleepDuration: 60,
     wakeSwitch: 'abc'
   })
-  t.is(tx.getSleepCounter(), 1)
+  t.is(tx.getRetryCounter(), 1)
   t.not(tx.getSleepingSince(), null)
   t.truthy(tx.getSleepingSince() instanceof Date)
   t.not(tx.getWakeTime(), null)
@@ -247,7 +247,7 @@ test.serial('Persist sleep fields to database in atp_transaction2', async t => {
 
   t.truthy(tx)
   t.is(tx.getTxId(), txId)
-  t.is(tx.getSleepCounter(), 0)
+  t.is(tx.getRetryCounter(), 0)
   t.is(tx.getSleepingSince(), null)
   t.is(tx.getWakeTime(), null)
   t.is(tx.getWakeSwitch(), null)
@@ -257,7 +257,7 @@ test.serial('Persist sleep fields to database in atp_transaction2', async t => {
     sleepDuration: 60,
     wakeSwitch: 'abc'
   })
-  t.is(tx.getSleepCounter(), 1)
+  t.is(tx.getRetryCounter(), 1)
   t.not(tx.getSleepingSince(), null)
   t.truthy(tx.getSleepingSince() instanceof Date)
   t.not(tx.getWakeTime(), null)
@@ -289,7 +289,7 @@ test.serial('Reconstruct sleep fields from database', async t => {
 
   t.truthy(tx)
   t.is(tx.getTxId(), txId)
-  t.is(tx.getSleepCounter(), 0)
+  t.is(tx.getRetryCounter(), 0)
   t.is(tx.getSleepingSince(), null)
   t.is(tx.getWakeTime(), null)
   t.is(tx.getWakeSwitch(), null)
@@ -299,7 +299,7 @@ test.serial('Reconstruct sleep fields from database', async t => {
     sleepDuration: 60,
     wakeSwitch: 'abc'
   })
-  t.is(tx.getSleepCounter(), 1)
+  t.is(tx.getRetryCounter(), 1)
   t.not(tx.getSleepingSince(), null)
   t.truthy(tx.getSleepingSince() instanceof Date)
   t.not(tx.getWakeTime(), null)
@@ -309,7 +309,7 @@ test.serial('Reconstruct sleep fields from database', async t => {
   // See if it reconstructs the same
   let tx2 = await TransactionPersistance.reconstructTransaction(txId)
   // console.log(`tx2=`, tx2)
-  t.is(tx2.getSleepCounter(), 1)
+  t.is(tx2.getRetryCounter(), 1)
   t.not(tx2.getSleepingSince(), null)
   t.truthy(tx2.getSleepingSince() instanceof Date)
   t.not(tx2.getWakeTime(), null)
@@ -322,7 +322,7 @@ test.serial('Reconstruct sleep fields from database', async t => {
   t.falsy(tx2)
   tx2 = await TransactionCache.findTransaction(txId, true)
   t.truthy(tx2)
-  t.is(tx2.getSleepCounter(), 1)
+  t.is(tx2.getRetryCounter(), 1)
   t.not(tx2.getSleepingSince(), null)
   t.truthy(tx2.getSleepingSince() instanceof Date)
   t.not(tx2.getWakeTime(), null)

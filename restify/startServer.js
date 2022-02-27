@@ -4,7 +4,7 @@
  * rights reserved. No warranty, explicit or implicit, provided. In no event shall
  * the author or owner be liable for any claim or damages.
  */
-import DATP from '../DATP/datp'
+import DATP from '../datp'
 import corsMiddleware from "restify-cors-middleware2";
 import figlet from 'figlet'
 import juice from '@tooltwist/juice-client'

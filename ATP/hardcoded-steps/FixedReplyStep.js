@@ -18,7 +18,7 @@ class FixedReplyStep extends Step {
     this.#returnError = definition.returnError ? true : false
     this.#note = definition.note ? definition.note : ''
     this.#reply = definition.reply ? definition.reply : { }
-  }//- contructor
+  }//- constructor
 
   async invoke(instance) {
     instance.trace(`FixedReplyStep (${instance.getStepId()})`)

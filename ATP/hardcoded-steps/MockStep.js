@@ -15,7 +15,7 @@ class MockStep extends Step {
   constructor(definition) {
     super(definition)
     this.msg = definition.msg
-  }//- contructor
+  }//- constructor
 
   async invoke(instance) {
     if (VERBOSE) {

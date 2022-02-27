@@ -26,7 +26,8 @@ export async function getStepInstanceDetails(stepId) {
       response,
       start_time AS startTime,
       status_time AS statusTime,
-      completion_time AS completionTime
+      completion_time AS completionTime,
+      last_updated AS lastUpdated
   FROM atp_step_instance WHERE step_id=?`
 
   const params = [ stepId ]

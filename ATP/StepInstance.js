@@ -16,9 +16,9 @@ import assert from 'assert'
 import Transaction from './Scheduler2/Transaction';
 import { schedulerForThisNode } from '..';
 import dbLogbook from '../database/dbLogbook';
+import { DEEP_SLEEP_SECONDS } from '../datp-constants';
 
 const VERBOSE = 0
-export const DEEP_SLEEP_DURATION = 2 * 60 // Two minutes
 
 export default class StepInstance {
   #txId
@@ -300,13 +300,8 @@ export default class StepInstance {
 
     if (stepOutput === null || stepOutput === undefined) {
       myStepOutput = { }
-    } else if (stepOutput instanceof XData) {
-      myStepOutput = stepOutput.getData()
-    } else if (typeof(stepOutput) === 'object') {
-      // Use the provided output
-      myStepOutput = stepOutput
     } else {
-      throw new Error(`Invalid stepOutput parameter. Must be null, object or TXData`)
+      myStepOutput = dataFromXDataOrObject(stepOutput, `Invalid stepOutput parameter. Must be null, object or TXData`)
     }
     return myStepOutput
   }
@@ -332,13 +327,12 @@ export default class StepInstance {
     if (VERBOSE > 1) console.log(`this.#onComplete=`, this.#onComplete)
 
     // Sync any buffered logs
-    this.trace(`instance.succeeded() - ${note}`, dbLogbook.LOG_SOURCE_SYSTEM)
+    this.trace(`Step succeeded - ${note}`, dbLogbook.LOG_SOURCE_SYSTEM)
     await this.syncLogs()
 
     // Quick sanity check - make sure this step is actually running, and has not already exited.
     // console.log(`yarp getting tx ${this.#txId}`)
     const tx = await TransactionCache.findTransaction(this.#txId, false)
-    // console.log(`tx=`, tx)
     const stepData = tx.stepData(this.#stepId)
     if (stepData.status !== STEP_RUNNING) {
       //ZZZ Write to the log
@@ -389,13 +383,11 @@ export default class StepInstance {
     if (VERBOSE) console.log(`StepInstance.aborted(note=${note}, ${typeof stepOutput})`, stepOutput)
 
     // Sync any buffered logs
-    this.trace(`instance.aborted()`, dbLogbook.LOG_SOURCE_SYSTEM)
+    this.trace(`Step aborted`, dbLogbook.LOG_SOURCE_SYSTEM)
     await this.syncLogs()
-
 
     const myStepOutput = this._sanitizedOutput(stepOutput)
     if (VERBOSE) console.log(`aborted: step out is `.magenta, myStepOutput)
-
 
     // Quick sanity check - make sure this step is actually running, and has not already exited.
     // console.log(`yarp getting tx ${this.#txId}`)
@@ -431,7 +423,7 @@ export default class StepInstance {
    * @param {*} stepOutput
    */
   async failed(note, stepOutput) {
-    if (VERBOSE) console.log(`StepInstance.failed(note=${note}, ${typeof stepOutput})`, stepOutput)
+    if (VERBOSE) console.log(`Step failed (note=${note}, ${typeof stepOutput})`, stepOutput)
 
     // Sync any buffered logs
     this.trace(`instance.failed(${note})`, dbLogbook.LOG_SOURCE_SYSTEM)
@@ -439,7 +431,6 @@ export default class StepInstance {
 
     const myStepOutput = this._sanitizedOutput(stepOutput)
     if (VERBOSE) console.log(`failed: step out is `.magenta, myStepOutput)
-
 
     // Quick sanity check - make sure this step is actually running, and has not already exited.
     // console.log(`yarp getting tx ${this.#txId}`)
@@ -529,10 +520,10 @@ export default class StepInstance {
     if (!message) {
       message = 'Exception in step'
     }
-    this.trace(message, dbLogbook.LOG_SOURCE_EXCEPTION)
+    this.error(message, dbLogbook.LOG_SOURCE_EXCEPTION)
     if (e instanceof Error) {
       const str = `${message}\n${e.stack}`
-      this.trace(str, dbLogbook.LOG_SOURCE_EXCEPTION)
+      this.error(str, dbLogbook.LOG_SOURCE_EXCEPTION)
     // } else {
     //   this.trace(message, dbLogbook.LOG_SOURCE_EXCEPTION)
     }
@@ -555,7 +546,7 @@ export default class StepInstance {
     // await this.artifact('exception', trace)
 
     // Finish the step
-    const status = STEP_INTERNAL_ERROR
+    // const status = STEP_INTERNAL_ERROR
     const data = {
       error: `Internal error: exception in step. Please notify system administrator.`,
       transactionId: this.#txId,
@@ -610,6 +601,7 @@ export default class StepInstance {
    * @param {number} sleepDuration Number of seconds after which to retry (defaults to two minutes)
    */
   async retryLater(nameOfSwitch=null, sleepDuration=120) {
+    sleepDuration = Math.round(sleepDuration)
     if (VERBOSE) console.log(`StepInstance.retryLater(nameOfSwitch=${nameOfSwitch}, sleepDuration=${sleepDuration})`)
 
     // Sync any buffered logs
@@ -619,22 +611,27 @@ export default class StepInstance {
     // Update the transaction status
     const tx = await TransactionCache.findTransaction(this.#txId, false)
     await tx.delta(null, {
-      status: STEP_SLEEPING
-      //ZZZZ Sleep completion time
+      status: STEP_SLEEPING,
+      wakeSwitch: nameOfSwitch,
+      sleepDuration: sleepDuration,
+      wakeStepId: this.#stepId
     })
     await tx.delta(this.#stepId, {
-      status: STEP_SLEEPING
+      status: STEP_SLEEPING,
     })
 
-sleepDuration = 15
+// sleepDuration = 15
 
-    if (sleepDuration < DEEP_SLEEP_DURATION) {
+    if (sleepDuration < DEEP_SLEEP_SECONDS) {
       console.log(`Step will nap for ${sleepDuration} seconds [${this.#stepId}]`)
       setTimeout(async() => {
         console.log(`Restarting step after a nap of ${sleepDuration} seconds [${this.#stepId}]`)
-        const queueName = Scheduler2.groupQueueName(this.#nodeGroup)
-        await schedulerForThisNode.enqueue_StepRestart(queueName, this.#txId, this.#stepId)
+        // const queueName = Scheduler2.groupQueueName(this.#nodeGroup)
+        await schedulerForThisNode.enqueue_StepRestart(this.#nodeGroup, this.#txId, this.#stepId)
       }, sleepDuration * 1000)
+    } else {
+      // Long term sleep - will be woken by our cron process.
+      // Nothing to do here.
     }
   }
 
@@ -648,6 +645,13 @@ sleepDuration = 15
     const tx = await TransactionCache.findTransaction(this.#txId, false)
     const value = await Transaction.getSwitch(tx.getOwner(), this.#txId, name)
     return value
+  }
+
+  async getRetryCounter() {
+    if (VERBOSE) console.log(`StepInstance.getRetryCounter()`)
+    const tx = await TransactionCache.findTransaction(this.#txId, false)
+    const counter = tx.getRetryCounter()
+    return counter
   }
 
 

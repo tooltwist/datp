@@ -39,7 +39,7 @@ export class RouterStep extends Step {
     } else {
       this.#defaultPipeline = null
     }
-  }//- contructor
+  }//- constructor
 
 
   async invoke(instance) {

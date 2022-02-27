@@ -41,6 +41,8 @@ export default class Transaction {
   #sleepCounter
   #wakeTime
   #wakeSwitch
+  #wakeNodeGroup
+  #wakeStepId
 
   #steps // stepId => Object
   #tx // Object
@@ -82,6 +84,8 @@ export default class Transaction {
     this.#sleepingSince = null
     this.#wakeTime = null
     this.#wakeSwitch = null
+    this.#wakeNodeGroup = null
+    this.#wakeStepId = null
 
     // Initialise the places where we store transaction and step data
     this.#tx = {
@@ -221,6 +225,8 @@ export default class Transaction {
                 this.#sleepingSince = null
                 this.#wakeTime = null
                 this.#wakeSwitch = null
+                this.#wakeNodeGroup = null
+                this.#wakeStepId = null
                 if (VERBOSE) console.log(`Resetting sleep values`)
               }
               break
@@ -235,6 +241,8 @@ export default class Transaction {
                   if (VERBOSE) console.log(`Initializing sleep fields`)
                   this.#sleepCounter = 1
                   this.#sleepingSince = new Date()
+                  this.#wakeNodeGroup = schedulerForThisNode.getNodeGroup()
+                  this.#wakeStepId = data.wakeStepId
                 } else {
                   if (VERBOSE) console.log(`Incrementing sleep counter`)
                   this.#sleepCounter++
@@ -266,6 +274,8 @@ export default class Transaction {
                   if (VERBOSE) console.log(`Setting wakeTime to +${newWakeTime}`)
                   coreValuesChanged = true
                   this.#wakeTime = newWakeTime
+                  this.#wakeNodeGroup = schedulerForThisNode.getNodeGroup()
+                  this.#wakeStepId = data.wakeStepId
                 }
               }
               if (typeof(data.wakeSwitch) !== 'undefined' && this.#wakeSwitch !== data.wakeSwitch) {
@@ -273,6 +283,8 @@ export default class Transaction {
                 if (data.wakeSwitch === null || typeof(data.wakeSwitch) === 'string') {
                   coreValuesChanged = true
                   this.#wakeSwitch = data.wakeSwitch
+                  this.#wakeNodeGroup = schedulerForThisNode.getNodeGroup()
+                  this.#wakeStepId = data.wakeStepId
                 } else {
                   throw new Error('Invalid data.wakeSwitch')
                 }
@@ -327,10 +339,11 @@ export default class Transaction {
               sleep_counter=?,
               sleeping_since=?,
               wake_time=?,
-              wake_switch=?`
+              wake_switch=?,
+              wake_node_group=?,
+              wake_step_id=?`
 
-
-            //ZZZZ Check that the transaction hasn't been updateed by someone else.
+            //ZZZZ Check that the transaction hasn't been updated by someone else.
             //  AND sequence_of_update=?   [ this.#sequenceOfUpdate ]
             const transactionOutputJSON = this.#transactionOutput ? JSON.stringify(this.#transactionOutput) : null
             const progressReportJSON = this.#progressReport ? JSON.stringify(this.#progressReport) : null
@@ -343,7 +356,9 @@ export default class Transaction {
               this.#sleepCounter,
               this.#sleepingSince,
               this.#wakeTime,
-              this.#wakeSwitch
+              this.#wakeSwitch,
+              this.#wakeNodeGroup,
+              this.#wakeStepId
             ]
             sql += ` WHERE transaction_id=? AND owner=?`
             params.push(this.#txId)
@@ -415,7 +430,8 @@ export default class Transaction {
       sequence_of_update AS sequenceOfUpdate,
       progress_report AS progressReport,
       transaction_output AS transactionOutput,
-      completion_time AS completionTime
+      completion_time AS completionTime,
+      last_updated AS lastUpdated
       FROM atp_transaction2
       WHERE owner=? AND transaction_id=?`
     const params = [ owner, txId ]
@@ -473,7 +489,8 @@ export default class Transaction {
       sequence_of_update AS sequenceOfUpdate,
       progress_report AS progressReport,
       transaction_output AS transactionOutput,
-      completion_time AS completionTime
+      completion_time AS completionTime,
+      last_updated AS lastUpdated
       FROM atp_transaction2
       WHERE owner=? AND external_id=?`
     const params = [ owner, externalId ]
@@ -622,7 +639,7 @@ export default class Transaction {
    *
    * @returns
    */
-  getSleepCounter() {
+  getRetryCounter() {
     return this.#sleepCounter
   }
 
@@ -640,6 +657,14 @@ export default class Transaction {
    */
   getWakeSwitch() {
     return this.#wakeSwitch
+  }
+
+  getWakeNodeGroup() {
+    return this.#wakeNodeGroup
+  }
+
+  getWakeStepId() {
+    return this.#wakeStepId
   }
 
   /**
@@ -661,6 +686,7 @@ export default class Transaction {
       status,
       start_time AS startTime,
       completion_time AS completionTime,
+      last_updated AS lastUpdated,
       response_acknowledge_time AS responseAcknowledgeTime,
       switches,
       sleep_counter AS sleepCounter,
