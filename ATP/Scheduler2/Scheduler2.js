@@ -4,7 +4,7 @@
  * rights reserved. No warranty, explicit or implicit, provided. In no event shall
  * the author or owner be liable for any claim or damages.
  */
-import dbTransactionType from '../../database/dbTransactionType'
+import { getPipelineType } from '../../database/dbTransactionType'
 import GenerateHash from '../GenerateHash'
 import TransactionIndexEntry from '../TransactionIndexEntry'
 import XData, { dataFromXDataOrObject } from '../XData'
@@ -431,17 +431,17 @@ export default class Scheduler2 {
 
       // Which pipeline should we use?
       if (VERBOSE||trace) console.log(`Scheduler2.startTransaction() - looking for pipeline for transactionType '${metadata.transactionType}'.`)
-      const pipelineDetails = await dbTransactionType.getPipeline(metadata.transactionType)
-      // console.log(`initiateTransaction() - pipelineDetails:`, pipelineDetails)
+      const pipelineDetails = await getPipelineType(metadata.transactionType)
+      console.log(`initiateTransaction() - pipelineDetails:`, pipelineDetails)
       if (VERBOSE||trace) console.log(`Scheduler2.startTransaction() - pipelineDetails:`, pipelineDetails)
       if (!pipelineDetails) {
         throw new Error(`Unknown transaction type ${metadata.transactionType}`)
       }
 
       const pipelineName = pipelineDetails.pipelineName
-      if (VERBOSE||trace) console.log(`Scheduler2.startTransaction() - pipelineName: ${pipelineName}`)
-      // console.log(`pipelineName=`, pipelineName)
-      //ZZZZ How about the version?  Should we use name:version ?
+      const pipelineVersion = pipelineDetails.pipelineVersion
+      const pipelineNodeGroup = pipelineDetails.nodeGroup
+      if (VERBOSE||trace) console.log(`Scheduler2.startTransaction() - Start pipeline ${pipelineName}:${pipelineVersion} in node group ${pipelineNodeGroup}.`)
 
 
       // If there is an externalId, there is concern that uniqueness cannot be guaranteed by
@@ -466,9 +466,9 @@ export default class Scheduler2 {
 
       const def = {
         transactionType: metadata.transactionType,
-        nodeGroup: metadata.nodeGroup,
-        nodeId: metadata.nodeGroup, //ZZZZ Set to current node
-        pipelineName,
+        nodeGroup: pipelineNodeGroup,
+        // nodeId: metadata.nodeGroup, //ZZZZ Set to current node
+        pipelineName: `${pipelineName}:${pipelineVersion}`,
         status: TransactionIndexEntry.RUNNING,//ZZZZ
         metadata: metadataCopy,
         transactionInput: initialData,

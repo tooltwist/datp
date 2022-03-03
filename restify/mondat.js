@@ -10,7 +10,7 @@ import { defineRoute, LOGIN_IGNORED } from '../extras/apiVersions'
 import { route_activeNodesV1 } from '../mondat/nodes'
 import { route_nodeGroupsV1 } from '../mondat/nodeGroups'
 import { getQueueStatsV1 } from '../mondat/queueStats';
-import { listPipelinesV1, pipelineDefinitionV1, pipelineDescriptionV1, pipelineVersionsV1, savePipelineDraftV1 } from '../mondat/pipelines'
+import { clonePipelineV1, commitPipelineV1, route_deletePipelineVersionV1, listPipelinesV1, pipelineDefinitionV1, pipelineDescriptionV1, route_getPipelineV1, savePipelineDraftV1, route_updatePipelineTypeV1, route_exportPipelineVersionV1 } from '../mondat/pipelines'
 import { getRecentPerformanceV1 } from '../mondat/recentPerformance';
 import { getStepInstanceDetailsV1 } from '../mondat/stepInstances';
 import { deleteTestCasesV1, getTestCasesV1, saveTestCasesV1 } from '../mondat/testCases';
@@ -38,17 +38,41 @@ async function registerRoutes(server) {
   defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/pipelines', [
     { versions: '1.0 - 1.0', handler: listPipelinesV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
-  defineRoute(server, 'post', false, MONITOR_URL_PREFIX, '/pipeline/draft', [
+  // Create draft pipeline from an existing version
+  defineRoute(server, 'put', false, MONITOR_URL_PREFIX, '/pipeline/clone/:pipeline/:version', [
+    { versions: '1.0 - 1.0', handler: clonePipelineV1, auth: LOGIN_IGNORED, noTenant: true }
+  ])
+  // Save the draft version of a pipeline
+  defineRoute(server, 'post', false, MONITOR_URL_PREFIX, '/pipeline/:pipeline', [
     { versions: '1.0 - 1.0', handler: savePipelineDraftV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
+  // Commit the draft version of a pipeline
+  defineRoute(server, 'post', false, MONITOR_URL_PREFIX, '/pipeline/:pipeline/commit', [
+    { versions: '1.0 - 1.0', handler: commitPipelineV1, auth: LOGIN_IGNORED, noTenant: true }
+  ])
+
+  // Get the pipelineType and the pipeline records
   defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/pipeline/:pipeline', [
-    { versions: '1.0 - 1.0', handler: pipelineVersionsV1, auth: LOGIN_IGNORED, noTenant: true }
+    { versions: '1.0 - 1.0', handler: route_getPipelineV1, auth: LOGIN_IGNORED, noTenant: true }
+  ])
+  defineRoute(server, 'del', false, MONITOR_URL_PREFIX, '/pipeline/:pipeline/:version', [
+    { versions: '1.0 - 1.0', handler: route_deletePipelineVersionV1, auth: LOGIN_IGNORED, noTenant: true }
+  ])
+
+  // Return a file to export
+  defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/pipeline/:pipelineName/:version/export', [
+    { versions: '1.0 - 1.0', handler: route_exportPipelineVersionV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
   defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/pipeline/:pipeline/description', [
     { versions: '1.0 - 1.0', handler: pipelineDescriptionV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
   defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/pipeline/:pipeline/definition', [
     { versions: '1.0 - 1.0', handler: pipelineDefinitionV1, auth: LOGIN_IGNORED, noTenant: true }
+  ])
+
+  // Update the pipelineType
+  defineRoute(server, 'post', false, MONITOR_URL_PREFIX, '/pipelineType/:pipelineName', [
+    { versions: '1.0 - 1.0', handler: route_updatePipelineTypeV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
 
   // Return a list of active node groups and nodes. If the stepTypes parameter is set,
@@ -64,6 +88,7 @@ async function registerRoutes(server) {
 
   /*
    *  Transaction -> Pipeline mapping
+   *  ZZZZZ These chould be replace with /pipelineType routes.
    */
   defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/transactionMapping', [
     { versions: '1.0 - 1.0', handler: getTransactionMappingsV1, auth: LOGIN_IGNORED, noTenant: true }

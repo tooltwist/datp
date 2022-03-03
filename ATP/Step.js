@@ -120,7 +120,7 @@ export default class Step {
     } catch (e) {
       console.log(`Error resolving pipeline definition (${definition}):`, e)
     }
-    console.log(`definition=`, definition)
+    // console.log(`definition=`, definition)
     const stepTypeObject = await StepTypeRegister.getStepType(definition.stepType)
     console.log(`stepTypeObject=`, stepTypeObject)
 

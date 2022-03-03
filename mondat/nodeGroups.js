@@ -25,7 +25,7 @@ export async function route_nodeGroupsV1(req, res, next) {
     // Get the details of active nodes from REDIS
     const withStepTypes = true
     const nodeList = await schedulerForThisNode.getDetailsOfActiveNodes(withStepTypes)
-    console.log(`nodeList=`, nodeList)
+    // console.log(`nodeList=`, nodeList)
 
     // Overlay the active node details onto the groups
     for (const activeGroup of nodeList) {

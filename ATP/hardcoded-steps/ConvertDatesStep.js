@@ -46,7 +46,7 @@ class ConvertDatesStep extends Step {
    */
   async invoke(instance) {
     instance.trace(`ConvertDatesStep (${instance.getStepId()})`)
-    console.log(`this.#definition=`, this.#definition)
+    // console.log(`this.#definition=`, this.#definition)
 
     const data = await instance.getDataAsObject()
 

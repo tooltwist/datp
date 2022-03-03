@@ -508,7 +508,7 @@ export class RedisQueue extends QueueManager {
     for (let nodeId in group._nodeDefinitions) {
       nodeCount++
       const definition = group._nodeDefinitions[nodeId]
-      console.log(`definition=`, definition)
+      // console.log(`definition=`, definition)
       for (const st of definition.stepTypes) {
         const name = st.name
         const type = types[name]

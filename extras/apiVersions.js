@@ -45,7 +45,7 @@ export function defineRoute(server, operation, tenantInUrl, prefix, path, handle
   const wrapper = async function wrapper (req, res, next) {
     if (VERBOSE) {
     console.log(`+++++++++++++++++++++++++++++++++++++++++++++++++++++++++`)
-    console.log(`route=${prefix}/:version/${tenantBit}${path}`)
+    console.log(`route=${prefix}/:apiVersion/${tenantBit}${path}`)
     console.log(`path=${req.getPath()}`)
       const query = req.getQuery()
       if (query) {
@@ -60,7 +60,7 @@ export function defineRoute(server, operation, tenantInUrl, prefix, path, handle
     try {
 
       // Find the version that this server supports, that matches the request.
-      let urlVersion = req.params['version']
+      let urlVersion = req.params['apiVersion']
       if (VERBOSE) console.log(`urlVersion=`, urlVersion)
 
       // Check that the version in the URL is valid as a version number.
@@ -157,30 +157,30 @@ export function defineRoute(server, operation, tenantInUrl, prefix, path, handle
     // op4 += ' '
     op4 = ' ' + op4
   }
-  // console.log(`Registering ${op4} ${prefix}/:version/${tenantBit}${path}`)
-  console.log(`  ${op4} ${prefix}/:version/${tenantBit}${path}`)
+  // console.log(`Registering ${op4} ${prefix}/:apiVersion/${tenantBit}${path}`)
+  console.log(`  ${op4} ${prefix}/:apiVersion/${tenantBit}${path}`)
 
   // Now register the route
   switch (operation) {
     case 'get':
-      server.get(`${prefix}/:version/${tenantBit}${path}`, wrapper)
+      server.get(`${prefix}/:apiVersion/${tenantBit}${path}`, wrapper)
       break
 
     case 'put':
-      server.put(`${prefix}/:version/${tenantBit}${path}`, wrapper)
+      server.put(`${prefix}/:apiVersion/${tenantBit}${path}`, wrapper)
       break
 
     case 'post':
-      server.post(`${prefix}/:version/${tenantBit}${path}`, wrapper)
+      server.post(`${prefix}/:apiVersion/${tenantBit}${path}`, wrapper)
       break
 
     case 'delete':
     case 'del':
-      server.del(`${prefix}/:version/${tenantBit}${path}`, wrapper)
+      server.del(`${prefix}/:apiVersion/${tenantBit}${path}`, wrapper)
       break
 
     default:
-      console.log(`Unknown operation ${operation} for route ${prefix}/:version/${tenantBit}${path}`)
+      console.log(`Unknown operation ${operation} for route ${prefix}/:apiVersion/${tenantBit}${path}`)
   }
 }
 

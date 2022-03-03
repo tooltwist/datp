@@ -7,7 +7,7 @@
 import StepTypes from './StepTypeRegister'
 import Step, { STEP_ABORTED, STEP_FAILED, STEP_INTERNAL_ERROR, STEP_RUNNING, STEP_SLEEPING, STEP_SUCCESS } from './Step'
 import dbPipelines from "../database/dbPipelines";
-import XData from "./XData";
+import XData, { dataFromXDataOrObject } from "./XData";
 import { STEP_TYPE_PIPELINE } from './StepTypeRegister'
 import Scheduler2 from "./Scheduler2/Scheduler2";
 import TransactionCache from "./Scheduler2/TransactionCache";
@@ -160,11 +160,9 @@ export default class StepInstance {
         // console.log(`Loading definition for ${options.stepDefinition}`)
         // jsonDefinition = fs.readFileSync(`./pipeline-definitions/${options.stepDefinition}.json`)
         const arr = stepData.stepDefinition.split(':')
-        // console.log(`arr=`, arr)
         let pipelineName = arr[0]
         let version = (arr.length > 0) ? arr[1] : null
         const list = await dbPipelines.getPipelines(pipelineName, version)
-        // console.log(`list=`, list)
         if (list.length < 1) {
           throw new Error(`Unknown pipeline (${stepData.stepDefinition})`)
         }

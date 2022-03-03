@@ -29,8 +29,6 @@ import RouterStep from './hardcoded-steps/RouterStep'
 import WaitStep from './hardcoded-steps/WaitStep'
 
 // Database stuff
-// import dbTransactionInstance from '../database/dbTransactionInstance'
-// import dbTransactionType from '../database/dbTransactionType'
 import colors from 'colors'
 
 const ANTI_BRUTE_FORCE_DELAY = 2000 // 2 seconds

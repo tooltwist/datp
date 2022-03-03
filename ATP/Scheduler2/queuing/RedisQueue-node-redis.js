@@ -188,7 +188,7 @@ console.log(`url=`, url)//ZZZZZZ
 
         // NOTE: This only seems to return a single record
         const result = await this.#dequeueRedis.LPOP(key, numEvents)
-        console.log(`result=`, result)
+        // console.log(`result=`, result)
         if (result) {
           if (Array.isArray(result)) {
             console.log(`REDIS.dequeue: Got ${result.length} from ${key}`)

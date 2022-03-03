@@ -733,7 +733,7 @@ export default class Transaction {
     }
 
     // pagination
-    sql += `\nORDER BY start_time DESC LIMIT ? OFFSET ?`
+    sql += `\nORDER BY last_updated DESC LIMIT ? OFFSET ?`
     params.push(pagesize)
     params.push((page-1) * pagesize)
 
