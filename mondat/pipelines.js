@@ -5,17 +5,22 @@
  * the author or owner be liable for any claim or damages.
  */
 import ATP from '../ATP/ATP'
-import dbPipelines, { clonePipeline, commitPipelineDraftVersion, deletePipelineVersion, getPipelines, saveDraftPipelineSteps } from '../database/dbPipelines'
+import dbPipelines, { clonePipeline, commitPipelineDraftVersion, db_getPipelineTypesV1, db_importPipelineVersion, deletePipelineVersion, getPipelines, saveDraftPipelineSteps } from '../database/dbPipelines'
 import errors from 'restify-errors'
 import { db_updatePipelineType, getPipelineType } from '../database/dbTransactionType'
 import crypto from 'crypto'
 
+export async function route_getPipelinesTypesV1(req, res, next) {
+  console.log(`route_getPipelinesTypesV1()`)
+  const list = await db_getPipelineTypesV1()
+  res.send(list)
+  return next();
+}
+
 export async function route_getPipelineV1(req, res, next) {
-  console.log(`route_getPipelineV1()`)
+  // console.log(`route_getPipelineV1()`)
 
   const pipelineName = req.params.pipeline
-  
-
   const type = await getPipelineType(pipelineName)
   // console.log(`type=`, type)
   const pipelines = await getPipelines(pipelineName, null)
@@ -25,7 +30,7 @@ export async function route_getPipelineV1(req, res, next) {
 }
 
 export async function pipelineDescriptionV1(req, res, next) {
-  console.log(`pipelineDescriptionV1()`)
+  // console.log(`pipelineDescriptionV1()`)
 
   // A pipeline is a type of step.
   const pipelineName = req.params.pipeline
@@ -59,18 +64,10 @@ export async function listPipelinesV1(req, res, next) {
  * @param {*} next 
  */
 export async function clonePipelineV1(req, res, next) {
-  console.log(`clonePipelineV1()`)
-  console.log(`req.params=`, req.params)
-  // // console.log(`req.body.steps=`, req.body.steps)
-  // const definition = req.body
-  // if (definition.stepType !== STEP_TYPE_PIPELINE) {
-  //   const msg = `stepType must be '${STEP_TYPE_PIPELINE}'`
-  //   // console.log(`savePipelineDraftV1: ${msg}`)
-  //   return next(new errors.BadRequestError(msg))
-  // }
-  // await dbPipelines.savePipelineDraft(definition)
+  // console.log(`clonePipelineV1()`)
+  // console.log(`req.params=`, req.params)
   const newPipeline = await clonePipeline(req.params.pipeline, req.params.version)
-  console.log(`newPipeline=`, newPipeline)
+  // console.log(`newPipeline=`, newPipeline)
   res.send(newPipeline)
   return next();
 }
@@ -84,9 +81,9 @@ export async function clonePipelineV1(req, res, next) {
  * @returns 
  */
 export async function savePipelineDraftV1(req, res, next) {
-  console.log(`savePipelineDraftV1()`)
-  console.log(`req.params=`, req.params)
-  console.log(`req.body=`, req.body)
+  // console.log(`savePipelineDraftV1()`)
+  // console.log(`req.params=`, req.params)
+  // console.log(`req.body=`, req.body)
 
   await saveDraftPipelineSteps(req.params.pipeline, req.body)
   res.send({ status: 'ok' })
@@ -102,8 +99,8 @@ export async function savePipelineDraftV1(req, res, next) {
  * @param {*} next 
  */
 export async function commitPipelineV1(req, res, next) {
-  console.log(`commitPipelineV1()`)
-  console.log(`req.params=`, req.params)
+  // console.log(`commitPipelineV1()`)
+  // console.log(`req.params=`, req.params)
 
   const pipelineName = req.params.pipeline
   const comment = req.body.comment
@@ -239,8 +236,97 @@ export async function route_exportPipelineVersionV1(req, res, next) {
   // const contents = Buffer.from(json).toString('base64')
 
 
-  // Buffer.from("SGVsbG8gV29ybGQ=", 'base64').toString('ascii')
 
   res.send({ status: 'ok', filename, contents })
+  return next()
+}
+
+export async function route_importPipelineVersionV1(req, res, next) {
+  console.log(`route_importPipelineVersionV1()`)
+  const pipelineName = req.params.pipelineName
+  const data = req.body
+  // console.log(`pipelineName=`, pipelineName)
+  // console.log(`data=`, data)
+  const filename = data.filename
+  const type = data.type
+  const contents = data.contents
+
+  let json = contents
+  let shortendName
+  if (filename.endsWith('.datp')) {
+    json = Buffer.from(contents, 'base64').toString('ascii')
+    // console.log(`json=`, json)
+    shortendName = filename.substring(0, filename.length - '.datp'.length)
+  } else if (filename.endsWith('.json')) {
+    json = contents
+    shortendName = filename.substring(0, filename.length - '.json'.length)
+  } else {
+    res.send({ status: 'Invalid filename extension (should be .json or .datp' })
+    return next()
+  }
+  // console.log(`shortendName=`, shortendName)
+
+
+  // See if it is valid
+  let pipeline = null
+  let hash = null
+  try {
+    pipeline = JSON.parse(json)
+
+    // Get the hash for this pipeline
+    hash = generatePipelineHash(pipelineName, pipeline.stepsJson, pipeline.commitComments)
+  } catch (e) {
+    //ZZZZZ This should be written to the admin log
+    console.log(`Attempt to import invalid JSON file`)
+    console.log(`e=`, e)
+    res.send({ status: 'Invalid pipeline definition file' })
+    return next()
+  }
+  // console.log(`hash=`, hash)
+
+  // See what the version is, in the filename
+  let warning = ''
+  let hyphenPos = shortendName.indexOf('-')
+  if (hyphenPos >= 0) {
+    let version = shortendName.substring(hyphenPos + 1)
+    // console.log(`version=`, version)
+
+    // Macs will add a suffix for duplicate files. e.g. example-draft (2).json
+    let spacePos = version.indexOf(' ')
+    if (spacePos > 0) {
+      version = version.substring(0, spacePos)
+    }
+    // console.log(`version=`, version)
+
+    // See if the version in the filename matches the hash
+    if (version !== hash) {
+      console.log(`The version does not match the hash`)
+      warning += `The version in the filename does not match the hash for the pipeline.\n`
+      warning += `Will be loaded as version ${hash}\n`
+    }
+  }
+
+  // See if we have this version already
+  const existing = await getPipelines(pipelineName, hash)
+  // console.log(`existing=`, existing)
+  if (existing.length > 0) {
+    warning += `Cannot be loaded - version ${hash} already exists.`
+  } else {
+    // Save to the database
+    const newPipeline = {
+      name: pipelineName,
+      version: hash,
+      stepsJson: pipeline.stepsJson,
+      status: 'inactive',
+      commitComments: pipeline.commitComments,
+      notes: pipeline.notes,
+    }
+    const hash2 = await db_importPipelineVersion(newPipeline)
+    if (hash2 === null) {
+      warning += `Cannot be loaded - version ${hash} already exists.`
+    }
+  }
+
+  res.send({ status: 'ok', message: warning })
   return next()
 }

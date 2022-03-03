@@ -10,7 +10,7 @@ import { defineRoute, LOGIN_IGNORED } from '../extras/apiVersions'
 import { route_activeNodesV1 } from '../mondat/nodes'
 import { route_nodeGroupsV1 } from '../mondat/nodeGroups'
 import { getQueueStatsV1 } from '../mondat/queueStats';
-import { clonePipelineV1, commitPipelineV1, route_deletePipelineVersionV1, listPipelinesV1, pipelineDefinitionV1, pipelineDescriptionV1, route_getPipelineV1, savePipelineDraftV1, route_updatePipelineTypeV1, route_exportPipelineVersionV1 } from '../mondat/pipelines'
+import { clonePipelineV1, commitPipelineV1, route_deletePipelineVersionV1, listPipelinesV1, pipelineDefinitionV1, pipelineDescriptionV1, route_getPipelineV1, savePipelineDraftV1, route_updatePipelineTypeV1, route_exportPipelineVersionV1, route_importPipelineVersionV1, route_getPipelinesTypesV1 } from '../mondat/pipelines'
 import { getRecentPerformanceV1 } from '../mondat/recentPerformance';
 import { getStepInstanceDetailsV1 } from '../mondat/stepInstances';
 import { deleteTestCasesV1, getTestCasesV1, saveTestCasesV1 } from '../mondat/testCases';
@@ -19,9 +19,12 @@ import { mondatTransactionsV1, route_transactionStatusV1 } from '../mondat/trans
 import { handleOrphanQueuesV1 } from '../mondat/handleOrphanQueues';
 
 
-
-
 async function registerRoutes(server) {
+
+  // Get a list of pipeline types (previously called transaction types)
+  defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/pipelineTypes', [
+    { versions: '1.0 - 1.0', handler: route_getPipelinesTypesV1, auth: LOGIN_IGNORED, noTenant: true }
+  ])
 
 
   defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/transactions', [
@@ -57,6 +60,11 @@ async function registerRoutes(server) {
   ])
   defineRoute(server, 'del', false, MONITOR_URL_PREFIX, '/pipeline/:pipeline/:version', [
     { versions: '1.0 - 1.0', handler: route_deletePipelineVersionV1, auth: LOGIN_IGNORED, noTenant: true }
+  ])
+
+  // Import a pipeline version
+  defineRoute(server, 'put', false, MONITOR_URL_PREFIX, '/pipeline/import/:pipelineName', [
+    { versions: '1.0 - 1.0', handler: route_importPipelineVersionV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
 
   // Return a file to export
