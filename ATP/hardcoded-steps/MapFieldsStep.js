@@ -11,6 +11,7 @@ import StepInstance from '../StepInstance'
 import StepTypes from '../StepTypeRegister'
 
 const FORM_TENANT = 'datp'
+const VERBOSE = 0
 
 /**
  * This class represents a type of step, not an actual instance of a step
@@ -136,11 +137,11 @@ class MapFieldsStep extends Step {
   }
 
   async doConvertAmounts(instance, handler) {
-    console.log(`doConvertAmounts() have ${this.#convertAmounts.length} rules`)
+    if (VERBOSE) console.log(`doConvertAmounts() have ${this.#convertAmounts.length} rules`)
 
     // Iterate through the rules
     for (const rule of this.#convertAmounts) {
-      console.log(`rule=`, rule)
+      if (VERBOSE) console.log(`rule=`, rule)
 
       if (!Array.isArray(rule.from)) {
         await instance.badDefinition(`convertAmounts rule: 'from' must be provided as an array of { path, type }`)
@@ -176,19 +177,19 @@ class MapFieldsStep extends Step {
             currency = value.currency
             unscaledAmount = value.unscaledAmount
             scale = value.scale
-            console.log(`From amount3 (${currency}, ${unscaledAmount}, ${scale})`)
+            if (VERBOSE) console.log(`From amount3 (${currency}, ${unscaledAmount}, ${scale})`)
             break
           case 'currency':
             currency = value
-            console.log(`From currency (${currency})`)
+            if (VERBOSE) console.log(`From currency (${currency})`)
             break
           case 'unscaledAmount':
             unscaledAmount = value
-            console.log(`From unscaledAmount (${unscaledAmount})`)
+            if (VERBOSE) console.log(`From unscaledAmount (${unscaledAmount})`)
             break
           case 'scale':
             scale = value
-            console.log(`From scale (${scale})`)
+            if (VERBOSE) console.log(`From scale (${scale})`)
             break
           default:
             await instance.badDefinition(`convertAmounts rule: 'type' must be one of iso|amount3|currency|unscaledAmpount|scale`)
@@ -236,7 +237,7 @@ class MapFieldsStep extends Step {
             // for (let i = 0; i > scale; i--) { amount *= 10.0 }
             // amount = Math.round(amount)
             handler.setTargetValue(toField.path, amount)
-            console.log(`To amount (${amount})`)
+            if (VERBOSE) console.log(`To amount (${amount})`)
             break
           default:
             await instance.badDefinition(`convertAmounts rule: 'type' must be one of iso|amount3|currency|unscaledAmpount|scale`)

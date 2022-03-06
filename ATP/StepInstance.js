@@ -600,10 +600,11 @@ export default class StepInstance {
    */
   async retryLater(nameOfSwitch=null, sleepDuration=120) {
     sleepDuration = Math.round(sleepDuration)
+    const wakeTime = new Date(Date.now() + (sleepDuration * 1000))
     if (VERBOSE) console.log(`StepInstance.retryLater(nameOfSwitch=${nameOfSwitch}, sleepDuration=${sleepDuration})`)
 
     // Sync any buffered logs
-    this.trace(`instance.retryLater()`, dbLogbook.LOG_SOURCE_SYSTEM)
+    this.trace(`Retry in ${sleepDuration} seconds at ${wakeTime.toLocaleTimeString('PST')}`, dbLogbook.LOG_SOURCE_SYSTEM)
     await this.syncLogs()
 
     // Update the transaction status
@@ -621,11 +622,17 @@ export default class StepInstance {
 // sleepDuration = 15
 
     if (sleepDuration < DEEP_SLEEP_SECONDS) {
-      console.log(`Step will nap for ${sleepDuration} seconds [${this.#stepId}]`)
+      const nodeGroup = this.#nodeGroup
+      const txId = this.#txId
+      const stepId = this.#stepId
+      console.log(`Step will nap for ${sleepDuration} seconds at ${wakeTime.toLocaleTimeString('PST')}`)
+      console.log(`    tx: ${txId}`)
+      console.log(`  step: ${stepId}`)
       setTimeout(async() => {
-        console.log(`Restarting step after a nap of ${sleepDuration} seconds [${this.#stepId}]`)
-        // const queueName = Scheduler2.groupQueueName(this.#nodeGroup)
-        await schedulerForThisNode.enqueue_StepRestart(this.#nodeGroup, this.#txId, this.#stepId)
+        console.log(`Restarting step after a nap of ${sleepDuration} seconds.`)
+        console.log(`    tx: ${txId}`)
+        console.log(`  step: ${stepId}`)
+        await schedulerForThisNode.enqueue_StepRestart(nodeGroup, txId, stepId)
       }, sleepDuration * 1000)
     } else {
       // Long term sleep - will be woken by our cron process.
@@ -643,6 +650,12 @@ export default class StepInstance {
     const tx = await TransactionCache.findTransaction(this.#txId, false)
     const value = await Transaction.getSwitch(tx.getOwner(), this.#txId, name)
     return value
+  }
+
+  async setSwitch(name, value) {
+    if (VERBOSE) console.log(`StepInstance.getSwitch(${name})`)
+    const tx = await TransactionCache.findTransaction(this.#txId, false)
+    await Transaction.setSwitch(tx.getOwner(), this.#txId, name, value, false)
   }
 
   async getRetryCounter() {

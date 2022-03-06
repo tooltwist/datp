@@ -260,7 +260,9 @@ export default class Scheduler2 {
         const worker = workersWaiting[i]
         const event = events[i]
         // console.log(`Scheduler2.start: have ${event.eventType} event`)
-        worker.processEvent(event)
+        setImmediate(() => {
+          worker.processEvent(event)
+        })
       }
 
       // Let's start all over again, because some workers may be available by now.
@@ -432,7 +434,7 @@ export default class Scheduler2 {
       // Which pipeline should we use?
       if (VERBOSE||trace) console.log(`Scheduler2.startTransaction() - looking for pipeline for transactionType '${metadata.transactionType}'.`)
       const pipelineDetails = await getPipelineType(metadata.transactionType)
-      console.log(`initiateTransaction() - pipelineDetails:`, pipelineDetails)
+      // console.log(`initiateTransaction() - pipelineDetails:`, pipelineDetails)
       if (VERBOSE||trace) console.log(`Scheduler2.startTransaction() - pipelineDetails:`, pipelineDetails)
       if (!pipelineDetails) {
         throw new Error(`Unknown transaction type ${metadata.transactionType}`)

@@ -92,6 +92,13 @@ export default class dbLogbook {
     if (array.length < 1) {
       return
     }
+    if (HACK_TO_BYPASS_LOGGING_WHILE_TESTING) {
+      if (hackCount++ == 0) {
+        console.log(`WARNING!!!!!`)
+        console.log(`Not saving log entries (HACK_TO_BYPASS_LOGGING_WHILE_TESTING=true)`)
+      }
+      return
+    }
     let sql = `INSERT INTO atp_logbook (transaction_id, step_id, level, source, message) VALUES`
     const params = [ ]
     let sep = '\n'
