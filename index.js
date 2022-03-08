@@ -131,25 +131,37 @@ export async function startTransactionRoute(req, res, next, tenant, transactionT
   }
   const externalId = metadata.externalId ? metadata.externalId : null
   const reply = metadata.reply
+  const progressReports = metadata.progressReports ? true : false
 
   // Let's see how we should reply - shortpoll (default), longpoll, or webhook (http...)
   let callback = RETURN_TX_STATUS_WITH_LONGPOLL_CALLBACK
   let context = { }
   let isLongpoll = false
   switch (reply) {
-    case 'longpoll':
-      // console.log(`\n\n\n\n\n\n USING LONG POLLING!!!!!!!\n\n\n\n\n\n`)
 
+    case 'longpoll':
+      // Reply with LONG POLLING.
+      // We'll retain the response object for a while and not reply to this API call
+      // just yet, in the hope that the transaction completes and we can use the
+      // response object to send our reply.
       callback = RETURN_TX_STATUS_WITH_LONGPOLL_CALLBACK
       isLongpoll = true
       break
+
     case undefined:
     case 'shortpoll':
+      // By default we reply with SHORT POLLING.
+      // We just reply as soon as the transaction is started.
       break
+
     default:
+      // If we've been given a URL, we'll reply using a WEBHOOK call to that URL. If
+      // metadata.progressReports is true, we'll also send rogress reports with this webhook.
       if (reply.startsWith('http')) {
+        if (VERBOSE) console.log(`Will reply with web hook to ${reply}`)
+        if (VERBOSE && progressReports) console.log(`Will also send progress reports via webhook`)
         callback = RETURN_TX_STATUS_WITH_WEBHOOK_CALLBACK
-        context = { webhook: reply }
+        context = { webhook: reply, progressReports }
       } else {
         throw new Error(`Invalid value for option 'reply' [${reply}]`)
       }

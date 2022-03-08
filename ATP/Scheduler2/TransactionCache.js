@@ -103,27 +103,27 @@ class TransactionCache {
     this.#cache.delete(txId)
   }
 
-  /**
-   *
-   * @param {string} txId
-   * @param {boolean} removeFromCache
-   */
-  async persist(txId, removeFromCache = true) {
-    // console.log(`TransactionCache.persist(${txId})`)
+  // /**
+  //  *
+  //  * @param {string} txId
+  //  * @param {boolean} removeFromCache
+  //  */
+  // async persist(txId, removeFromCache = true) {
+  //   // console.log(`TransactionCache.persist(${txId})`)
 
-    const tx = this.#cache.get(txId)
-    if (tx) {
-      // console.log(`tx=`, tx)
-      //ZZZZ Handle errors carefully here YARP2
-      // console.log(`persist the transaction`)
-      await TransactionPersistance.persistDeltas(tx)
+  //   const tx = this.#cache.get(txId)
+  //   if (tx) {
+  //     // console.log(`tx=`, tx)
+  //     //ZZZZ Handle errors carefully here YARP2
+  //     // console.log(`persist the transaction`)
+  //     await TransactionPersistance.persistDeltas(tx)
 
-      if (removeFromCache) {
-        // console.log(`removing the transaction from the cache`)
-        this.#cache.delete(txId)
-      }
-    }
-  }
+  //     if (removeFromCache) {
+  //       // console.log(`removing the transaction from the cache`)
+  //       this.#cache.delete(txId)
+  //     }
+  //   }
+  // }
 
   async size() {
     return this.#cache.size

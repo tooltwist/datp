@@ -18,7 +18,7 @@ import { schedulerForThisNode } from '..';
 import dbLogbook from '../database/dbLogbook';
 import { DEEP_SLEEP_SECONDS } from '../datp-constants';
 
-const VERBOSE = 0
+const VERBOSE = 1
 
 export default class StepInstance {
   #txId
@@ -625,7 +625,7 @@ export default class StepInstance {
       const nodeGroup = this.#nodeGroup
       const txId = this.#txId
       const stepId = this.#stepId
-      console.log(`Step will nap for ${sleepDuration} seconds at ${wakeTime.toLocaleTimeString('PST')}`)
+      console.log(`Step will nap for ${sleepDuration} seconds till ${wakeTime.toLocaleTimeString('PST')}`)
       console.log(`    tx: ${txId}`)
       console.log(`  step: ${stepId}`)
       setTimeout(async() => {

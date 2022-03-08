@@ -54,7 +54,7 @@ export default class TransactionPersistance {
 
 
   static async persistDelta(owner, txId, delta) {
-    if (VERBOSE) console.log(`TransactionPersistance.persistDeltas()`, delta)
+    if (VERBOSE) console.log(`TransactionPersistance.persistDelta()`, delta)
 
     if (HACK_TO_BYPASS_TXDELTAS_WHILE_TESTING) {
       if (hackCount++ == 0) {

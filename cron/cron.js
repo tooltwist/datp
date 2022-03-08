@@ -5,6 +5,7 @@
  * the author or owner be liable for any claim or damages.
  */
 import { schedulerForThisNode } from ".."
+import { tryTheWebhook } from "../ATP/Scheduler2/returnTxStatusWithWebhookCallback"
 import { STEP_SLEEPING } from "../ATP/Step"
 import query from "../database/query"
 
@@ -95,7 +96,22 @@ export default class DatpCron {
   }
 
   async retryWebhooks() {
+    if (VERBOSE) console.log(`Cron checking webhooks`)
+    // Find the webhooks ready to be tried again
+    const sql = `
+      SELECT transaction_id, owner, url, retry_count
+      FROM atp_webhook
+      WHERE status = 'outstanding' AND next_attempt < NOW()`
+    const rows = await query(sql)
 
+    for (const row of rows) {
+      const owner = row.owner
+      const txId = row.transaction_id
+      const webhookUrl = row.url
+      const retryCount = row.retry_count
+      if (VERBOSE) console.log(`Cron retrying webhook for ${txId}`)
+      await tryTheWebhook(owner, txId, webhookUrl, retryCount)
+    }
   }
 
   async tidyTransactionCache () {
