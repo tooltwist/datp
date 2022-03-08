@@ -28,10 +28,12 @@ export async function startDatpServer(options) {
   //   allowHeaders: ['API-Token'],
   //   exposeHeaders: ['API-Token-Expiry']
   // })
+
+  // X-Client-Id is used by IBM APIC (API Connect)
   const cors = corsMiddleware({
     origins: ["*"],
-    allowHeaders: ["Authorization"],
-    exposeHeaders: ["Authorization"]
+    allowHeaders: ["Authorization", "X-Client-Id"],
+    exposeHeaders: ["Authorization", "X-Client-Id"]
   });
   server.pre(cors.preflight);
   server.use(cors.actual);
