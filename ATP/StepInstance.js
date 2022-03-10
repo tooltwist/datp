@@ -6,19 +6,21 @@
  */
 import StepTypes from './StepTypeRegister'
 import Step, { STEP_ABORTED, STEP_FAILED, STEP_INTERNAL_ERROR, STEP_RUNNING, STEP_SLEEPING, STEP_SUCCESS } from './Step'
-import dbPipelines from "../database/dbPipelines";
-import XData, { dataFromXDataOrObject } from "./XData";
+import dbPipelines from "../database/dbPipelines"
+import XData, { dataFromXDataOrObject } from "./XData"
 import { STEP_TYPE_PIPELINE } from './StepTypeRegister'
 import Scheduler2 from "./Scheduler2/Scheduler2";
 import TransactionCache from "./Scheduler2/TransactionCache";
 import indentPrefix from '../lib/indentPrefix'
 import assert from 'assert'
-import Transaction from './Scheduler2/Transaction';
-import { schedulerForThisNode } from '..';
-import dbLogbook from '../database/dbLogbook';
-import { DEEP_SLEEP_SECONDS } from '../datp-constants';
+import Transaction from './Scheduler2/Transaction'
+import { schedulerForThisNode } from '..'
+import dbLogbook from '../database/dbLogbook'
+import { DEEP_SLEEP_SECONDS } from '../datp-constants'
+import { requiresWebhookProgressReports, sendStatusByWebhook } from './Scheduler2/returnTxStatusWithWebhookCallback'
+import isEqual  from 'lodash.isequal'
 
-const VERBOSE = 1
+const VERBOSE = 0
 
 export default class StepInstance {
   #txId
@@ -340,6 +342,9 @@ export default class StepInstance {
     }
 
     // Persist the result and new status
+    await tx.delta(null, {
+      progressReport: {}
+    })
     await tx.delta(this.#stepId, {
       status: STEP_SUCCESS,
       note,
@@ -583,9 +588,25 @@ export default class StepInstance {
 
     // Save the progressReport
     const tx = await TransactionCache.findTransaction(this.#txId, false)
-    await tx.delta(null, {
-      progressReport: object
-    })
+    const previousProgressReport = tx.getProgressReport()
+    if (VERBOSE) console.log(`previousProgressReport=`, previousProgressReport)
+
+    // See if the progress report has changed
+    if (isEqual(previousProgressReport, object)) {
+      // Progress report has not changed
+      // console.log(`Progress report has not changed`)
+    } else {
+      // Progress report has changed
+      await tx.delta(null, {
+        progressReport: object
+      })
+  
+      // If this transaction requires progress reports via webhooks, start that now.
+      if (requiresWebhookProgressReports(this.#metadata)) {
+        if (VERBOSE) console.log(`Sending progress report by webhook`)
+        await sendStatusByWebhook(tx.getOwner(), tx.getTxId(), this.#metadata.reply)
+      }
+    }
   }
 
   /**

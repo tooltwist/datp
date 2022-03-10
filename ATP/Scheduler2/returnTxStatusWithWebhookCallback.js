@@ -14,7 +14,20 @@ require('colors')
 
 const VERBOSE = 1
 
+const MIN_WEBHOOK_RETRY = 10
+const RETRY_EXPONENT = 1.4
+const MAX_WEBHOOK_RETRY = 600 // 5 minutes
+
+
 export const RETURN_TX_STATUS_WITH_WEBHOOK_CALLBACK = `returnTxStatusWithWebhook`
+
+export async function requiresWebhookReply(metadata) {
+  return metadata.reply && (typeof(metadata.reply) === 'string') && metadata.reply.startsWith('http')
+}
+
+export async function requiresWebhookProgressReports(metadata) {
+  return requiresWebhookReply(metadata) && metadata.progressReports
+}
 
 export async function returnTxStatusWithWebhookCallback (callbackContext, data) {
   if (PIPELINES_VERBOSE) console.log(`==> returnTxStatusWithWebhookCallback()`.magenta, callbackContext, data)
@@ -29,21 +42,38 @@ export async function returnTxStatusWithWebhookCallback (callbackContext, data) 
 export async function sendStatusByWebhook(owner, txId, webhookUrl) {
 
   // Save this webhook in the database
-  const sql = `INSERT into atp_webhook
-    (transaction_id, owner, url, next_attempt)
-    VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL ${MIN_WEBHOOK_RETRY} SECOND)`
-  const params = [ txId, owner, webhookUrl ]
-  const result = await query(sql, params)
-  console.log(`result=`, result)
+  try {
+    const sql = `INSERT into atp_webhook
+      (transaction_id, owner, url, next_attempt)
+      VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL ${MIN_WEBHOOK_RETRY} SECOND))`
+    const params = [ txId, owner, webhookUrl ]
+    // console.log(`sql=`, sql)
+    // console.log(`params=`, params)
+    const result = await query(sql, params)
+    // console.log(`result=`, result)
+  } catch (e) {
 
-  await tryTheWebhook(owner, tx, webhookUrl, 0)
+    // console.log(`e=`, e)
+    // console.log(`e.code=`, e.code)
+    if (e.code && e.code === 'ER_DUP_ENTRY') {
+      // The record already exists, so we'll update it. This happens when we have progress reports.
+      const sql2 = `UPDATE atp_webhook SET next_attempt = DATE_ADD(NOW(), INTERVAL ${MIN_WEBHOOK_RETRY} SECOND) WHERE transaction_id=?`
+      const params2 = [ txId ]
+      const reply2 = await query(sql2, params2)
+      console.log(`reply2=`, reply2)
+    } else {
+      throw e
+    }
+  }
+
+  await tryTheWebhook(owner, txId, webhookUrl, 0)
 }
 
 export async function tryTheWebhook(owner, txId, webhookUrl, retryCount) {
   console.log(`tryTheWebhook(${owner}, ${txId}, ${webhookUrl}, ${retryCount})`)
   // Get the status
   const summary = await Transaction.getSummary(owner, txId)
-  console.log(`summary=`, summary)
+  // console.log(`summary=`, summary)
   if (summary === null) {
     // The transaction does not exist (this should not happen)
     // Cancel the webhook
@@ -51,7 +81,7 @@ export async function tryTheWebhook(owner, txId, webhookUrl, retryCount) {
     const sql2 = `UPDATE atp_webhook SET status='cancelled', next_attempt = NULL WHERE transaction_id=?`
     const params2 = [ txId ]
     const reply2 = await query(sql2, params2)
-    console.log(`reply2=`, reply2)
+    // console.log(`reply2=`, reply2)
     return
   }
 
@@ -78,11 +108,15 @@ export async function tryTheWebhook(owner, txId, webhookUrl, retryCount) {
         UPDATE atp_webhook
         SET status='complete', next_attempt = NULL, message=?
         WHERE transaction_id=?`
-      const params2 = [ txId, message ]
-      console.log(`sql2=`, sql2)
-      console.log(`params2=`, params2)
+      const params2 = [ message, txId ]
+      // console.log(`sql2=`, sql2)
+      // console.log(`params2=`, params2)
       const reply2 = await query(sql2, params2)
-      console.log(`reply2=`, reply2)
+      // console.log(`reply2=`, reply2)
+      if (reply2.affectedRows !== 1) {
+        //ZZZZZ
+        console.log(`Serious internal error: resetting atp_webhook after complete updated ${reply2.affectedRows} rows.`)
+      }
 
       // Update the transaction log.
       await dbLogbook.bulkLogging(txId, null, [ {
@@ -112,16 +146,12 @@ export async function tryTheWebhook(owner, txId, webhookUrl, retryCount) {
   }])
 
   // Work out the retry time, with exponential interval increase
-  const MIN_RETRY_TIME = 10
-  const RETRY_EXPONENT = 1.4
-  const MAX_RETRY_TIME = 600 // 5 minutes
-
-  let interval = MIN_RETRY_TIME
+  let interval = MIN_WEBHOOK_RETRY
   for (let i = retryCount; i > 0; i--) {
     interval *= RETRY_EXPONENT
   }
-  if (interval > MAX_RETRY_TIME) {
-    interval = MAX_RETRY_TIME
+  if (interval > MAX_WEBHOOK_RETRY) {
+    interval = MAX_WEBHOOK_RETRY
   }
   interval = Math.round(interval)
 

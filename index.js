@@ -15,7 +15,7 @@ import juice from '@tooltwist/juice-client'
 import { RouterStep as RouterStepInternal } from './ATP/hardcoded-steps/RouterStep'
 import pause from './lib/pause'
 import Scheduler2 from './ATP/Scheduler2/Scheduler2'
-import { RETURN_TX_STATUS_WITH_WEBHOOK_CALLBACK } from './ATP/Scheduler2/returnTxStatusWithWebhookCallback'
+import { requiresWebhookReply, RETURN_TX_STATUS_WITH_WEBHOOK_CALLBACK } from './ATP/Scheduler2/returnTxStatusWithWebhookCallback'
 import Transaction from './ATP/Scheduler2/Transaction'
 import { deepCopy } from './lib/deepCopy'
 import LongPoll from './ATP/Scheduler2/LongPoll'
@@ -137,36 +137,32 @@ export async function startTransactionRoute(req, res, next, tenant, transactionT
   let callback = RETURN_TX_STATUS_WITH_LONGPOLL_CALLBACK
   let context = { }
   let isLongpoll = false
-  switch (reply) {
 
-    case 'longpoll':
-      // Reply with LONG POLLING.
-      // We'll retain the response object for a while and not reply to this API call
-      // just yet, in the hope that the transaction completes and we can use the
-      // response object to send our reply.
-      callback = RETURN_TX_STATUS_WITH_LONGPOLL_CALLBACK
-      isLongpoll = true
-      break
+  if (requiresWebhookReply(metadata)) {
 
-    case undefined:
-    case 'shortpoll':
-      // By default we reply with SHORT POLLING.
-      // We just reply as soon as the transaction is started.
-      break
+    // Reply by webhook.
+    // Note that this does not preclude polling to get the status.
+    if (VERBOSE) console.log(`Will reply with web hook to ${reply}`)
+    if (VERBOSE && progressReports) console.log(`Will also send progress reports via webhook`)
+    callback = RETURN_TX_STATUS_WITH_WEBHOOK_CALLBACK
+    context = { webhook: reply, progressReports }
+  } else if (reply  === 'longpoll') {
 
-    default:
-      // If we've been given a URL, we'll reply using a WEBHOOK call to that URL. If
-      // metadata.progressReports is true, we'll also send rogress reports with this webhook.
-      if (reply.startsWith('http')) {
-        if (VERBOSE) console.log(`Will reply with web hook to ${reply}`)
-        if (VERBOSE && progressReports) console.log(`Will also send progress reports via webhook`)
-        callback = RETURN_TX_STATUS_WITH_WEBHOOK_CALLBACK
-        context = { webhook: reply, progressReports }
-      } else {
-        throw new Error(`Invalid value for option 'reply' [${reply}]`)
-      }
+    // Reply with LONG POLLING.
+    // We'll retain the response object for a while and not reply to this API call
+    // just yet, in the hope that the transaction completes and we can use the
+    // response object to send our reply.
+    callback = RETURN_TX_STATUS_WITH_LONGPOLL_CALLBACK
+    isLongpoll = true
+  } else if (reply === 'shortpoll' || reply === undefined) {
+
+    // By default we reply with SHORT POLLING.
+    // We just reply as soon as the transaction is started.
+  } else {
+
+    // This should not happen.
+    throw new Error(`Invalid value for option 'reply' [${reply}]`)
   }
-  // console.log(`isLongpoll=`, isLongpoll)
 
   // Sanitize the metadata to make sure it contains no mischief (getters/setter, functions, etc)
   const metadataCopy = deepCopy(metadata)
