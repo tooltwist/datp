@@ -405,6 +405,9 @@ export default class StepInstance {
     }
 
     // Persist the result and new status
+    await tx.delta(null, {
+      progressReport: {}
+    })
     await tx.delta(this.#stepId, {
       status: STEP_ABORTED,
       note,
@@ -448,6 +451,9 @@ export default class StepInstance {
     }
 
     // Persist the result and new status
+    await tx.delta(null, {
+      progressReport: {}
+    })
     await tx.delta(this.#stepId, {
       status: STEP_FAILED,
       note,
@@ -556,7 +562,11 @@ export default class StepInstance {
       stepId: this.#stepId
     }
 
+    // Update the status
     const tx = await TransactionCache.findTransaction(this.#txId, false)
+    await tx.delta(null, {
+      progressReport: {}
+    })
     await tx.delta(this.#stepId, {
       status: STEP_INTERNAL_ERROR,
       note: `Internal error: exception in step. Please notify system administrator.`,
