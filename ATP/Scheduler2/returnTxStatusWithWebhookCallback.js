@@ -21,11 +21,11 @@ const MAX_WEBHOOK_RETRY = 600 // 5 minutes
 
 export const RETURN_TX_STATUS_WITH_WEBHOOK_CALLBACK = `returnTxStatusWithWebhook`
 
-export async function requiresWebhookReply(metadata) {
+export function requiresWebhookReply(metadata) {
   return metadata.reply && (typeof(metadata.reply) === 'string') && metadata.reply.startsWith('http')
 }
 
-export async function requiresWebhookProgressReports(metadata) {
+export function requiresWebhookProgressReports(metadata) {
   return requiresWebhookReply(metadata) && metadata.progressReports
 }
 
