@@ -454,7 +454,7 @@ export default class Scheduler2 {
       // time the externalId should certainly be stored in the darabase.
       if (metadata.externalId) {
         await this._checkConnectedToQueue()
-        const key = `externalId-${metadata.externalId}`
+        const key = `externalId-${metadata.externalId}-${metadata.owner}`
         if (await this.#queueObject.repeatEventDetection(key, DUP_EXTERNAL_ID_DELAY)) {
           // A transaction already exists with this externalId
           console.log(`Scheduler2.startTransaction: detected duplicate externalId via REDIS`)
