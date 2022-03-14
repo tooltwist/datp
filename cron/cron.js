@@ -99,7 +99,7 @@ export default class DatpCron {
     if (VERBOSE) console.log(`Cron checking webhooks`)
     // Find the webhooks ready to be tried again
     const sql = `
-      SELECT transaction_id, owner, url, retry_count
+      SELECT transaction_id, owner, url, event_type, initial_attempt, retry_count, NOW() as now
       FROM atp_webhook
       WHERE status = 'outstanding' AND next_attempt < NOW()`
     const rows = await query(sql)
@@ -108,9 +108,11 @@ export default class DatpCron {
       const owner = row.owner
       const txId = row.transaction_id
       const webhookUrl = row.url
+      const eventType = row.event_type
+      const eventTime = row.initial_attempt
       const retryCount = row.retry_count
       if (VERBOSE) console.log(`Cron retrying webhook for ${txId}`)
-      await tryTheWebhook(owner, txId, webhookUrl, retryCount)
+      await tryTheWebhook(owner, txId, webhookUrl, eventType, eventTime, retryCount)
     }
   }
 

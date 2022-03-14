@@ -17,7 +17,7 @@ import Transaction from './Scheduler2/Transaction'
 import { schedulerForThisNode } from '..'
 import dbLogbook from '../database/dbLogbook'
 import { DEEP_SLEEP_SECONDS } from '../datp-constants'
-import { requiresWebhookProgressReports, sendStatusByWebhook } from './Scheduler2/returnTxStatusWithWebhookCallback'
+import { requiresWebhookProgressReports, sendStatusByWebhook, WEBHOOK_EVENT_PROGRESS } from './Scheduler2/returnTxStatusWithWebhookCallback'
 import isEqual  from 'lodash.isequal'
 
 const VERBOSE = 0
@@ -605,7 +605,7 @@ export default class StepInstance {
       // If this transaction requires progress reports via webhooks, start that now.
       if (requiresWebhookProgressReports(this.#metadata)) {
         if (VERBOSE) console.log(`Sending progress report by webhook`)
-        await sendStatusByWebhook(tx.getOwner(), tx.getTxId(), this.#metadata.reply)
+        await sendStatusByWebhook(tx.getOwner(), tx.getTxId(), this.#metadata.reply, WEBHOOK_EVENT_PROGRESS)
       }
     }
   }

@@ -10,6 +10,9 @@ import dbLogbook from '../../database/dbLogbook'
 import query from '../../database/query'
 import { PIPELINES_VERBOSE } from '../hardcoded-steps/PipelineStep'
 import Transaction from './Transaction'
+import juice from '@tooltwist/juice-client'
+import crypto from 'crypto'
+
 require('colors')
 
 const VERBOSE = 1
@@ -17,6 +20,9 @@ const VERBOSE = 1
 const MIN_WEBHOOK_RETRY = 10
 const RETRY_EXPONENT = 1.4
 const MAX_WEBHOOK_RETRY = 600 // 5 minutes
+
+export const WEBHOOK_EVENT_TXSTATUS = 'txstatus'
+export const WEBHOOK_EVENT_PROGRESS = 'progressReport'
 
 
 export const RETURN_TX_STATUS_WITH_WEBHOOK_CALLBACK = `returnTxStatusWithWebhook`
@@ -36,29 +42,30 @@ export async function returnTxStatusWithWebhookCallback (callbackContext, data) 
   assert(data.owner)
   assert(data.txId)
 
-  await sendStatusByWebhook(data.owner, data.txId, callbackContext.webhook)
+  await sendStatusByWebhook(data.owner, data.txId, callbackContext.webhook, WEBHOOK_EVENT_TXSTATUS)
 }
 
-export async function sendStatusByWebhook(owner, txId, webhookUrl) {
+export async function sendStatusByWebhook(owner, txId, webhookUrl, eventType) {
 
   // Save this webhook in the database
+  const eventTime = new Date()
   try {
     const sql = `INSERT into atp_webhook
-      (transaction_id, owner, url, next_attempt)
-      VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL ${MIN_WEBHOOK_RETRY} SECOND))`
-    const params = [ txId, owner, webhookUrl ]
-    // console.log(`sql=`, sql)
-    // console.log(`params=`, params)
+      (transaction_id, owner, url, event_type, initial_attempt, next_attempt)
+      VALUES (?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ${MIN_WEBHOOK_RETRY} SECOND))`
+    const params = [ txId, owner, webhookUrl, eventType, eventTime ]
+    console.log(`sql=`, sql)
+    console.log(`params=`, params)
     const result = await query(sql, params)
-    // console.log(`result=`, result)
+    console.log(`result=`, result)
   } catch (e) {
 
     // console.log(`e=`, e)
     // console.log(`e.code=`, e.code)
     if (e.code && e.code === 'ER_DUP_ENTRY') {
       // The record already exists, so we'll update it. This happens when we have progress reports.
-      const sql2 = `UPDATE atp_webhook SET next_attempt = DATE_ADD(NOW(), INTERVAL ${MIN_WEBHOOK_RETRY} SECOND) WHERE transaction_id=?`
-      const params2 = [ txId ]
+      const sql2 = `UPDATE atp_webhook SET event_type=?, initial_attempt=?, next_attempt = DATE_ADD(NOW(), INTERVAL ${MIN_WEBHOOK_RETRY} SECOND) WHERE transaction_id=?`
+      const params2 = [ eventType, eventTime, txId ]
       const reply2 = await query(sql2, params2)
       console.log(`reply2=`, reply2)
     } else {
@@ -66,11 +73,11 @@ export async function sendStatusByWebhook(owner, txId, webhookUrl) {
     }
   }
 
-  await tryTheWebhook(owner, txId, webhookUrl, 0)
+  await tryTheWebhook(owner, txId, webhookUrl, eventType, eventTime, 0)
 }
 
-export async function tryTheWebhook(owner, txId, webhookUrl, retryCount) {
-  console.log(`tryTheWebhook(${owner}, ${txId}, ${webhookUrl}, ${retryCount})`)
+export async function tryTheWebhook(owner, txId, webhookUrl, eventType, eventTime, retryCount) {
+  console.log(`tryTheWebhook(${owner}, ${txId}, ${webhookUrl}, ${eventType}, ${eventTime}, ${retryCount})`)
   // Get the status
   const summary = await Transaction.getSummary(owner, txId)
   // console.log(`summary=`, summary)
@@ -85,13 +92,33 @@ export async function tryTheWebhook(owner, txId, webhookUrl, retryCount) {
     return
   }
 
+  // Prepare the webhook payload
+  const payload = {
+    eventType,
+    metadata: summary.metadata,
+    progressReport: summary.progressReport,
+    data: summary.data,
+    eventTime,
+    deliveryTime: new Date(),
+  }
+  const json = JSON.stringify(payload, '', 0)
+  console.log(`json=`, json)
+
+  // Add on a signature
+  const privateKey = await juice.string('datp.webhook-credentials.privateKey', juice.MANDATORY)
+  var signerObject = crypto.createSign("RSA-SHA256")
+  signerObject.update(json)
+  var signature = signerObject.sign({key: privateKey, padding: crypto.constants.RSA_PKCS1_PSS_PADDING}, "base64")
+console.info("signature: %s", signature)
+  payload.signature = signature
+
   // Call the webhook
   let errorMsg = ''
   try {
     // console.log(`webhookUrl=`, webhookUrl)
     // console.log(`summary=`, summary)
     // console.log(`HERE WE GO...`)
-    const acknowledgement = await axios.post(webhookUrl, summary)
+    const acknowledgement = await axios.post(webhookUrl, payload)
     // console.log(`acknowledgement=`, acknowledgement)
 
     // Check the reply
