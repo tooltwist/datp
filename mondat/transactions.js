@@ -35,14 +35,12 @@ export async function mondatTransactionsV1(req, res, next) {
   // console.log(`req.query=`, req.query)
   // console.log(`req.params=`, req.params)
 
-
-
   let pagesize = 20
   // console.log(`req.query.pagesize=`, req.query.pagesize)
   try { pagesize = parseInt(req.query.pagesize) } catch (e) { }
-  let page = 0
-  // console.log(`req.query.page=`, req.query.page)
-  try { page = parseInt(req.query.page) } catch (e) { }
+  let offset = 0
+  // console.log(`req.query.offset=`, req.query.offset)
+  try { offset = parseInt(req.query.offset) } catch (e) { }
   const filter = req.query.filter ? req.query.filter : null
   let status = [STEP_SUCCESS, STEP_FAILED, STEP_ABORTED] // Finished transactions
   if (req.query.status) {
@@ -53,7 +51,7 @@ export async function mondatTransactionsV1(req, res, next) {
   // console.log(`page=`, page)
   // console.log(`filter=`, filter)
   // console.log(`status=`, status)
-  const txlist = await Transaction.findTransactions(pagesize, page, filter, status)
+  const txlist = await Transaction.findTransactions(pagesize, offset, filter, status)
   res.send(txlist)
   return next();
 }
