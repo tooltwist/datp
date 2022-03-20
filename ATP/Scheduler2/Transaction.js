@@ -670,12 +670,12 @@ export default class Transaction {
   /**
    *
    * @param {number} pagesize
-   * @param {number} page
+   * @param {number} offset
    * @param {string} filter
    * @param {string[]} status
    * @returns
    */
-  static async findTransactions(pagesize=20, page=1, filter='', status=[STEP_SUCCESS, STEP_FAILED, STEP_ABORTED]) {
+  static async findTransactions(pagesize=20, offset=0, filter='', statusList=[STEP_SUCCESS, STEP_FAILED, STEP_ABORTED]) {
     // console.log(`findTransactions()`, options)
 
     let sql = `SELECT
@@ -706,13 +706,15 @@ export default class Transaction {
     //   sep = `AND`
     // }
 
-    if (status) {
+    if (statusList) {
       sql += `${sep} (`
       let sep2 = ''
-      for (const s of status) {
-        sql += `${sep2} status=?`
-        params.push(s)
-        sep2 = ' OR '
+      for (const s of statusList) {
+        if (s) {
+          sql += `${sep2} status=?`
+          params.push(s)
+          sep2 = ' OR '
+        }
       }
       sql += `)`
       sep = `\nAND `
@@ -734,8 +736,10 @@ export default class Transaction {
 
     // pagination
     sql += `\nORDER BY last_updated DESC LIMIT ? OFFSET ?`
-    params.push(pagesize)
-    params.push((page-1) * pagesize)
+    // 2022-03-15 Phil - need to pass parameters as strings due to MySQL bug.
+    // See https://stackoverflow.com/questions/65543753/error-incorrect-arguments-to-mysqld-stmt-execute
+    params.push('' + pagesize)
+    params.push('' + offset)
 
     // console.log(`sql=`, sql)
     // console.log(`params=`, params)
