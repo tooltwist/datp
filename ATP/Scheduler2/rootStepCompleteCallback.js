@@ -34,9 +34,11 @@ export async function rootStepCompleteCallback (callbackContext, nodeInfo) {
   await tx.delta(null, {
     status: stepStatus,
     note: stepNote,
-    transactionOutput: stepOutput
   })
 
+    transactionOutput: stepOutput,
+    "-progressReport": null,
+    completionTime: new Date()
   // Pass control back to the Transaction.
   // This occurs as an event, because the transaction may have been initiated in a different node group.
   const nodeGroupWhereTransactionWasInitiated = txData.nodeGroup
