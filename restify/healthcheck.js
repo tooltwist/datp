@@ -38,6 +38,18 @@ async function registerRoutes(server) {
     }
     return res.send(status);
   }
+
+  /*
+  *	Healthcheck page.
+  */
+  defineRoute(server, 'get', false, DATP_URL_PREFIX, '/ping', [
+    { versions: '1.0 - 1.0', handler: pingHandler, auth: LOGIN_IGNORED, noTenant: true }
+  ])
+
+  async function pingHandler(req, res, next) {
+    var status = { status: 'ok' }
+    return res.send(status);
+  }
 }
 
 export default {
