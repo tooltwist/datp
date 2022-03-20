@@ -4,13 +4,13 @@
  * rights reserved. No warranty, explicit or implicit, provided. In no event shall
  * the author or owner be liable for any claim or damages.
  */
-import XData from './XData'
+// import XData from './XData'
 import Step, { STEP_FAILED } from './Step'
-import pause from '../lib/pause'
+// import pause from '../lib/pause'
 import pad from '../lib/pad'
 import statusString from '../lib/statusString'
 import GenerateHash from "./GenerateHash"
-import assert from 'assert'
+// import assert from 'assert'
 
 
 // Hardcoded steps
@@ -20,6 +20,7 @@ import SaySomethingStep from './hardcoded-steps/SaySomethingStep'
 import PipelineStep from './hardcoded-steps/PipelineStep'
 import MockStep from './hardcoded-steps/MockStep'
 import RandomDelayStep from './hardcoded-steps/RandomDelayStep'
+import ProgressReportStep from './hardcoded-steps/ProgressReportStep'
 import ExampleStep from './hardcoded-steps/ExampleStep'
 import DemoStep from './hardcoded-steps/DemoStep'
 import MandatoryFieldsStep from './hardcoded-steps/MandatoryFieldsStep'
@@ -123,6 +124,7 @@ class AsynchronousTransactionEngine {
     await FixedReplyStep.register()
     await MockStep.register()
     await RandomDelayStep.register()
+    await ProgressReportStep.register()
     await PipelineStep.register()
     await ExampleStep.register()
     await DemoStep.register()
