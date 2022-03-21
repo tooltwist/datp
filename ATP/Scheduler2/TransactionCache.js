@@ -71,7 +71,6 @@ class TransactionCache {
     // Try loading the transaction from our global (REDIS) cache
     if (VERBOSE) console.log(`TransactionCache.getTransactionState(${txId}): try to fetch from REDIS`)
     const tx1 = await schedulerForThisNode.getTransactionStateFromREDIS(txId)
-    console.log(`tx1=`, tx1)
 
     // Compare to the transaction reconstructed from deltas
     // const tx2 = await TransactionPersistance.reconstructTransaction(txId)
@@ -104,7 +103,6 @@ class TransactionCache {
       const json = rows[0].json
       try {
         const tx3 = Transaction.transactionStateFromJSON(json)
-        // const tx3 = JSON.parse(json)
         if (saveInLocalMemoryCache) {
           this.#cache.set(txId, tx3)
         }

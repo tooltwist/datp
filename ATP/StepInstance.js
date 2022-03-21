@@ -483,7 +483,7 @@ export default class StepInstance {
 
     // Write to the transaction / step
     this.error(msg)
-    await this.log(dbLogbook.LOG_LEVEL_TRACE, `Step reported bad definition [${msg}]`)
+    await this.log(dbLogbook.LOG_LEVEL_ERROR, `Step reported bad definition [${msg}]`)
     // await this.artifact('badStepDefinition', this.#stepDefinition)
 
     // Finish the step
@@ -517,7 +517,6 @@ export default class StepInstance {
    * @returns
    */
   async exceptionInStep(message, e) {
-    // console.log(dbLogbook.LOG_LEVEL_TRACE, `StepInstance.exceptionInStep()`)
     console.log(this.#indent + `StepInstance.exceptionInStep(${message})`, e)
     // console.log(new Error('YARP').stack)
 
@@ -539,7 +538,7 @@ export default class StepInstance {
 
     // Write to the transaction / step
     await this.error(`Exception in step: ${e.stack}`)
-    await this.log(dbLogbook.LOG_LEVEL_TRACE, `Exception in step.`, e)
+    await this.log(dbLogbook.LOG_LEVEL_ERROR, `Exception in step.`, e)
     // this.artifact('exception', { stacktrace: e.stack })
 
     // Trim down the stacktract and save it
@@ -730,13 +729,9 @@ console.log(new Error().stack)
     this.dump(message, source)
   }
 
-  debug(...args) {
-    const { message, source } = this._checkLogParams(args)
-    const level = dbLogbook.LOG_LEVEL_DEBUG
-    this.#logBuffer.push({ level, source, message })
-  }
-
-  // trace(message, source=null) {
+  /**
+   * Use as `trace(message [, source])`
+   */
   trace(...args) {
     const { message, source } = this._checkLogParams(args)
     const level = dbLogbook.LOG_LEVEL_TRACE
@@ -745,6 +740,31 @@ console.log(new Error().stack)
     this.#logBuffer.push({ level, source, message })
   }
 
+  /**
+   * Use as `debug(message [, source])`
+   */
+   debug(...args) {
+    const { message, source } = this._checkLogParams(args)
+    const level = dbLogbook.LOG_LEVEL_DEBUG
+    assert(typeof(source) !== 'undefined')
+    assert(typeof(message) !== 'undefined')
+    this.#logBuffer.push({ level, source, message })
+  }
+
+  /**
+   * Use as `info(message [, source])`
+   */
+  info(...args) {
+    const { message, source } = this._checkLogParams(args)
+    const level = dbLogbook.LOG_LEVEL_INFO
+    assert(typeof(source) !== 'undefined')
+    assert(typeof(message) !== 'undefined')
+    this.#logBuffer.push({ level, source, message })
+  }
+
+  /**
+   * Use as `warning(message [, source])`
+   */
   warning(...args) {
     const { message, source } = this._checkLogParams(args)
     const level = dbLogbook.LOG_LEVEL_WARNING
@@ -753,6 +773,9 @@ console.log(new Error().stack)
     this.#logBuffer.push({ level, source, message })
   }
 
+  /**
+   * Use as `error(message [, source])`
+   */
   error(...args) {
     const { message, source } = this._checkLogParams(args)
     const level = dbLogbook.LOG_LEVEL_ERROR
@@ -761,6 +784,16 @@ console.log(new Error().stack)
     this.#logBuffer.push({ level, source, message })
   }
 
+  /**
+   * Use as `fatal(message [, source])`
+   */
+  fatal(...args) {
+    const { message, source } = this._checkLogParams(args)
+    const level = dbLogbook.LOG_LEVEL_FATAL
+    assert(typeof(source) !== 'undefined')
+    assert(typeof(message) !== 'undefined')
+    this.#logBuffer.push({ level, source, message })
+  }
   // addLog(level, source, message) {
   //   this.#logBuffer.push({ level, source, message })
   // }

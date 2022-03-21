@@ -4,8 +4,6 @@
  * rights reserved. No warranty, explicit or implicit, provided. In no event shall
  * the author or owner be liable for any claim or damages.
  */
-export const HACK_TO_BYPASS_LOGGING_WHILE_TESTING = 0
-export const HACK_TO_BYPASS_TXDELTAS_WHILE_TESTING = 0
 
 // How long REDIS should store the key while checking for an externalId. This
 // just needs to be long enough that we can be certain the database will have been

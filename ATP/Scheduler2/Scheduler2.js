@@ -23,6 +23,7 @@ import { getNodeGroup } from '../../database/dbNodeGroup'
 import { appVersion, datpVersion, buildTime } from '../../build-version'
 import { validateEvent_StepCompleted, validateEvent_StepStart, validateEvent_TransactionChange, validateEvent_TransactionCompleted } from './eventValidation'
 import { DUP_EXTERNAL_ID_DELAY } from '../../datp-constants'
+import { getPipelineVersionInUse } from '../../database/dbPipelines'
 
 // Debug related
 const VERBOSE = 0
@@ -436,18 +437,15 @@ export default class Scheduler2 {
 
       // Which pipeline should we use?
       if (VERBOSE||trace) console.log(`Scheduler2.startTransaction() - looking for pipeline for transactionType '${metadata.transactionType}'.`)
-      const pipelineDetails = await getPipelineType(metadata.transactionType)
-      // console.log(`initiateTransaction() - pipelineDetails:`, pipelineDetails)
+      const pipelineName = metadata.transactionType
+      const pipelineDetails = await getPipelineVersionInUse(pipelineName)
       if (VERBOSE||trace) console.log(`Scheduler2.startTransaction() - pipelineDetails:`, pipelineDetails)
       if (!pipelineDetails) {
         throw new Error(`Unknown transaction type ${metadata.transactionType}`)
       }
-
-      const pipelineName = pipelineDetails.pipelineName
-      const pipelineVersion = pipelineDetails.pipelineVersion
+      const pipelineVersion = pipelineDetails.version
       const pipelineNodeGroup = pipelineDetails.nodeGroup
       if (VERBOSE||trace) console.log(`Scheduler2.startTransaction() - Start pipeline ${pipelineName}:${pipelineVersion} in node group ${pipelineNodeGroup}.`)
-
 
       // If there is an externalId, there is concern that uniqueness cannot be guaranteed by
       // the database under some circumstances (distributed database nodes, and extremely

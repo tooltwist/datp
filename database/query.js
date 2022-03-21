@@ -7,7 +7,7 @@
 // import mysql2 from 'mysql2/promise';
 import juice from '@tooltwist/juice-client'
 
-const VERBOSE = false
+const VERBOSE = 0
 const SHOW_PROGRESS = false
 const SHOW_CONNECTION_DETAILS = false
 
@@ -70,8 +70,8 @@ async function checkPool() {
 }
 
 export default async function query(dbQuery, params = []) {
-  console.log(`----------------------------`)
-  console.log(`query() ${queryCounter++}:\n${dbQuery}`)
+  if (VERBOSE > 1) console.log(`----------------------------`)
+  if (VERBOSE > 1) console.log(`query() ${queryCounter++}:\n${dbQuery}`)
   if (VERBOSE) {
     console.log('query: ', dbQuery);
     console.log('params: ', params);

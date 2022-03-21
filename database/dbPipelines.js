@@ -7,11 +7,15 @@
 import { generatePipelineHash } from '../mondat/pipelines'
 import query from './query'
 
-const VERBOSE = false
+const VERBOSE = 0
+
+const PIPELINE_CACHE_REFRESH_TIME_MS = 120 * 1000 // Retain entries for two minutes only
+const pipelineCache = [ ] // pipelineName => { timestamp, { pipelineStuff }}
 
 export default {
   myPipelines,
   getPipelines,
+  getPipelineVersionInUse,
 }
 
 export async function db_getPipelineTypesV1 () {
@@ -46,8 +50,53 @@ export async function myPipelines() {
   return list
 }
 
+export async function getPipelineVersionInUse(name) {
+  if (VERBOSE) console.log(`dbPipelines.getPipelineVersionInUse(name=${name})`)
+
+  // This should be cached
+  let rec = pipelineCache[name]
+  const now = Date.now()
+  if (rec && (now - rec.timestamp) < PIPELINE_CACHE_REFRESH_TIME_MS) {
+    // console.log(`pipeline details found in cache`)
+    return rec.pipelineStuff
+  }
+  // console.log(`pipeline details NOT found in cache`)
+
+  // Not in the cache, load the pipeline details now. The transaction type
+  // dictates the pipeline version and the node group where it will run.
+  let sql = `SELECT
+    T.node_group AS nodeGroup,
+    P.name,
+    P.version,
+    P.steps_json AS stepsJson,
+    P.notes,
+    P.status,
+    P.commit_comments AS commitComments,
+    P.tags,
+    P.notes
+  FROM atp_pipeline P
+  INNER JOIN atp_transaction_type T
+    ON T.transaction_type = P.name AND P.version = T.pipeline_version
+  WHERE P.name=?`
+  let params = [ name ]
+
+  // console.log(`sql=`, sql)
+  // console.log(`params=`, params)
+  const rows = await query(sql, params)
+  // console.log(`rows=`, rows)
+  if (VERBOSE) {
+    console.log(`getPipelineVersionInUse():`, rows)
+  }
+  const pipelineStuff = (rows.length > 0) ? rows[0] : null
+
+  // Add to the cache (even if it is null)
+  pipelineCache[name] = { timestamp: now, pipelineStuff }
+  return pipelineStuff
+}
+
+
 export async function getPipelines(name, version=null) {
-  // console.log(`dbPipelines.getPipelines(name=${name}, version=${version})`)
+  if (VERBOSE) console.log(`dbPipelines.getPipelines(name=${name}, version=${version})`)
 
   let sql = `SELECT name, version, steps_json AS stepsJson, notes, status, commit_comments AS commitComments, tags, notes FROM atp_pipeline WHERE name=?`
   let params = [ name ]
@@ -66,22 +115,9 @@ export async function getPipelines(name, version=null) {
 }
 
 export async function saveDraftPipelineSteps(pipelineName, steps) {
-  console.log(`saveDraftPipelineSteps(${pipelineName})`, steps)
+  if (VERBOSE) console.log(`saveDraftPipelineSteps(${pipelineName})`, steps)
 
-  // const name = definition.name
-  // // console.log(`name=`, name)
-  // const description = definition.description
-  // const notes = definition.notes
-  // // console.log(`description=`, description)
-
-  // // console.log(`definition.steps=`, definition.steps)
-  // const stepsJson = JSON.stringify(definition.steps, '', 2)
-  // // console.log(`stepsJson=`, stepsJson)
-
-  // const nodeName = definition.nodeGroup
   const version = 'draft'
-  // const status = 'active'
-
   steps.forEach(step => delete step.id)
   const json = JSON.stringify(steps)
 
@@ -107,7 +143,7 @@ export async function saveDraftPipelineSteps(pipelineName, steps) {
 }
 
 export async function clonePipeline(name, version) {
-  console.log(`clonePipeline(${name}, ${version})`)
+  if (VERBOSE) console.log(`clonePipeline(${name}, ${version})`)
   // Get the specified pipeline version
   const pipelines = await getPipelines(name, version)
   // const sql = `SELECT * FROM atp_pipeline WHERE name=? AND version=?`

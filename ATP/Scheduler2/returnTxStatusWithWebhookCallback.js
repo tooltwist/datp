@@ -148,7 +148,7 @@ export async function tryTheWebhook(owner, txId, webhookUrl, eventType, eventTim
 
       // Update the transaction log.
       await dbLogbook.bulkLogging(txId, null, [ {
-        level: dbLogbook.LOG_LEVEL_TRACE,
+        level: dbLogbook.LOG_LEVEL_INFO,
         source: dbLogbook.LOG_SOURCE_SYSTEM,
         message: 'Webhook called successfully.'
       }])
@@ -168,7 +168,7 @@ export async function tryTheWebhook(owner, txId, webhookUrl, eventType, eventTim
   // Something didn't go right. Let's log the error, then let the retry occur.
   if (VERBOSE) console.log(errorMsg)
   await dbLogbook.bulkLogging(txId, null, [ {
-    level: dbLogbook.LOG_LEVEL_TRACE,
+    level: dbLogbook.LOG_LEVEL_INFO,
     source: dbLogbook.LOG_SOURCE_SYSTEM,
     message: 'Webhook called successfully.'
   }])
@@ -195,7 +195,7 @@ export async function tryTheWebhook(owner, txId, webhookUrl, eventType, eventTim
 
   const wakeTime = new Date(Date.now() + (interval * 1000))
   await dbLogbook.bulkLogging(txId, null, [ {
-    level: dbLogbook.LOG_LEVEL_TRACE,
+    level: dbLogbook.LOG_LEVEL_INFO,
     source: dbLogbook.LOG_SOURCE_SYSTEM,
     message: `Webhook rety in ${interval} seconds, at ${wakeTime.toLocaleTimeString('PST')}.`
   }])

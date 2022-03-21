@@ -7,12 +7,15 @@
 import query from "../../database/query";
 import TransactionIndexEntry from "../TransactionIndexEntry";
 import Transaction from "./Transaction";
-import { DEBUG_DB_ATP_TRANSACTION, DEBUG_DB_ATP_TRANSACTION_DELTA, HACK_TO_BYPASS_TXDELTAS_WHILE_TESTING } from '../../datp-constants'
+import { DEBUG_DB_ATP_TRANSACTION, DEBUG_DB_ATP_TRANSACTION_DELTA } from '../../datp-constants'
+import { logger } from '../../lib/pino-deltas'
+import juice from '@tooltwist/juice-client'
 
 const VERBOSE = 0
 let hackCount = 0
 let countDbAtpTransactionDelta = 0
 let countDbAtpTransactionInsert = 0
+let _deltaDestination = null
 
 export class DuplicateExternalIdError extends Error {
   constructor() {
@@ -28,13 +31,9 @@ export default class TransactionPersistance {
    */
   static async saveNewTransaction(tx) {
     const txId = tx.getTxId()
-    // const type = tx.getType()
     const owner = tx.getOwner()
     const externalId = tx.getExternalId()
     const transactionType = tx.getTransactionType()
-    // const input = tx.getInput()
-    // const nodeId = tx.getNodeId()
-    // const pipeline = tx.getPipeline()
 
 
     try {
@@ -53,24 +52,62 @@ export default class TransactionPersistance {
       }
       throw e
     }
-}
+  }//- saveNewTransaction()
+
+
+  static async deltaDestination() {
+    if (!_deltaDestination) {
+      const dest = await juice.string('datp.deltaDestination', 'db')
+      switch (dest) {
+        case 'pico':
+        case 'db':
+          _deltaDestination = dest
+          break
+
+        case 'none':
+          if (hackCount++ == 0) {
+            console.log(`WARNING!!!!!`)
+            console.log(`Not saving transaction deltas`)
+          }
+          _deltaDestination = dest
+          break
+          
+        default:
+          console.log(`Error: unknown datp.deltaDestination [${dest}]`)
+          console.log(`Should be pico | db | none`)
+          console.log(`Will proceed with 'db'.`)
+          _deltaDestination = 'db'
+      }
+    }
+    return _deltaDestination
+  }
 
 
   static async persistDelta(owner, txId, delta) {
     if (VERBOSE) console.log(`TransactionPersistance.persistDelta()`, delta)
 
-    if (HACK_TO_BYPASS_TXDELTAS_WHILE_TESTING) {
-      if (hackCount++ == 0) {
-        console.log(`WARNING!!!!!`)
-        console.log(`Not saving transaction deltas (HACK_TO_BYPASS_TXDELTAS_WHILE_TESTING=true)`)
-      }
-      return
+    const dest = await TransactionPersistance.deltaDestination()
+    switch (dest) {
+      case 'none':
+        // Nothing to do
+        return
+
+      case 'db':
+        return await TransactionPersistance.persistDelta_database(owner, txId, delta)
+
+      case 'pico':
+        return await TransactionPersistance.persistDelta_pico(owner, txId, delta)
     }
+  }
+
+
+  static async persistDelta_database(owner, txId, delta) {
+    if (VERBOSE) console.log(`TransactionPersistance.persistDelta_database()`, delta)
 
     const json = JSON.stringify(delta.data)
 
     // Save the deltas
-    if (DEBUG_DB_ATP_TRANSACTION_DELTA) console.log(`atp_transaction_delta ${countDbAtpTransactionDelta++}`)
+    if (DEBUG_DB_ATP_TRANSACTION_DELTA) console.log(`persistDelta_database ${countDbAtpTransactionDelta++}`)
     let sql = `INSERT INTO atp_transaction_delta (owner, transaction_id, sequence, step_id, data, event_time) VALUES (?,?,?,?,?,?)`
     let params = [
       owner,
@@ -97,6 +134,13 @@ export default class TransactionPersistance {
       console.log(``)
       throw new Error(`Unable to write to atp_transaction_delta`)
     }
+  }
+
+  static async persistDelta_pico(owner, txId, delta) {
+    if (VERBOSE) console.log(`TransactionPersistance.persistDelta_pico()`, delta)
+
+    const json = JSON.stringify(delta.data)
+    logger.info({ owner, txId, json })
   }
 
   /**
