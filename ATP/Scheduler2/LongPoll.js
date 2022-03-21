@@ -4,12 +4,14 @@
  * rights reserved. No warranty, explicit or implicit, provided. In no event shall
  * the author or owner be liable for any claim or damages.
  */
+import query from "../../database/query"
 import Transaction from "./Transaction"
-import TransactionCache from "./TransactionCache"
 
 const LONGPOLL_TIMEOUT = 15
 
 const VERBOSE = 0
+
+
 export default class LongPoll {
 
   static index = { } // txId => { response, next, tenant, timer }
@@ -65,11 +67,11 @@ export default class LongPoll {
       delete LongPoll.index[txId]
 
       // Remember that the reply has been sent
-      if (VERBOSE) console.log(`LongPoll:tryToReply - set completion time`)
-      const tx = await TransactionCache.findTransaction(txId, false)
-      await tx.delta(null, {
-        completionTime: new Date()
-      })
+      if (VERBOSE) console.log(`LongPoll:tryToReply - set response_acknowledge_time`)
+      const sql = `UPDATE atp_transaction2 SET response_acknowledge_time = NOW() WHERE transaction_id=? AND response_acknowledge_time IS NULL`
+      const params = [ txId ]
+      const result = await query(sql, params)
+      // console.log(`result=`, result)
 
       // Send the reply
       let summary = await Transaction.getSummary(entry.tenant, txId)
