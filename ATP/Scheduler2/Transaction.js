@@ -335,9 +335,13 @@ export default class Transaction {
               throw new Error(`Invalid status [${data.status}]`)
           }
         }
-        if (typeof(data.progressReport) !== 'undefined' && this.#progressReport !== data.progressReport) {
+        if (typeof(data['-progressReport']) !== 'undefined') {
+          // Progress report being deleted
+          coreValuesChanged = true
+          this.#progressReport = null
+        } else if (typeof(data.progressReport) !== 'undefined' && this.#progressReport !== data.progressReport) {
           if (VERBOSE) console.log(`Setting transaction progressReport to ${data.progressReport}`)
-          if (typeof(data.progressReport) !== 'object') {
+          if (data.progressReport !== null && typeof(data.progressReport) !== 'object') {
             throw new Error('data.progressReport must be an object')
           }
           coreValuesChanged = true
