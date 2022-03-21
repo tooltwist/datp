@@ -5,9 +5,9 @@
  * the author or owner be liable for any claim or damages.
  */
 import query from './query'
-import { HACK_TO_BYPASS_LOGGING_WHILE_TESTING } from '../datp-constants'
+import { DEBUG_DB_ATP_LOGBOOK, HACK_TO_BYPASS_LOGGING_WHILE_TESTING } from '../datp-constants'
 let hackCount = 0
-
+let countDbAtpLogbook = 0
 
 export default class dbLogbook {
 
@@ -42,6 +42,7 @@ export default class dbLogbook {
       }
       return
     }
+    if (DEBUG_DB_ATP_LOGBOOK) console.log(`atp_logbook INSERT ${countDbAtpLogbook++}`)
     const sql = `INSERT INTO atp_logbook (transaction_id, step_id, sequence, message) VALUES (?, ?, ?, ?)`
     const params = [ transactionId, stepId, sequence, msg ]
     // console.log(`sql=`, sql)
@@ -99,6 +100,7 @@ export default class dbLogbook {
       }
       return
     }
+    if (DEBUG_DB_ATP_LOGBOOK) console.log(`atp_logbook INSERT ${countDbAtpLogbook++}`)
     let sql = `INSERT INTO atp_logbook (transaction_id, step_id, level, source, message) VALUES`
     const params = [ ]
     let sep = '\n'

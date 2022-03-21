@@ -26,7 +26,7 @@ export async function getPipelineType(pipelineType) {
 
 
 export async function db_updatePipelineType(pipelineName, updates) {
-  console.log(`updatePipelineType(${pipelineName})`, updates)
+  // console.log(`updatePipelineType(${pipelineName})`, updates)
   let sql = `UPDATE atp_transaction_type SET `
   let params = [ ]
   let sep = ''

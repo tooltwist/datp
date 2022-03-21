@@ -15,7 +15,7 @@ import crypto from 'crypto'
 
 require('colors')
 
-const VERBOSE = 1
+const VERBOSE = 0
 
 const MIN_WEBHOOK_RETRY = 10
 const RETRY_EXPONENT = 1.4
@@ -54,10 +54,10 @@ export async function sendStatusByWebhook(owner, txId, webhookUrl, eventType) {
       (transaction_id, owner, url, event_type, initial_attempt, next_attempt)
       VALUES (?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ${MIN_WEBHOOK_RETRY} SECOND))`
     const params = [ txId, owner, webhookUrl, eventType, eventTime ]
-    console.log(`sql=`, sql)
-    console.log(`params=`, params)
+    // console.log(`sql=`, sql)
+    // console.log(`params=`, params)
     const result = await query(sql, params)
-    console.log(`result=`, result)
+    // console.log(`result=`, result)
   } catch (e) {
 
     // console.log(`e=`, e)
@@ -77,10 +77,10 @@ export async function sendStatusByWebhook(owner, txId, webhookUrl, eventType) {
 }
 
 export async function tryTheWebhook(owner, txId, webhookUrl, eventType, eventTime, retryCount) {
-  console.log(`tryTheWebhook(${owner}, ${txId}, ${webhookUrl}, ${eventType}, ${eventTime}, ${retryCount})`)
+  if (VERBOSE) console.log(`tryTheWebhook(${owner}, ${txId}, ${webhookUrl}, ${eventType}, ${eventTime}, ${retryCount})`)
   // Get the status
   const summary = await Transaction.getSummary(owner, txId)
-  // console.log(`summary=`, summary)
+  if (VERBOSE) console.log(`summary=`, summary)
   if (summary === null) {
     // The transaction does not exist (this should not happen)
     // Cancel the webhook
@@ -109,7 +109,7 @@ export async function tryTheWebhook(owner, txId, webhookUrl, eventType, eventTim
   var signerObject = crypto.createSign("RSA-SHA256")
   signerObject.update(json)
   var signature = signerObject.sign({key: privateKey, padding: crypto.constants.RSA_PKCS1_PSS_PADDING}, "base64")
-console.info("signature: %s", signature)
+  if (VERBOSE) console.info("signature: %s", signature)
   payload.signature = signature
 
   // Call the webhook
@@ -122,6 +122,7 @@ console.info("signature: %s", signature)
     // console.log(`acknowledgement=`, acknowledgement)
 
     // Check the reply
+    //ZZZZZ
     const problemWithAcknowledgement = false // Do something here
 
     // Handle either success, or retry.
