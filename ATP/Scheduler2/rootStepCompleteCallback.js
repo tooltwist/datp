@@ -16,7 +16,7 @@ export async function rootStepCompleteCallback (callbackContext, nodeInfo) {
   if (PIPELINES_VERBOSE) console.log(`==> Callback rootStepCompleteCallback()`, callbackContext, nodeInfo)
 
   // Get the details of the root step
-  const tx = await TransactionCache.findTransaction(callbackContext.txId, true)
+  const tx = await TransactionCache.getTransactionState(callbackContext.txId)
   // console.log(`tx=`, tx)
   // const obj = transaction.asObject()
 

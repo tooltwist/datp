@@ -7,7 +7,6 @@
 import StepInstance from "../StepInstance"
 import XData from "../XData"
 import CallbackRegister from "./CallbackRegister"
-import { getQueueConnection } from "./queuing/Queue2"
 import Scheduler2 from "./Scheduler2"
 import TransactionCache from "./TransactionCache"
 import assert from 'assert'
@@ -156,7 +155,7 @@ export default class Worker2 {
       const stepId = event.stepId
 
       // Sanity check - check the status, before doing anything.
-      const tx = await TransactionCache.findTransaction(txId, true)
+      const tx = await TransactionCache.getTransactionState(txId)
       if (!tx) {
         // This should be flagged as a serious system error.ZZZZZ
         const msg = `SERIOUS ERROR: stepStart event for unknown transaction ${txId}. Step ID is ${stepId}. Where did this come from?`
@@ -231,7 +230,8 @@ export default class Worker2 {
 
       const hackSource = 'system' // Not sure why, but using dbLogbook.LOG_SOURCE_SYSTEM causes a compile error
       // instance.trace(`Invoke step ${instance.getStepId()}`, hackSource)
-      instance.trace(`Step invoked`)
+      const stepDesc = (typeof(stepData.stepDefinition) === 'string') ? `Pipeline ${stepData.stepDefinition}` : `Step ${stepData.stepDefinition.stepType}`
+      instance.trace(`Invoked: ${stepDesc}`)
       await instance.syncLogs()
 
       // Start the step in the background, immediately
@@ -270,7 +270,7 @@ export default class Worker2 {
       const completionToken = event.completionToken
 
       // See what we saved before calling the step
-      const tx = await TransactionCache.findTransaction(txId, true)
+      const tx = await TransactionCache.getTransactionState(txId)
       if (!tx) {
         // This should be flagged as a serious system error.ZZZZZ
         const msg = `SERIOUS ERROR: stepCompleted event for unknown transaction ${txId}. Step ID is ${stepId}. Where did this come from?`
@@ -325,7 +325,7 @@ if (!stepData) {
 
     try {
       const txId = event.txId
-      const tx = await TransactionCache.findTransaction(txId, true)
+      const tx = await TransactionCache.getTransactionState(txId)
       if (!tx) {
         // This should be flagged as a serious system error.ZZZZZ
         const msg = `SERIOUS ERROR: transactionChanged event for unknown transaction ${txId}. Step ID is ${stepId}. Where did this come from?`
@@ -377,7 +377,7 @@ if (!stepData) {
 
     try {
       const txId = event.txId
-      const tx = await TransactionCache.findTransaction(txId, true)
+      const tx = await TransactionCache.getTransactionState(txId)
       if (!tx) {
         // This should be flagged as a serious system error.ZZZZZ
         const msg = `SERIOUS ERROR: transactionCompleted event for unknown transaction ${txId}. Step ID is ${stepId}. Where did this come from?`
@@ -385,8 +385,6 @@ if (!stepData) {
         return
       }
       const txData = tx.txData()
-      // console.log(`txData=`, txData)
-
 
       if (this.#debugLevel > 1) {
         console.log(`processEvent_TransactionCompleted txData=`, txData)
@@ -396,6 +394,13 @@ if (!stepData) {
       const note = txData.note
       const transactionOutput = txData.transactionOutput
 
+      // Once the transaction is complete (i.e. here) the Transation State is no longer required,
+      // because there is no more processing. Any polling (long or short) or webhook reply can
+      // work entirely using the transaction status. Also, the progress report is no longer needed.
+      const shortTerm = true
+      await TransactionCache.moveToGlobalCache(txId, shortTerm)
+
+      // Call the callback for 'transaction complete'.
       const extraInfo = {
         owner,
         txId,

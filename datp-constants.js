@@ -15,3 +15,10 @@ export const DUP_EXTERNAL_ID_DELAY = 60 // seconds
 // Sleep intervals less than this length of time will be handled using setTimout()
 // and sleeps longer than this time will be handled by our cron process.
 export const DEEP_SLEEP_SECONDS = 2 * 60 // seconds
+
+
+
+// Debugging database access
+export const DEBUG_DB_ATP_TRANSACTION = 0
+export const DEBUG_DB_ATP_TRANSACTION_DELTA = 0
+export const DEBUG_DB_ATP_LOGBOOK = 0

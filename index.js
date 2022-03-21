@@ -158,6 +158,8 @@ export async function startTransactionRoute(req, res, next, tenant, transactionT
 
     // By default we reply with SHORT POLLING.
     // We just reply as soon as the transaction is started.
+    // However, we still use the longpoll callback in case the user polls
+    // to get the transaction result before it completes, using long polling.
   } else {
 
     // This should not happen.

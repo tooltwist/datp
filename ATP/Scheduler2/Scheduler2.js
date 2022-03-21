@@ -608,7 +608,7 @@ export default class Scheduler2 {
     obj.onComplete.completionToken = GenerateHash('ctok')
 
     // Remember the callback details, and do not pass to the step
-    const tx = await TransactionCache.findTransaction(obj.txId, false)
+    const tx = await TransactionCache.getTransactionState(obj.txId)
     // console.log(`tx=`, tx)
     await tx.delta(null, {
       nextStepId: obj.stepId, //ZZZZZ Choose a better field name
@@ -673,7 +673,7 @@ export default class Scheduler2 {
     const queueName = Scheduler2.groupQueueName(this.#nodeGroup)
 
     // Change the step status
-    const tx = await TransactionCache.findTransaction(txId, true)
+    const tx = await TransactionCache.getTransactionState(txId)
     if (!tx) {
       throw new Error(`enqueue_StepRestart: unknown transaction ${txId}`)
     }
@@ -1070,6 +1070,30 @@ export default class Scheduler2 {
     this._checkConnectedToQueue()
     return await this.#queueObject.getTemporaryValue(key)
  }
+
+  async saveTransactionStateToREDIS(transaction, persistAfter) {
+    // console.log(`Scheduler2.saveTransactionStateToREDIS(transaction, persistAfter=${persistAfter})`)
+    // console.log(`typeof(transaction)=`, typeof(transaction))
+    await this._checkConnectedToQueue()
+    await this.#queueObject.saveTransactionState(transaction, persistAfter)
+  }
+
+  async getTransactionStateFromREDIS(txId) {
+    // console.log(`Scheduler2.getTransactionStateFromREDIS(${txId})`)
+    await this._checkConnectedToQueue()
+    const tx = await this.#queueObject.getTransactionState(txId)
+    return tx
+  }
+
+  /**
+   * Called periodically to shift transaction states from REDIS to the database.
+   */
+  async persistTransactionStatesToLongTermStorage() {
+    // console.log(`persistTransactionStatesToLongTermStorage()`)
+    await this._checkConnectedToQueue()
+    await this.#queueObject.persistTransactionStatesToLongTermStorage()
+  }
+
 
   async dump() {
     await this._checkConnectedToQueue()

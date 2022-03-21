@@ -27,9 +27,9 @@ test.serial('External Id is saved in transaction', async t => {
 
   // Check the values were persisted
   await TransactionCache.removeFromCache(txId)
-  let tx2 = await TransactionCache.findTransaction(txId, false)
+  let tx2 = await TransactionCache.getTransactionState(txId, false)
   t.falsy(tx2)
-  tx2 = await TransactionCache.findTransaction(txId, true)
+  tx2 = await TransactionCache.getTransactionState(txId, true)
   t.truthy(tx2)
   t.is(tx2.getExternalId(), externalId)
 })

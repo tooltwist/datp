@@ -7,9 +7,9 @@
 import { QueueManager } from './QueueManager';
 import juice from '@tooltwist/juice-client'
 import assert from 'assert'
-import { stat } from 'fs';
+import Transaction from '../Transaction'
+import query from '../../../database/query';
 const Redis = require('ioredis');
-// const util = require('util');
 
 // This adds colors to the String class
 require('colors')
@@ -24,7 +24,17 @@ const VERBOSE = 0
 // Each node must register itself every minute
 export const NODE_REGISTRATION_INTERVAL = 30 // seconds
 
+
+// REDIS does not let us know when a key was set, but we can ask for the
+// time-to-live for a key. We can set the expiry time to this value, which
+// is so far forward that the key is never going to expire, but we can use
+// it to determine how long the key has existed (i.e. A_VERY_LONG_TIME - TTL).
+export const A_VERY_LONG_TIME = 60 * 60 * 24 * 365 * 20 // 20 years in seconds
+
+export const TIME_TILL_GLOBAL_CACHE_ENTRY_IS_PERSISTED_TO_DB = 1000 * 60 * 1 // 20 minutes
+
 let allocatedQueues = 0
+let enqueueCounter = 0
 
 export class RedisQueue extends QueueManager {
 
@@ -124,7 +134,7 @@ export class RedisQueue extends QueueManager {
    * @returns The event added to the queue
    */
   async enqueue(queueName, event) {
-    if (VERBOSE) console.log(`RedisCache.enqueue(${queueName}, ${event.eventType})`.brightBlue)
+    if (VERBOSE) console.log(`RedisCache.enqueue(${queueName}, ${event.eventType}) - ${enqueueCounter++}`.brightBlue)
     assert(event.fromNodeId) // Must say which node it came from
     // console.log(`event=`, event)
     // console.log(new Error('trace in enqueue').stack)
@@ -564,6 +574,141 @@ export class RedisQueue extends QueueManager {
       await this.#adminRedis.quit()
       this.#queueRedis = null
       this.#adminRedis = null
+    }
+  }
+
+
+  /**
+   * Store a transaction to REDIS.
+   * 
+   * @param {Transaction} transaction
+   * @param {persistAfter} duration Time before it is written to long term storage (seconds)
+   */
+  async saveTransactionState(transactionState, persistAfter=60) {
+    // console.log(`saveTransaction(transactionState, persistAfter=${persistAfter})`)
+    // console.log(`typeof(transactionState)=`, typeof(transactionState))
+    // console.log(`transactionState=`, transactionState)
+
+    await this._checkLoaded()
+
+    // Save the transactionState as JSON
+    const txId = transactionState.getTxId()
+    const json = transactionState.stringify()
+    // await this.#adminRedis.set(key, value, 'ex', duration)
+
+    // console.log(`SAVING TO REDIS: json=`, JSON.stringify(JSON.parse(json), '', 2))
+    // console.log(`SAVINF ${json.length} TO REDIS WITH KEY ${key}`)
+    const key = `datp:transactionState:${txId}`
+    await this.#adminRedis.set(key, json, 'ex', A_VERY_LONG_TIME)
+
+    // Add it to a queue to be persisted to the database later (by a separate server)
+    // See https://developpaper.com/redis-delay-queue-ive-completely-straightened-it-out-this-time/
+    const persistKey = `datp:persistTransactionState`
+    const persistTimeMs = Date.now() + TIME_TILL_GLOBAL_CACHE_ENTRY_IS_PERSISTED_TO_DB
+    await this.#adminRedis.zadd(persistKey, persistTimeMs, txId)
+  }
+
+  /**
+   * Working in conjunction with _saveTransactionState_, this function is run
+   * periodically to find transaction states that need to be shifted from the
+   * global (REDIS) cache, up to long term storage in the database.
+   */
+  async persistTransactionStatesToLongTermStorage() {
+    console.log(`RedisQueue-ioredis::persistTransactionStatesToLongTermStorage()`)
+
+    await this._checkLoaded()
+
+    // // Save the transactionState as JSON
+    // const txId = transactionState.getTxId()
+    // const json = transactionState.stringify()
+    // // await this.#adminRedis.set(key, value, 'ex', duration)
+
+    // // console.log(`SAVING TO REDIS: json=`, JSON.stringify(JSON.parse(json), '', 2))
+    // // console.log(`SAVINF ${json.length} TO REDIS WITH KEY ${key}`)
+    // const key = `datp:transactionState:${txId}`
+    // await this.#adminRedis.set(key, json, 'ex', A_VERY_LONG_TIME)
+
+    // Add it to a queue to be persisted to the database later (by a separate server)
+    // See https://developpaper.com/redis-delay-queue-ive-completely-straightened-it-out-this-time/
+    const persistKey = `datp:persistTransactionState`
+    const min = '-inf'
+    const max = Date.now()
+    const result = await this.#adminRedis.zrange(persistKey, min, max, 'BYSCORE')
+    // console.log(`result=`, result)
+
+    for (const txId of result) {
+      console.log(`Persisting state of ${txId} to long term storage`)
+      const key = `datp:transactionState:${txId}`
+      let json = await this.#adminRedis.get(key)
+      if (json === null) {
+        // Transaction state not in the REDIS cache
+        //ZZZZZZ Notify the admin
+        console.log(`SERIOUS ERROR: persistTransactionStatesToLongTermStorage cannot find tx in REDIS [${txId}]`)
+        continue
+      }
+
+      // console.log(`json=`, json)
+
+      try {
+        /*
+         *  Insert transaction satte into the database.
+         */
+        let sql = `INSERT INTO atp_transaction_state (transaction_id, json) VALUES (?, ?)`
+        let params = [ txId, json ]
+        let result2 = await query(sql, params)
+        // console.log(`result2=`, result2)
+        if (result2.affectedRows !== 1) {
+          //ZZZZZZ Notify the admin
+          console.log(`SERIOUS ERROR: persistTransactionStatesToLongTermStorage: could not insert into DB [${txId}]`, e)
+          continue
+        }
+
+      } catch (e) {
+        if (e.code !== 'ER_DUP_ENTRY') {
+          //ZZZZZZ Notify the admin
+          console.log(`SERIOUS ERROR: persistTransactionStatesToLongTermStorage: could not insert into DB [${txId}]`, e)
+          continue
+        }
+
+        /*
+         *  Already in DB - need to update
+         */
+        // console.log(`Need to update`)
+        const sql = `UPDATE atp_transaction_state SET json=? WHERE transaction_id=?`
+        const params = [ json, txId ]
+        const result2 = await query(sql, params)
+        // console.log(`result2=`, result2)
+        if (result2.affectedRows !== 1) {
+          //ZZZZZZ Notify the admin
+          console.log(`SERIOUS ERROR: persistTransactionStatesToLongTermStorage: could not update DB [${txId}]`, e)
+          continue
+        }
+      }
+
+      // We've either inserted or updated the database.
+      // We can now remove from REDIS.
+      console.log(`Removing transaction state from REDIS [${txId}]`)
+      await this.#adminRedis.zrem(persistKey, txId)
+      await this.#adminRedis.del(key)
+    }
+  }
+
+  /**
+   * Access a value saved using _setTemporaryValue_. If the expiry duration for
+   * the temporary value has passed, null will be returned.
+   *
+   * @param {string} key
+   * @returns The value saved using _setTemporaryValue_.
+   */
+  async getTransactionState(txId) {
+    await this._checkLoaded()
+    const key = `datp:transactionState:${txId}`
+    let json = await this.#adminRedis.get(key)
+    if (json === null) {
+      // Transaction state not in the REDIS cache
+      return null
+    } else {
+      return Transaction.transactionStateFromJSON(json)
     }
   }
 

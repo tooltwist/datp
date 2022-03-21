@@ -59,9 +59,10 @@ export async function mondatTransactionsV1(req, res, next) {
 export async function route_transactionStatusV1(req, res, next) {
   // console.log(`route_transactionStatusV1()`)
 
+  //ZZZZZZZ This should get the transaction summary from the database, and leave the state alone.
 
   const txId = req.params.txId
-  const tx = await TransactionCache.findTransaction(txId, true)
+  const tx = await TransactionCache.getTransactionState(txId)
   // console.log(`tx=`, tx)
   if (!tx) {
     console.log(`Unknown transaction ${txId}`)

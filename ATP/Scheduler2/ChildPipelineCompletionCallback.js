@@ -36,8 +36,8 @@ export async function childPipelineCompletionCallback (callbackContext, nodeInfo
 
       // Get the transaction details
       const txId = callbackContext.txId
-      const tx = await TransactionCache.findTransaction(txId, true)
-      const txData = tx.txData()
+      const tx = await TransactionCache.getTransactionState(txId)
+      // const txData = tx.txData()
 
       // Update the transaction status
       // const txId = contextForCompletionHandler.txId

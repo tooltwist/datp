@@ -65,9 +65,9 @@ test.serial('Changing status updates transaction', async t => {
 
   // Check the values were persisted
   await TransactionCache.removeFromCache(txId)
-  let tx2 = await TransactionCache.findTransaction(txId, false)
+  let tx2 = await TransactionCache.getTransactionState(txId, false)
   t.falsy(tx2)
-  tx2 = await TransactionCache.findTransaction(txId, true)
+  tx2 = await TransactionCache.getTransactionState(txId, true)
   t.truthy(tx2)
   t.is(tx.getDeltaCounter(), 3)
   t.is(tx.getSequenceOfUpdate(), 3)
@@ -97,9 +97,9 @@ test.serial('Changing progressReport updates transaction', async t => {
 
   // Check the values were persisted
   await TransactionCache.removeFromCache(txId)
-  let tx2 = await TransactionCache.findTransaction(txId, false)
+  let tx2 = await TransactionCache.getTransactionState(txId, false)
   t.falsy(tx2)
-  tx2 = await TransactionCache.findTransaction(txId, true)
+  tx2 = await TransactionCache.getTransactionState(txId, true)
   t.truthy(tx2)
   t.is(tx2.getDeltaCounter(), 1)
   t.is(tx2.getSequenceOfUpdate(), 1)
@@ -129,9 +129,9 @@ test.serial('Changing transactionOutput updates transaction', async t => {
 
   // Check the values were persisted
   await TransactionCache.removeFromCache(txId)
-  let tx2 = await TransactionCache.findTransaction(txId, false)
+  let tx2 = await TransactionCache.getTransactionState(txId, false)
   t.falsy(tx2)
-  tx2 = await TransactionCache.findTransaction(txId, true)
+  tx2 = await TransactionCache.getTransactionState(txId, true)
   t.truthy(tx2)
   t.is(tx2.getDeltaCounter(), 1)
   t.is(tx2.getSequenceOfUpdate(), 1)
@@ -162,9 +162,9 @@ test.serial('Changing completionTime updates transaction', async t => {
 
   // Check the values were persisted
   await TransactionCache.removeFromCache(txId)
-  let tx2 = await TransactionCache.findTransaction(txId, false)
+  let tx2 = await TransactionCache.getTransactionState(txId, false)
   t.falsy(tx2)
-  tx2 = await TransactionCache.findTransaction(txId, true)
+  tx2 = await TransactionCache.getTransactionState(txId, true)
   t.truthy(tx2)
   t.is(tx2.getDeltaCounter(), 1)
   t.is(tx2.getSequenceOfUpdate(), 1) // Not changed
@@ -190,9 +190,9 @@ test.serial('Reject invalid completionTime', async t => {
 
   // Check the values were persisted
   await TransactionCache.removeFromCache(txId)
-  let tx2 = await TransactionCache.findTransaction(txId, false)
+  let tx2 = await TransactionCache.getTransactionState(txId, false)
   t.falsy(tx2)
-  tx2 = await TransactionCache.findTransaction(txId, true)
+  tx2 = await TransactionCache.getTransactionState(txId, true)
   t.truthy(tx2)
   t.is(tx2.getDeltaCounter(), 0)
   t.is(tx2.getSequenceOfUpdate(), 0)
@@ -213,9 +213,9 @@ test.serial('Changing other stuff does not update transaction', async t => {
 
   // Check the values were persisted
   await TransactionCache.removeFromCache(txId)
-  let tx2 = await TransactionCache.findTransaction(txId, false)
+  let tx2 = await TransactionCache.getTransactionState(txId, false)
   t.falsy(tx2)
-  tx2 = await TransactionCache.findTransaction(txId, true)
+  tx2 = await TransactionCache.getTransactionState(txId, true)
   t.truthy(tx2)
   t.is(tx2.getDeltaCounter(), 1)
   t.is(tx2.getSequenceOfUpdate(), 0) // Not changed

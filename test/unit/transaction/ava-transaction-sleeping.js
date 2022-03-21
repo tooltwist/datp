@@ -318,9 +318,9 @@ test.serial('Reconstruct sleep fields from database', async t => {
 
   // Remove it from the cache and check again
   await TransactionCache.removeFromCache(txId)
-  tx2 = await TransactionCache.findTransaction(txId, false)
+  tx2 = await TransactionCache.getTransactionState(txId, false)
   t.falsy(tx2)
-  tx2 = await TransactionCache.findTransaction(txId, true)
+  tx2 = await TransactionCache.getTransactionState(txId, true)
   t.truthy(tx2)
   t.is(tx2.getRetryCounter(), 1)
   t.not(tx2.getSleepingSince(), null)

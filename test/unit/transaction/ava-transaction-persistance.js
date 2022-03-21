@@ -186,16 +186,16 @@ test.serial('find hibernated transaction', async t => {
   await tx.delta(stepId1, { big: 999999999.999 })
 
   // Check it is in the cache
-  let tx2 = await TransactionCache.findTransaction(txId, true)
+  let tx2 = await TransactionCache.getTransactionState(txId, true)
   t.truthy(tx2)
 
   // Remove the from the cache and check it is no longer in the cache
   await TransactionCache.removeFromCache(txId)
-  tx2 = await TransactionCache.findTransaction(txId, false)
+  tx2 = await TransactionCache.getTransactionState(txId, false)
   t.falsy(tx2)
 
   // Check it gets put back in the cache
-  tx2 = await TransactionCache.findTransaction(txId, true)
+  tx2 = await TransactionCache.getTransactionState(txId, true)
   t.truthy(tx2)
 
   // console.log(`tx 2=`, tx2.toString())
@@ -268,11 +268,11 @@ test.serial('persist transaction values changed by a delta', async t => {
   TransactionCache.removeFromCache(txId)
 
   // Check it is no longer in the cache
-  let tx2 = await TransactionCache.findTransaction(txId, false)
+  let tx2 = await TransactionCache.getTransactionState(txId, false)
   t.falsy(tx2)
 
 
-  tx2 = await TransactionCache.findTransaction(txId, true)
+  tx2 = await TransactionCache.getTransactionState(txId, true)
   t.truthy(tx2)
   // console.log(`tx 2=`, tx2.toString())
 

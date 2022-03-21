@@ -72,8 +72,8 @@ class Pipeline extends Step {
     const metadata = await pipelineInstance.getMetadata()
 
     // Let the transaction know we are here
-    const tx = await TransactionCache.findTransaction(txId, true)
-    const txData = tx.txData()
+    const tx = await TransactionCache.getTransactionState(txId)
+    // const txData = tx.txData()
     // console.log(`In invoke() tx=`, tx.asObject())
     const pipelineStepId = pipelineInstance.getStepId()
     // console.log(`pipelineStepId=`, pipelineStepId)

@@ -32,14 +32,14 @@ test.serial('allocate then fetch tx', async t => {
   t.truthy(tx)
   t.is(tx.getTxId(), txId)
 
-  const tx2 = await TransactionCache.findTransaction(txId, false)
+  const tx2 = await TransactionCache.getTransactionState(txId)
   t.truthy(tx2)
   t.is(tx2.getTxId(), txId)
 });
 
 
 test.serial('fetch a non-existant transaction', async t => {
-  const tx = await TransactionCache.findTransaction('xyz123', false)
+  const tx = await TransactionCache.getTransactionState('xyz123')
   t.is(tx, null)
 })
 
@@ -49,12 +49,12 @@ test.serial('allocate, remove, then fetch tx (without loading)', async t => {
   t.truthy(tx)
   t.is(tx.getTxId(), txId)
 
-  const tx2 = await TransactionCache.findTransaction(txId, false)
+  const tx2 = await TransactionCache.getTransactionState(txId)
   t.truthy(tx2)
   t.is(tx2.getTxId(), txId)
 
   await TransactionCache.removeFromCache(txId)
 
-  const tx3 = await TransactionCache.findTransaction(txId, false)
+  const tx3 = await TransactionCache.getTransactionState(txId)
   t.is(tx3, null)
 });

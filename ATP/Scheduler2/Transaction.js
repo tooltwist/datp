@@ -20,10 +20,14 @@ import XData from "../XData"
 import TransactionPersistance from "./TransactionPersistance"
 import Scheduler2 from "./Scheduler2"
 import { schedulerForThisNode } from "../.."
+import { DEBUG_DB_ATP_TRANSACTION } from "../../datp-constants"
+import { route_transactionStatusV1 } from "../../mondat/transactions"
 
 // Debug stuff
 const VERBOSE = 0
 require('colors')
+
+let countTxCoreUpdate = 0
 
 export default class Transaction {
   #txId
@@ -47,6 +51,7 @@ export default class Transaction {
   #steps // stepId => Object
   #tx // Object
 
+  // Deltas (changes to this transaction state)
   #deltaCounter
   #deltas
 
@@ -144,8 +149,28 @@ export default class Transaction {
       txId: this.#txId,
       owner: this.#owner,
       externalId: this.#externalId,
+      transactionType: this.#transactionType,
+
+      status: this.#status,
+      sequenceOfUpdate: this.#sequenceOfUpdate,
+      progressReport: this.#progressReport,
+      transactionOutput: this.#transactionOutput,
+      completionTime: this.#completionTime,
+    
+      // Sleep related stuff
+      sleepingSince: this.#sleepingSince,
+      sleepCounter: this.#sleepCounter,
+      wakeTime: this.#wakeTime,
+      wakeSwitch: this.#wakeSwitch,
+      wakeNodeGroup: this.#wakeNodeGroup,
+      wakeStepId: this.#wakeStepId,
+
+      deltaCounter: this.#deltaCounter,
+
       transactionData: this.#tx,
-      steps: this.#steps
+      steps: this.#steps,
+
+      // Log entries and deltas go elsewhere
     }
   }
 
@@ -168,9 +193,22 @@ export default class Transaction {
   /**
    * Record data changes to this transaction or a step within this transaction.
    *
-   * When the following fields are set on the trnsaction, they also get persisted to the
+   * When the following fields are set on the transaction, they also get persisted to the
    * atp_transaction2 table:
    * status, progressReport, transactionOutput, completionTime.
+   * 
+   * 
+   * 
+   * TODO, Phil March 18 2022:
+   * This would work better if we:
+   *    1. Take a copy of the core values.
+   *    2. Update the in-memory copy.
+   *    3. Compare the copies of the core values with the new in-memory values.
+   * Why is this better? The copying process is not straightforward if only some values
+   * within an object are changed. It is actually an overlay, unless "!objectName" is
+   * used in the delta instructions. Similarly, "-property" could be used, but is not
+   * currently checked. Are these notations currently used? Probably not.
+   * 
    *
    * @param {string} stepId If null, the data changes will be saved against the transaction.
    * @param {object} data An object containing values to be saved. e.g. { color: 'red' }
@@ -330,6 +368,7 @@ export default class Transaction {
 
         // If the core values were changed, update the database
         if (coreValuesChanged) {
+          if (DEBUG_DB_ATP_TRANSACTION) console.log(`TX UPDATE ${countTxCoreUpdate++}`)
           this.#sequenceOfUpdate = this.#deltaCounter
           if (!replayingPastDeltas) {
             let sql = `UPDATE atp_transaction2 SET
@@ -413,7 +452,12 @@ export default class Transaction {
         deepCopy(data, step)
       } else {
         // We are updating the transaction
+// console.log(`*** Before deep copy:`)
+// console.log(`data=`, data)
+// console.log(`this.#tx=`, this.#tx)
         deepCopy(data, this.#tx)
+// console.log(`*** After deep copy:`)
+// console.log(`this.#tx=`, this.#tx)
       }
       this.#processingDelta = false
     } catch (e) {
@@ -424,6 +468,8 @@ export default class Transaction {
 
 
   static async getSummary(owner, txId) {
+    // console.log(`getSummary(${owner}, ${txId})`)
+
     const sql = `SELECT
       owner,
       transaction_id AS txId,
@@ -433,11 +479,15 @@ export default class Transaction {
       progress_report AS progressReport,
       transaction_output AS transactionOutput,
       completion_time AS completionTime,
-      last_updated AS lastUpdated
+      last_updated AS lastUpdated,
+      response_acknowledge_time AS notifiedTime
       FROM atp_transaction2
       WHERE owner=? AND transaction_id=?`
     const params = [ owner, txId ]
+    // console.log(`sql=`, sql)
+    // console.log(`params=`, params)
     const rows = await query(sql, params)
+    // console.log(`rows=`, rows)
     if (rows.length < 1) {
       return null
     }
@@ -615,6 +665,7 @@ export default class Transaction {
     const json = JSON.stringify(switches, '', 0)
 
     // Update the transaction, ensuring nobody has changed the transaction before us
+    if (DEBUG_DB_ATP_TRANSACTION) console.log(`TX UPDATE ${countTxCoreUpdate++} (switch)`)
     const sql = `UPDATE atp_transaction2 SET switches=?, sequence_of_update=? WHERE owner=? AND transaction_id=? AND sequence_of_update=?`
     const params = [ json, sequenceOfUpdate+1, owner, txId, sequenceOfUpdate ]
     const reply = await query(sql, params)
@@ -811,7 +862,53 @@ export default class Transaction {
     return deltas
   }
 
-  toString() {
+  // 
+  stringify() {
     return JSON.stringify(this.asObject())
+  }
+
+  static transactionStateFromJSON(json) {
+    const obj = JSON.parse(json)
+    // console.log(`transactionStateFromJSON(), obj=`, JSON.stringify(obj, '', 2))
+    // throw new Error('transactionStateFromJSON: Not implemented yet.')
+    const txId = obj.txId
+    const owner = obj.owner
+    const externalId = obj.externalId
+    const transactionType = obj.transactionType
+    const tx = new Transaction(txId, owner, externalId, transactionType)
+
+    tx.#status = obj.status
+    tx.#sequenceOfUpdate = obj.sequenceOfUpdate
+    tx.#progressReport = obj.progressReport
+    tx.#transactionOutput = obj.transactionOutput
+    tx.#completionTime = new Date(obj.completionTime)
+  
+    // Sleep related stuff
+    tx.#sleepingSince = obj.sleepingSince
+    tx.#sleepCounter = obj.sleepCounter
+    tx.#wakeTime = obj.wakeTime
+    tx.#wakeSwitch = obj.wakeSwitch
+    tx.#wakeNodeGroup = obj.wakeNodeGroup
+    tx.#wakeStepId = obj.wakeStepId
+
+    tx.#deltaCounter = obj.deltaCounter
+
+    tx.#tx = obj.transactionData
+    tx.#steps = obj.steps
+
+    return tx
+  }
+
+  // Returns a abbreviated description of the transaction
+  toString() {
+    // return JSON.stringify(this.asObject())
+    const obj = {
+      txId: this.#txId,
+      owner: this.#owner,
+      externalId: this.#externalId,
+      transactionData: this.#tx,
+      steps: this.#steps
+    }
+    return JSON.stringify(obj)
   }
 }

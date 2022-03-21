@@ -8,6 +8,7 @@ import { schedulerForThisNode } from ".."
 import { tryTheWebhook } from "../ATP/Scheduler2/returnTxStatusWithWebhookCallback"
 import { STEP_SLEEPING } from "../ATP/Step"
 import query from "../database/query"
+import juice from "@tooltwist/juice-client"
 
 export const CRON_INTERVAL = 15 // seconds
 const VERBOSE = 0
@@ -15,9 +16,13 @@ const VERBOSE = 0
 export default class DatpCron {
 
   #running
+  #persistInterval
+  #lastPersisted
 
   constructor() {
     this.#running = false
+    this.#persistInterval = -1
+    this.#lastPersisted = 0
   }
 
   async start() {
@@ -27,7 +32,7 @@ export default class DatpCron {
       const p1 = schedulerForThisNode.keepAlive()
       const p2 = this.moveScheduledEventsToEventQueue()
       const p3 = this.retryWebhooks()
-      const p4 = this.tidyTransactionCache()
+      const p4 = this.persistTransactionStates()
 
       // Wait till they all finish
       await p1
@@ -116,8 +121,29 @@ export default class DatpCron {
     }
   }
 
-  async tidyTransactionCache () {
+  async persistTransactionStates () {
 
+    // Check we have the config
+    if (this.#persistInterval < 0) {
+      const persistInterval = await juice.integer('datp.statePersistanceInterval', 0) * 1000
+      this.#persistInterval = (persistInterval < 0) ? 0 : (persistInterval * 1000) // Convert to seconds
+      if (this.#persistInterval > 0) {
+        console.log(`Node ${schedulerForThisNode.getNodeId()} will persist transaction states every ${this.#persistInterval} seconds.`)
+      }
+    }
+
+    // Perhaps persiting is not done by this node?
+    if (this.#persistInterval === 0) {
+      return
+    }
+
+    // If we haven't persisted for a while, do it now.
+    const now = Date.now()
+    if ((now - this.#lastPersisted) > this.#persistInterval) {
+      // Let's do the persistance
+      this.#lastPersisted = now
+      await schedulerForThisNode.persistTransactionStatesToLongTermStorage()
+    }
   }
 
   isRunning() {

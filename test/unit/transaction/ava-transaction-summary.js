@@ -56,7 +56,7 @@ test.serial('Get summary by transaction ID', async t => {
   // Go to sleep
   await tx.delta(null, {
     status: STEP_SUCCESS,
-    progressReport: {  },
+    progressReport: { },
     transactionOutput: { wonderful: 'result'}
   })
   summary = await Transaction.getSummary(OWNER, txId)

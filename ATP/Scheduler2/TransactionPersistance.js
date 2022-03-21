@@ -7,10 +7,12 @@
 import query from "../../database/query";
 import TransactionIndexEntry from "../TransactionIndexEntry";
 import Transaction from "./Transaction";
-import { HACK_TO_BYPASS_TXDELTAS_WHILE_TESTING } from '../../datp-constants'
+import { DEBUG_DB_ATP_TRANSACTION, DEBUG_DB_ATP_TRANSACTION_DELTA, HACK_TO_BYPASS_TXDELTAS_WHILE_TESTING } from '../../datp-constants'
 
 const VERBOSE = 0
 let hackCount = 0
+let countDbAtpTransactionDelta = 0
+let countDbAtpTransactionInsert = 0
 
 export class DuplicateExternalIdError extends Error {
   constructor() {
@@ -36,6 +38,7 @@ export default class TransactionPersistance {
 
 
     try {
+      if (DEBUG_DB_ATP_TRANSACTION) console.log(`TX INSERT ${countDbAtpTransactionInsert++}`)
       const sql = `INSERT INTO atp_transaction2 (transaction_id, owner, external_id, transaction_type, status) VALUES (?,?,?,?,?)`
       const status = TransactionIndexEntry.RUNNING //ZZZZ YARP2
       const params = [ txId, owner, externalId, transactionType, status ]
@@ -67,6 +70,7 @@ export default class TransactionPersistance {
     const json = JSON.stringify(delta.data)
 
     // Save the deltas
+    if (DEBUG_DB_ATP_TRANSACTION_DELTA) console.log(`atp_transaction_delta ${countDbAtpTransactionDelta++}`)
     let sql = `INSERT INTO atp_transaction_delta (owner, transaction_id, sequence, step_id, data, event_time) VALUES (?,?,?,?,?,?)`
     let params = [
       owner,

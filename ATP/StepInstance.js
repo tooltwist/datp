@@ -334,7 +334,7 @@ export default class StepInstance {
 
     // Quick sanity check - make sure this step is actually running, and has not already exited.
     // console.log(`yarp getting tx ${this.#txId}`)
-    const tx = await TransactionCache.findTransaction(this.#txId, false)
+    const tx = await TransactionCache.getTransactionState(this.#txId)
     const stepData = tx.stepData(this.#stepId)
     if (stepData.status !== STEP_RUNNING) {
       //ZZZ Write to the log
@@ -393,7 +393,7 @@ export default class StepInstance {
 
     // Quick sanity check - make sure this step is actually running, and has not already exited.
     // console.log(`yarp getting tx ${this.#txId}`)
-    const tx = await TransactionCache.findTransaction(this.#txId, false)
+    const tx = await TransactionCache.getTransactionState(this.#txId)
     // console.log(`tx=`, tx)
     const stepData = tx.stepData(this.#stepId)
     if (stepData.status !== STEP_RUNNING) {
@@ -436,7 +436,7 @@ export default class StepInstance {
 
     // Quick sanity check - make sure this step is actually running, and has not already exited.
     // console.log(`yarp getting tx ${this.#txId}`)
-    const tx = await TransactionCache.findTransaction(this.#txId, false)
+    const tx = await TransactionCache.getTransactionState(this.#txId)
     // console.log(`tx=`, tx)
     const stepData = tx.stepData(this.#stepId)
     if (stepData.status !== STEP_RUNNING) {
@@ -495,7 +495,7 @@ export default class StepInstance {
     }
 
     // Save the step status
-    const tx = await TransactionCache.findTransaction(this.#txId, false)
+    const tx = await TransactionCache.getTransactionState(this.#txId)
     await tx.delta(this.#stepId, {
       status: STEP_INTERNAL_ERROR,
       note: `Internal error: bad pipeline definition. Please notify system administrator.`,
@@ -559,7 +559,7 @@ export default class StepInstance {
     }
 
     // Update the status
-    const tx = await TransactionCache.findTransaction(this.#txId, false)
+    const tx = await TransactionCache.getTransactionState(this.#txId)
     await tx.delta(this.#stepId, {
       status: STEP_INTERNAL_ERROR,
       note: `Internal error: exception in step. Please notify system administrator.`,
@@ -590,7 +590,7 @@ export default class StepInstance {
     await this.syncLogs()
 
     // Save the progressReport
-    const tx = await TransactionCache.findTransaction(this.#txId, false)
+    const tx = await TransactionCache.getTransactionState(this.#txId)
     const previousProgressReport = tx.getProgressReport()
     if (VERBOSE) console.log(`previousProgressReport=`, previousProgressReport)
 
@@ -632,7 +632,7 @@ export default class StepInstance {
     await this.syncLogs()
 
     // Update the transaction status
-    const tx = await TransactionCache.findTransaction(this.#txId, false)
+    const tx = await TransactionCache.getTransactionState(this.#txId)
     await tx.delta(null, {
       status: STEP_SLEEPING,
       wakeSwitch: nameOfSwitch,
@@ -671,20 +671,20 @@ export default class StepInstance {
    */
   async getSwitch(name) {
     if (VERBOSE) console.log(`StepInstance.getSwitch(${name})`)
-    const tx = await TransactionCache.findTransaction(this.#txId, false)
+    const tx = await TransactionCache.getTransactionState(this.#txId)
     const value = await Transaction.getSwitch(tx.getOwner(), this.#txId, name)
     return value
   }
 
   async setSwitch(name, value) {
     if (VERBOSE) console.log(`StepInstance.getSwitch(${name})`)
-    const tx = await TransactionCache.findTransaction(this.#txId, false)
+    const tx = await TransactionCache.getTransactionState(this.#txId)
     await Transaction.setSwitch(tx.getOwner(), this.#txId, name, value, false)
   }
 
   async getRetryCounter() {
     if (VERBOSE) console.log(`StepInstance.getRetryCounter()`)
-    const tx = await TransactionCache.findTransaction(this.#txId, false)
+    const tx = await TransactionCache.getTransactionState(this.#txId)
     const counter = tx.getRetryCounter()
     return counter
   }

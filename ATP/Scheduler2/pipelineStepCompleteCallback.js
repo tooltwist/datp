@@ -23,7 +23,7 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
 
   // Get the transaction details
   const txId = callbackContext.txId
-  const tx = await TransactionCache.findTransaction(txId, true)
+  const tx = await TransactionCache.getTransactionState(txId)
   const txData = tx.txData()
   // console.log(`txData=`, txData)
 
