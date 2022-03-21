@@ -4,7 +4,7 @@
  * rights reserved. No warranty, explicit or implicit, provided. In no event shall
  * the author or owner be liable for any claim or damages.
  */
-import { serveMondatApi, startDatpServer } from './restify/startServer'
+import { serveMondatWebapp, startDatpServer } from './restify/startServer'
 import step from './ATP/Step'
 import stepTypeRegister from './ATP/StepTypeRegister'
 import conversionHandler from './CONVERSION/lib/ConversionHandler'
@@ -52,7 +52,6 @@ export async function goLive(server) {
   const name = await juice.string('datp.name', juice.OPTIONAL)
   const description = await juice.string('datp.description', juice.OPTIONAL)
   const serveMondat = await juice.boolean('datp.serveMondat', false)
-  // const serveMondatApi = await juice.boolean('datp.serveMondatApi', nodeGroup === 'master')
 
   // Registering the healthcheck will allow the Load Balancer to recognise the server is active.
   healthcheck.registerRoutes(server)
@@ -68,7 +67,7 @@ export async function goLive(server) {
 
   // Perhaps serve up MONDAT
   if (serveMondat) {
-    await serveMondatApi(server)
+    await serveMondatWebapp(server)
   }
 }
 

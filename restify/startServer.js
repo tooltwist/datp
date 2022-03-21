@@ -83,7 +83,7 @@ export async function startDatpServer(options) {
   return server
 }
 
-export async function serveMondatApi(server) {
+export async function serveMondatWebapp(server) {
   const port = await juice.int('datp.port', 8080)
   console.log(`Hosting Mondat application at http://0.0.0.0:${port}/mondat`)
   const staticFilesDir = `${__dirname}/../../MONDAT/dist`

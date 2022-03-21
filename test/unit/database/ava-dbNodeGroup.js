@@ -12,7 +12,7 @@ test.serial('Get node groups', async t => {
   t.is(first.nodeGroup, 'master')
   t.is(typeof(first.description), 'string')
   t.is(typeof(first.hostMondat), 'number')
-  t.is(typeof(first.serveMondatApi), 'number')
+  t.is(typeof(first.serveMondatWebapp), 'number')
   t.is(typeof(first.numWorkers), 'number')
   t.is(typeof(first.eventloopPauseBusy), 'number')
   t.is(typeof(first.eventloopPauseIdle), 'number')
@@ -37,7 +37,7 @@ test.serial('Get master node group', async t => {
   t.is(group.nodeGroup, 'master')
   t.is(typeof(group.description), 'string')
   t.is(typeof(group.hostMondat), 'number')
-  t.is(typeof(group.serveMondatApi), 'number')
+  t.is(typeof(group.serveMondatWebapp), 'number')
   t.is(typeof(group.numWorkers), 'number')
   t.is(typeof(group.eventloopPauseBusy), 'number')
   t.is(typeof(group.eventloopPauseIdle), 'number')
@@ -69,7 +69,7 @@ test.serial('Insert/update/delete node group', async t => {
     nodeGroup,
     description: DESCRIPTION_1,
     hostMondat: DEFAULT_1,
-    serveMondatApi: DEFAULT_1,
+    serveMondatWebapp: DEFAULT_1,
     numWorkers: DEFAULT_1,
     eventloopPauseBusy: DEFAULT_1,
     eventloopPauseIdle: DEFAULT_1,
@@ -92,7 +92,7 @@ test.serial('Insert/update/delete node group', async t => {
 
   let group = await getNodeGroup(nodeGroup)
   t.is(group.hostMondat, DEFAULT_1)
-  t.is(group.serveMondatApi, DEFAULT_1)
+  t.is(group.serveMondatWebapp, DEFAULT_1)
   t.is(group.numWorkers, DEFAULT_1)
   t.is(group.eventloopPauseBusy, DEFAULT_1)
   t.is(group.eventloopPauseIdle, DEFAULT_1)
@@ -115,7 +115,7 @@ test.serial('Insert/update/delete node group', async t => {
     nodeGroup,
     description: DESCRIPTION_2,
     hostMondat: DEFAULT_2,
-    serveMondatApi: DEFAULT_2,
+    serveMondatWebapp: DEFAULT_2,
     numWorkers: DEFAULT_2,
     eventloopPauseBusy: DEFAULT_2,
     eventloopPauseIdle: DEFAULT_2,
@@ -138,7 +138,7 @@ test.serial('Insert/update/delete node group', async t => {
   // Check the update
   group = await getNodeGroup(nodeGroup)
   t.is(group.hostMondat, DEFAULT_2)
-  t.is(group.serveMondatApi, DEFAULT_2)
+  t.is(group.serveMondatWebapp, DEFAULT_2)
   t.is(group.numWorkers, DEFAULT_2)
   t.is(group.eventloopPauseBusy, DEFAULT_2)
   t.is(group.eventloopPauseIdle, DEFAULT_2)
