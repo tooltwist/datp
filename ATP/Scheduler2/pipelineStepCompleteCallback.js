@@ -38,7 +38,7 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
   // Tell the transaction we're back from the child, back to this pipeline.
   await tx.delta(null, {
     currentStepId: callbackContext.parentStepId
-  })
+  }, 'pipelineStepCompleteCallback()')
 
   // Prefix to make debug messages nice
   const indent = indentPrefix(pipelineStep.level)
@@ -91,7 +91,7 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
         stepOutput: childStep.stepOutput,
         note: childStep.note,
         status: childStep.status
-      })
+      }, 'pipelineStepCompleteCallback()')
 
       // Send the event back to whoever started this step
       // const queueToParentOfPipeline = Scheduler2.groupQueueName(pipelineStep.onComplete.nodeGroup)
@@ -114,7 +114,7 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
       // Remember that we'ree moving on to the next step
       await tx.delta(pipelineStepId, {
         indexOfCurrentChildStep: nextStepNo,
-      })
+      }, 'pipelineStepCompleteCallback()')
       dbLogbook.bulkLogging(txId, pipelineStepId, [{
         level: dbLogbook.LOG_LEVEL_TRACE,
         source: dbLogbook.LOG_SOURCE_SYSTEM,
@@ -173,7 +173,7 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
       stepOutput: childStep.stepOutput,
       note: childStep.note,
       status: pipelineStatus
-    })
+    }, 'pipelineStepCompleteCallback()')
     // console.log(`pipeline step is now`, tx.stepData(pipelineStepId))
 
     // Send the event back to whoever started this step

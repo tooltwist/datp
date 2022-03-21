@@ -293,6 +293,9 @@ export default class Scheduler2 {
 
   async loadNodeGroupParameters() {
     const group = await getNodeGroup(this.#nodeGroup)
+    // console.log(`this.#nodeGroup=`, this.#nodeGroup)
+    // console.log(`group=`, group)
+
     if (!group) {
       // Node group is not in the database
       console.log(`Fatal error: node group '${this.#nodeGroup}' is not defined in the database.`)
@@ -411,7 +414,7 @@ export default class Scheduler2 {
           },
           status: STEP_SUCCESS,
           transactionOutput: { whoopee: 'doo', description }
-        })
+        }, 'startTransaction()')
         // console.log(`tx=`, (await tx).toString())
         const queueName = Scheduler2.groupQueueName(input.metadata.nodeGroup)
         await schedulerForThisNode.enqueue_TransactionCompleted(queueName, {
@@ -487,7 +490,7 @@ export default class Scheduler2 {
           context: input.metadata.onChange.context
         }
       }
-      await tx.delta(null, def)
+      await tx.delta(null, def, 'Scheduler2.startTransaction()')
 
       // Generate a new ID for this step
       const txId = tx.getTxId()
@@ -609,7 +612,7 @@ export default class Scheduler2 {
     // console.log(`tx=`, tx)
     await tx.delta(null, {
       nextStepId: obj.stepId, //ZZZZZ Choose a better field name
-    })
+    }, 'Scheduler2.enqueue_StepStart()')
     await tx.delta(obj.stepId, {
       // Used on return from the step.
       onComplete: {
@@ -627,7 +630,7 @@ export default class Scheduler2 {
       stepInput: obj.data,
       level: obj.level,
       status: STEP_QUEUED
-    })
+    }, 'Scheduler2.enqueue_StepStart()')
     // delete obj.onComplete.callback
     // delete obj.onComplete.context
     // delete obj.metadata
@@ -676,10 +679,10 @@ export default class Scheduler2 {
     }
     await tx.delta(null, {
       status: STEP_RUNNING
-    })
+    }, 'Scheduler2.enqueue_StepRestart()')
     await tx.delta(stepId, {
       status: STEP_QUEUED
-    })
+    }, 'Scheduler2.enqueue_StepRestart()')
 
     // Add to the event queue
     // const queue = await getQueueConnection()

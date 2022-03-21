@@ -124,7 +124,7 @@ export default class TransactionPersistance {
         data.completionTime = new Date(data.completionTime)
       }
       const replaying = true // Prevent DB being updated (i.e. duplicating the journal)
-      await tx.delta(row.step_id, data, replaying)
+      await tx.delta(row.step_id, data, 'TransactionPersistance.reconstructTransaction()', replaying)
     }
     return tx
   }

@@ -12,6 +12,7 @@ const SHOW_PROGRESS = false
 const SHOW_CONNECTION_DETAILS = false
 
 let promisePool = null
+let queryCounter = 0
 
 async function checkPool() {
   if (promisePool) {
@@ -69,6 +70,8 @@ async function checkPool() {
 }
 
 export default async function query(dbQuery, params = []) {
+  console.log(`----------------------------`)
+  console.log(`query() ${queryCounter++}:\n${dbQuery}`)
   if (VERBOSE) {
     console.log('query: ', dbQuery);
     console.log('params: ', params);

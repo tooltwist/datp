@@ -59,7 +59,7 @@ export async function childPipelineCompletionCallback (callbackContext, nodeInfo
       // Tell the transaction we're back from the child pipeline, back to the RouterStep.
       await tx.delta(null, {
         currentStepId: callbackContext.parentStepId
-      })
+      }, 'childPipelineCompletionCallback()')
 
 
       const childStatus = childStep.status
@@ -84,7 +84,7 @@ export async function childPipelineCompletionCallback (callbackContext, nodeInfo
           stepOutput: childStep.stepOutput,
           note: childStep.note,
           status: childStep.status
-        })
+        }, 'childPipelineCompletionCallback()')
 
         dbLogbook.bulkLogging(txId, parentStepId, [{
           level: dbLogbook.LOG_LEVEL_TRACE,

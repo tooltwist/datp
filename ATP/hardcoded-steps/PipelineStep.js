@@ -88,10 +88,10 @@ class Pipeline extends Step {
       childStepIds,
       // metadata,
       // stepInput: txdata.getData()
-    })
+    }, 'pipelineStep.invoke()')
     await tx.delta(null, {
       nextStepId: pipelineStepId,
-    })
+    }, 'pipelineStep.invoke()')
 
 //     // console.log(`tx.asObject()=`.cyan, tx.asObject())
 

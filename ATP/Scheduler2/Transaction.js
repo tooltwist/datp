@@ -176,7 +176,9 @@ export default class Transaction {
    * @param {object} data An object containing values to be saved. e.g. { color: 'red' }
    * @param {boolean} replayingPastDeltas Set to true only when reloading from database (do not use this).
    */
-  async delta(stepId, data, replayingPastDeltas=false) {
+  async delta(stepId, data, note='', replayingPastDeltas=false) {
+    let id = stepId ? stepId.substring(2, 10) : 'tx'
+    // console.log(`delta - ${note} - ${id}`)
     if (VERBOSE) console.log(`\n*** delta(${stepId}, data, replayingPastDeltas=${replayingPastDeltas})`, data)
 
     // Check that this function is not already in action, because someone forgot an 'await'.

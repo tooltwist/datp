@@ -64,6 +64,8 @@ export default class Worker2 {
 
     // If this event came from a different node, then assume the transaction
     // was modified over there, and so the transaction in our cache is dirty.
+    // This will ensure we reload the transaction state from the "global" REDIS
+    // cache or the database.
     if (event.fromNodeId !== schedulerForThisNode.getNodeId()) {
       if (event.txId) {
         if (VERBOSE) console.log(`Remove TX ${event.txId} from the cache (event from different node)`)
@@ -195,7 +197,7 @@ export default class Worker2 {
             happy: 'dayz',
             description
           }
-        })
+        }, 'Worker2.processEvent_StepStart()')
         const queueName = Scheduler2.groupQueueName(stepData.onComplete.nodeGroup)
         await schedulerForThisNode.enqueue_StepCompleted(queueName, {
           txId: event.txId,
@@ -220,7 +222,7 @@ export default class Worker2 {
       await tx.delta(stepId, {
         stepId,
         status: STEP_RUNNING
-      })
+      }, 'Worker2.processEvent_StepStart()')
 
       /*
        *  Start the step - we don't wait for it to complete

@@ -161,14 +161,16 @@ export default class StepInstance {
       case 'string':
         // console.log(`Loading definition for ${options.stepDefinition}`)
         // jsonDefinition = fs.readFileSync(`./pipeline-definitions/${options.stepDefinition}.json`)
-        const arr = stepData.stepDefinition.split(':')
-        let pipelineName = arr[0]
-        let version = (arr.length > 0) ? arr[1] : null
-        const list = await dbPipelines.getPipelines(pipelineName, version)
-        if (list.length < 1) {
-          throw new Error(`Unknown pipeline (${stepData.stepDefinition})`)
-        }
-        const pipeline = list[list.length - 1]
+        // const arr = stepData.stepDefinition.split(':')
+        // let pipelineName = arr[0]
+        // let version = (arr.length > 0) ? arr[1] : null
+        const pipelineName = stepData.stepDefinition
+        const pipeline = await dbPipelines.getPipelineVersionInUse(pipelineName)
+        // if (list.length < 1) {
+        //   throw new Error(`Unknown pipeline (${stepData.stepDefinition})`)
+        // }
+        // const pipeline = list[list.length - 1]
+
         //ZZZZ Check that it is active
         const description = pipeline.description
         jsonDefinition = pipeline.stepsJson
@@ -346,7 +348,7 @@ export default class StepInstance {
       status: STEP_SUCCESS,
       note,
       stepOutput: myStepOutput
-    })
+    }, 'stepInstance.succeeded()')
 
 
     // Tell the parent we've completed.
@@ -406,7 +408,7 @@ export default class StepInstance {
       status: STEP_ABORTED,
       note,
       stepOutput: myStepOutput
-    })
+    }, 'stepInstance.aborted()')
 
     // Tell the parent we've completed.
     const queueName = Scheduler2.groupQueueName(this.#onComplete.nodeGroup)
@@ -445,14 +447,14 @@ export default class StepInstance {
     }
 
     // Persist the result and new status
-    await tx.delta(null, {
-      progressReport: {}
-    })
+    // await tx.delta(null, {
+    //   progressReport: {}
+    // }, 'stepInstance.failed()')
     await tx.delta(this.#stepId, {
       status: STEP_FAILED,
       note,
       stepOutput: myStepOutput
-    })
+    }, 'stepInstance.failed()')
 
     // Tell the parent we've completed.
     // console.log(`replying to `, this.#onComplete)
@@ -498,7 +500,7 @@ export default class StepInstance {
       status: STEP_INTERNAL_ERROR,
       note: `Internal error: bad pipeline definition. Please notify system administrator.`,
       stepOutput: data
-    })
+    }, 'stepInstance.badDefinition()')
 
     // Tell the parent we've completed.
     const queueName = Scheduler2.groupQueueName(this.#onComplete.nodeGroup)
@@ -562,7 +564,7 @@ export default class StepInstance {
       status: STEP_INTERNAL_ERROR,
       note: `Internal error: exception in step. Please notify system administrator.`,
       stepOutput: data
-    })
+    }, 'stepInstance.exceptionInStep()')
 
     // Tell the parent we've completed.
     const queueName = Scheduler2.groupQueueName(this.#onComplete.nodeGroup)
@@ -600,7 +602,7 @@ export default class StepInstance {
       // Progress report has changed
       await tx.delta(null, {
         progressReport: object
-      })
+      }, 'stepInstance.progressReport()')
   
       // If this transaction requires progress reports via webhooks, start that now.
       if (requiresWebhookProgressReports(this.#metadata)) {
@@ -636,10 +638,10 @@ export default class StepInstance {
       wakeSwitch: nameOfSwitch,
       sleepDuration: sleepDuration,
       wakeStepId: this.#stepId
-    })
+    }, 'stepInstance.retryLater()')
     await tx.delta(this.#stepId, {
       status: STEP_SLEEPING,
-    })
+    }, 'stepInstance.retryLater()')
 
 // sleepDuration = 15
 
