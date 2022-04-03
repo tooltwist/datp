@@ -1,0 +1,14 @@
+{
+  "scope": "unit-tests",
+  "lang": "FIL",
+  "description": "Error codes for testing",
+  "errors": [
+    {
+      "name": "FIELD_IS_REQUIRED",
+      "httpStatus": 400,
+      "code": "400-0002",
+      "original": "{{field}} is required. Required parameter field cannot be found in the request.",
+      "message": "Kailangan ang {{field}}. Ang field ng kinakailangang parameter ay hindi mahanap sa kahilingan."
+    }
+  ]
+}

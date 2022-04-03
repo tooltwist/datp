@@ -267,6 +267,10 @@ export default class StepInstance {
     return this.#metadata
   }
 
+  getLangFromMetadata() {
+    return this.#metadata.lang ? this.#metadata.lang : null
+  }
+
   getFullSequence() {
     return this.#fullSequence
   }

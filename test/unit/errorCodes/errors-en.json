@@ -1,0 +1,13 @@
+{
+  "scope": "unit-tests",
+  "lang": "EN",
+  "description": "Error codes for testing",
+  "errors": [
+    {
+      "name": "FIELD_IS_REQUIRED",
+      "httpStatus": 400,
+      "code": "400-0002",
+      "message": "{{field}} is required. Required parameter field cannot be found in the request."
+    }
+  ]
+}

@@ -22,6 +22,9 @@ import LongPoll from './ATP/Scheduler2/LongPoll'
 import { RETURN_TX_STATUS_WITH_LONGPOLL_CALLBACK } from './ATP/Scheduler2/returnTxStatusViaLongpollCallback'
 import { DuplicateExternalIdError } from './ATP/Scheduler2/TransactionPersistance'
 import DatpCron from './cron/cron'
+import { generateErrorByName, registerErrorLibrary } from './lib/errorCodes'
+import errors_datp_EN from './lib/errors-datp-EN'
+import errors_datp_FIL from './lib/errors-datp-FIL'
 
 const VERBOSE = 0
 
@@ -52,6 +55,10 @@ export async function goLive(server) {
   const name = await juice.string('datp.name', juice.OPTIONAL)
   const description = await juice.string('datp.description', juice.OPTIONAL)
   const serveMondat = await juice.boolean('datp.serveMondat', false)
+
+  // Register our DATP error codes
+  registerErrorLibrary(errors_datp_EN)
+  registerErrorLibrary(errors_datp_FIL)
 
   // Registering the healthcheck will allow the Load Balancer to recognise the server is active.
   healthcheck.registerRoutes(server)
@@ -274,8 +281,11 @@ export default {
   pause,
   prepareForUnitTesting,
 
-  // New v2.0 functions
+  // v2.0 functions
   startTransactionRoute,
   transactionStatusByTxIdRoute,
   transactionStatusByExternalIdRoute,
+
+  // v2.1.2 functions
+  generateErrorByName,
 }
