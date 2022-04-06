@@ -65,7 +65,7 @@ export async function route_transactionStatusV1(req, res, next) {
   const tx = await TransactionCache.getTransactionState(txId)
   // console.log(`tx=`, tx)
   if (!tx) {
-    console.log(`Unknown transaction ${txId}`)
+    console.log(`Transaction state not available: ${txId}`)
     res.send(new errors.NotFoundError(`Unknown transaction`))
     return next()
   }

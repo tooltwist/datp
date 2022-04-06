@@ -57,7 +57,9 @@ export async function getQueueStatsV1(req, res, next) {
       }
       if (shouldBeKnown) {
         // Should be in the main node list but was not. Must be an orphan.
+console.log(`FOUND AN ORPHAN NODE [${nodeId}] IN GROUP ${group.nodeGroup}`)
         group.orphanNodes[nodeId] = node
+        // console.log(`group.orphanNodes=`, group.orphanNodes)
         // console.log(`orphan node ${nodeId}`)
       } else {
         // Add to list
@@ -131,7 +133,8 @@ export async function getQueueStatsV1(req, res, next) {
     if (parts.length > 1) {
       const type = parts[0]
       const nodeGroup = parts[1]
-      const nodeId = (parts.length > 2) ? parts[2] : null
+      const nodeId = (parts.length >= 3) ? parts[2] : null
+      // console.log(`  nodeId=`, nodeId)
       const grp = getGroup(nodeGroup)
 
       switch (type) {
@@ -159,6 +162,9 @@ export async function getQueueStatsV1(req, res, next) {
             }
           }
           break
+
+        default:
+          console.trace(`Internal Error: unknown node type [${type}]`)
       }
     }
   }

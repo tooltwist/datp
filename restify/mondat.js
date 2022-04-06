@@ -17,6 +17,7 @@ import { deleteTestCasesV1, getTestCasesV1, saveTestCasesV1 } from '../mondat/te
 import { deleteTransactionMappingsV1, getTransactionMappingsV1, saveTransactionMappingsV1 } from '../mondat/transactionMapping';
 import { mondatTransactionsV1, route_transactionStatusV1 } from '../mondat/transactions';
 import { handleOrphanQueuesV1 } from '../mondat/handleOrphanQueues';
+import { routeCacheStatsV1 } from '../mondat/cacheStats';
 
 
 async function registerRoutes(server) {
@@ -136,6 +137,9 @@ async function registerRoutes(server) {
   ])
   defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/queueStats', [
     { versions: '1.0 - 1.0', handler: getQueueStatsV1, auth: LOGIN_IGNORED, noTenant: true }
+  ])
+  defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/cacheStats', [
+    { versions: '1.0 - 1.0', handler: routeCacheStatsV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
 
   /*
