@@ -17,6 +17,8 @@ const TYPE_MESSAGE = 'message'
 const TYPE_JSON = 'json'
 const TYPE_MYSQL = 'mapped'
 
+const VERBOSE = 0
+
 /*
  *  View object.
  */
@@ -319,9 +321,7 @@ export default class View {
   }
 
   async addField(schema, newField) {
-    console.log(`View.js:addField()`, newField)
-
-
+    if (VERBOSE) console.log(`View.js:addField()`, newField)
 
     let names = `tenant, version, view, name`
     let values = `?, ?, ?, ?`
@@ -387,9 +387,8 @@ export default class View {
     }
 
     const sql = `INSERT INTO formservice_field (${names}) VALUES (${values})`
-    console.log(`sql=`, sql)
-    console.log(`params=`, params)
-
+    if (VERBOSE) console.log(`sql=`, sql)
+    if (VERBOSE) console.log(`params=`, params)
     await query(sql, params)
   }
 

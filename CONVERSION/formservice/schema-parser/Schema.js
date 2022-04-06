@@ -201,7 +201,7 @@ export default class Schema {
     const sql = `INSERT INTO formservice_view (tenant, version, view, view_type) VALUES (?,?,?,?)`
     const params = [ this.tenant, version, viewName, viewType ]
     const reply = await query(sql, params)
-    console.log(`reply=`, reply)
+    // console.log(`reply=`, reply)
     return view
   }
 

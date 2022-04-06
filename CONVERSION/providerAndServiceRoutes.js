@@ -152,7 +152,7 @@ async function init(server) {
         }
         reply.push(record)
       }
-      console.log(`reply=`, reply)
+      // console.log(`reply=`, reply)
       res.send(reply)
       next()
     }}
