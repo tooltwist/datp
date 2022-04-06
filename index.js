@@ -124,27 +124,68 @@ export async function startTransactionRoute(req, res, next, tenant, transactionT
     data = { }
   }
   if (metadata) {
-    // Use the supplied value
+
+    // Use the metadata supplied by the function call
     // console.log(`Use provided metadata`)
   } else if (req.body && req.body.metadata) {
+
+    // Get the metadata from the body (POST or PUT request)
     metadata = req.body.metadata
   } else if (req.query) {
+
+    // Create the metadata from query parameters (GET request)
     metadata = {
       externalId: req.query.externalId ? req.query.externalId : null,
-      reply: req.query.reply ? req.query.reply : 'shortpoll'
+      poll: req.query.poll ? req.query.poll : null,
+      webhook: req.query.webhook ? req.query.webhook : null,
+      // Deprecated - use poll and webhook instead
+      reply: req.query.reply ? req.query.reply : null,
     }
   } else {
+
+    // Nowhere to get the metadata from.
     metadata = { }
   }
   const externalId = metadata.externalId ? metadata.externalId : null
   const reply = metadata.reply
-  const progressReports = metadata.progressReports ? true : false
 
   // Let's see how we should reply - shortpoll (default), longpoll, or webhook (http...)
   let callback = RETURN_TX_STATUS_WITH_LONGPOLL_CALLBACK
-  let context = { }
-  let isLongpoll = false
 
+  // Work out polling and webhook details.
+  let pollType = 'short'
+  let webhook = null
+  if (metadata.reply) {
+    // This is deprecated, but supported for a while.
+    if (metadata.reply === 'shortpoll' || metadata.reply === 'shortpoll') {
+      metadata.poll = 'short'
+    } else if (metadata.reply === 'longpoll' || metadata.reply === 'long') {
+      metadata.poll = 'long'
+    } else if (requiresWebhookReply(metadata)) {
+      metadata.webhook = metadata.reply
+    } else {
+      throw new Error('Invalid value for metadata.reply [${metadata.reply}]')
+    }
+    delete metadata.reply
+
+  } else if (!metadata.poll && !metadata.webhook) {
+
+    // Default with nothing specified
+    metadata.poll = 'short'
+  } else {
+
+    // Expect metadata.poll and metadata.webhook to be provided if required.
+    // metadata.reply not specified.
+    if (!metadata.poll) {
+      metadata.poll = 'short'
+    } else if (metadata.poll !== 'short' && metadata.poll !== 'long') {
+      throw new Error(`metadata.poll has invalid value [${metadata.poll}]`)
+    }
+  }
+
+
+
+  const context = { }
   if (requiresWebhookReply(metadata)) {
 
     // Reply by webhook.
@@ -152,25 +193,35 @@ export async function startTransactionRoute(req, res, next, tenant, transactionT
     if (VERBOSE) console.log(`Will reply with web hook to ${reply}`)
     if (VERBOSE && progressReports) console.log(`Will also send progress reports via webhook`)
     callback = RETURN_TX_STATUS_WITH_WEBHOOK_CALLBACK
-    context = { webhook: reply, progressReports }
-  } else if (reply  === 'longpoll') {
+    context.webhook = metadata.webhook
+    context.progressReports = !!metadata.progressReports
+
+  }
+  
+  //ZZZZ This 'else' will be removed once the two callbacks are combined:
+  // RETURN_TX_STATUS_WITH_WEBHOOK_CALLBACK
+  // RETURN_TX_STATUS_WITH_LONGPOLL_CALLBACK
+  else
+  if (metadata.poll  === 'long') {
 
     // Reply with LONG POLLING.
     // We'll retain the response object for a while and not reply to this API call
     // just yet, in the hope that the transaction completes and we can use the
     // response object to send our reply.
     callback = RETURN_TX_STATUS_WITH_LONGPOLL_CALLBACK
-    isLongpoll = true
-  } else if (reply === 'shortpoll' || reply === undefined) {
+    context.longpoll = true
+
+  } else {
+  // } else if (metadata.poll === 'shortpoll' || reply === undefined) {
 
     // By default we reply with SHORT POLLING.
     // We just reply as soon as the transaction is started.
     // However, we still use the longpoll callback in case the user polls
     // to get the transaction result before it completes, using long polling.
-  } else {
+  // } else {
 
-    // This should not happen.
-    throw new Error(`Invalid value for option 'reply' [${reply}]`)
+  //   // This should not happen.
+  //   throw new Error(`Invalid value for option 'reply' [${reply}]`)
   }
 
   /*
@@ -183,7 +234,7 @@ export async function startTransactionRoute(req, res, next, tenant, transactionT
   metadataCopy.transactionType = transactionType
   metadataCopy.onComplete = { callback, context }
 
-
+  // Sanitize the data.
   const dataCopy = deepCopy(data)
   // dataCopy.tenant = tenant //ZZZZZ Is this needed?
 
@@ -191,6 +242,13 @@ export async function startTransactionRoute(req, res, next, tenant, transactionT
   // console.log(`metadataCopy=`, metadataCopy)
   // console.log(`dataCopy=`, dataCopy)
 
+  // ZZZ Hack to see if metadata.replly still used somewhere.
+  metadataCopy.reply = {
+    get: () => {
+      console.trace('Accessing metadata.reply()')
+      throw new Error('metadata.reply is being used!!!')
+    }
+  };
 
 
   /*
@@ -201,7 +259,8 @@ export async function startTransactionRoute(req, res, next, tenant, transactionT
     tx = await schedulerForThisNode.startTransaction({ metadata: metadataCopy, data: dataCopy })
   } catch (e) {
 
-    // Return a message to the API caller
+    // An error occurred.
+    // Return a message to the API caller.
     if (e instanceof DuplicateExternalIdError) {
       res.send({
         metadata: {
@@ -215,14 +274,23 @@ export async function startTransactionRoute(req, res, next, tenant, transactionT
   }
   // console.log(`tx=`, tx)
 
-  if (isLongpoll) {
-    // Wait a while before returning, but allow the completing pipeline
-    // to hijack our response object if it finishes.
+  /*
+   * Now decide how we reply.
+   *  - for short poll, reply immediately. 
+   *  - for long polling, wait a while before returning, with the hope
+   *    that the completing transaction can grab the reponse object and
+   *    return the transaction status before we timeout.
+   * These actions are independant of whether a webhook is being used.
+   */
+  if (metadata.poll === 'long') {
+
+    // Long polling.
     if (VERBOSE) console.log(`DATP.startTransactionRoute() - REPLY AFTER A WHILE`)
-    return LongPoll.returnTxStatusAfterDelayWithPotentialEarlyReply(tenant, tx.getTxId(), res, next)
+    const cancelWebhook = !!metadata.webhook
+    return LongPoll.returnTxStatusAfterDelayWithPotentialEarlyReply(tenant, tx.getTxId(), res, next, cancelWebhook)
   } else {
 
-    // Reply with the current transaction status
+    // Short polling.
     let summary = await Transaction.getSummary(tenant, tx.getTxId())
     if (VERBOSE) console.log(`DATP.startTransactionRoute() - IMMEDIATE REPLY`)
 
