@@ -12,13 +12,14 @@ import GenerateHash from '../GenerateHash'
 import { PIPELINES_VERBOSE } from '../hardcoded-steps/PipelineStep'
 import { STEP_SUCCESS, STEP_ABORTED, STEP_FAILED, STEP_INTERNAL_ERROR } from '../Step'
 import Scheduler2 from './Scheduler2'
-import Transaction from './Transaction'
+// import Transaction from './Transaction'
 import TransactionCache from './TransactionCache'
+import { GO_BACK_AND_RELEASE_WORKER } from './Worker2'
 
 
 export const PIPELINE_STEP_COMPLETE_CALLBACK = `pipelineStepComplete`
 
-export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
+export async function pipelineStepCompleteCallback (callbackContext, nodeInfo, worker) {
   if (PIPELINES_VERBOSE) console.log(`==> Callback pipelineStepCompleteCallback() context=`, callbackContext, nodeInfo)
 
   // Get the transaction details
@@ -93,16 +94,27 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
         status: childStep.status
       }, 'pipelineStepCompleteCallback()')
 
+dbLogbook.bulkLogging(txId, pipelineStepId, [{
+  level: dbLogbook.LOG_LEVEL_TRACE,
+  source: dbLogbook.LOG_SOURCE_SYSTEM,
+  message: `delta count YARP ${tx.getDeltaCounter()}`
+}])
+
       // Send the event back to whoever started this step
       // const queueToParentOfPipeline = Scheduler2.groupQueueName(pipelineStep.onComplete.nodeGroup)
-      const queueToParentOfPipeline = Scheduler2.nodeExpressQueueName(pipelineStep.onComplete.nodeGroup, pipelineStep.onComplete.nodeId)
-      await schedulerForThisNode.enqueue_StepCompleted(queueToParentOfPipeline, {
+      const parentNodeGroup = pipelineStep.onComplete.nodeGroup
+      const parentNodeId = pipelineStep.onComplete.nodeId ? pipelineStep.onComplete.nodeId : null
+      const workerForShortcut = worker
+      const rv = await schedulerForThisNode.schedule_StepCompleted(parentNodeGroup, parentNodeId, tx, {
+      // const queueToParentOfPipeline = Scheduler2.nodeExpressQueueName(pipelineStep.onComplete.nodeGroup, pipelineStep.onComplete.nodeId)
+      // const rv = await schedulerForThisNode.enqueue_StepCompletedZZ(queueToParentOfPipeline, {
         txId,
         // parentStepId: '-',
         stepId: pipelineStepId,
         completionToken: pipelineStep.onComplete.completionToken
-      })
-      return
+      }, workerForShortcut)
+      assert(rv === GO_BACK_AND_RELEASE_WORKER)
+      return GO_BACK_AND_RELEASE_WORKER
 
     } else {
       /*
@@ -133,9 +145,9 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
       // pipline that runs on another node.
       const myNodeGroup = schedulerForThisNode.getNodeGroup()
       const myNodeId = schedulerForThisNode.getNodeId()
-      const queueToChild = Scheduler2.nodeRegularQueueName(myNodeGroup, myNodeId)
+      // const queueToChild = Scheduler2.nodeRegularQueueName(myNodeGroup, myNodeId)
 
-      await schedulerForThisNode.enqueue_StepStart(queueToChild, {
+      const rv = await schedulerForThisNode.schedule_StepStart(myNodeGroup, myNodeId, worker, {
         txId,
         nodeGroup: nodeInfo.nodeGroup, // Child runs in same node as the pipeline step
         stepId: childStepId,
@@ -153,7 +165,9 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
           context: { txId, parentNodeGroup: nodeInfo.nodeGroup, parentStepId: pipelineStepId, childStepId }
         }
       })
-    }
+      assert(rv === GO_BACK_AND_RELEASE_WORKER)
+      return GO_BACK_AND_RELEASE_WORKER
+    }//- initiate the next step
 
   } else if (
     childStatus === STEP_FAILED
@@ -177,14 +191,19 @@ export async function pipelineStepCompleteCallback (callbackContext, nodeInfo) {
     // console.log(`pipeline step is now`, tx.stepData(pipelineStepId))
 
     // Send the event back to whoever started this step
-    const queueToParentOfPipeline = Scheduler2.groupQueueName(pipelineStep.onComplete.nodeGroup)
-    await schedulerForThisNode.enqueue_StepCompleted(queueToParentOfPipeline, {
+    const parentNodeGroup = pipelineStep.onComplete.nodeGroup
+    const parentNodeId = pipelineStep.onComplete.nodeId ? pipelineStep.onComplete.nodeId : null
+    const workerForShortcut = worker
+    const rv = await schedulerForThisNode.schedule_StepCompleted(parentNodeGroup, parentNodeId, tx, {
+    // const queueToParentOfPipeline = Scheduler2.groupQueueName(pipelineStep.onComplete.nodeGroup)
+    // const rv = await schedulerForThisNode.enqueue_StepCompletedZZZ(queueToParentOfPipeline, {
       txId,
       // parentStepId: '-',
       stepId: pipelineStepId,
       completionToken: pipelineStep.onComplete.completionToken
-    })
-    return
+    }, workerForShortcut)
+    assert(rv === GO_BACK_AND_RELEASE_WORKER)
+    return GO_BACK_AND_RELEASE_WORKER
 
   } else {
     throw new Error(`Child has unknown status [${childStatus}]`)

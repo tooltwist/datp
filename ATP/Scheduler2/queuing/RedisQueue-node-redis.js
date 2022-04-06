@@ -14,7 +14,7 @@ import { createClient } from 'redis'
 require('colors')
 
 const STRING_PREFIX = 'string:::'
-const REDIS_LIST_PREFIX = 'datp:queue:'
+const EVENT_QUEUE_PREFIX = 'datp:queue:'
 const POP_TIMEOUT = 0
 
 const VERBOSE = 1
@@ -248,7 +248,7 @@ console.log(`url=`, url)//ZZZZZZ
   async queueLengths() {
     // console.log(`getQueueLengths()`)
     await this._checkLoaded()
-    const keys =  await this.#adminRedis.KEYS(`${REDIS_LIST_PREFIX}*`)
+    const keys =  await this.#adminRedis.KEYS(`${EVENT_QUEUE_PREFIX}*`)
     // console.log(`keys=`, keys)
 
     const queues = [ ] // [ { nodeGroup, nodeId?, queueLength }]
@@ -262,7 +262,7 @@ console.log(`url=`, url)//ZZZZZZ
 
         // Strip the prefix off the list name, to give the application's idea of the queue name.
         // group:GROUP or node:GROUP:NODEID or express:GROUP:NODEID
-        const suffix = key.substring(REDIS_LIST_PREFIX.length)
+        const suffix = key.substring(EVENT_QUEUE_PREFIX.length)
         queues.push({ name: suffix, length })
       }
     }
@@ -330,5 +330,5 @@ console.log(`url=`, url)//ZZZZZZ
 
 // Work out the list name
 function listName(queueName) {
-  return `${REDIS_LIST_PREFIX}${queueName}`
+  return `${EVENT_QUEUE_PREFIX}${queueName}`
 }

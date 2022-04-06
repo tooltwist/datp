@@ -8,11 +8,13 @@ import { schedulerForThisNode } from "../.."
 import { PIPELINES_VERBOSE } from "../hardcoded-steps/PipelineStep"
 import Scheduler2 from "./Scheduler2"
 import TransactionCache from "./TransactionCache"
+import { GO_BACK_AND_RELEASE_WORKER } from "./Worker2"
+import assert from "assert"
 
 
 export const ROOT_STEP_COMPLETE_CALLBACK = `rootStepComplete`
 
-export async function rootStepCompleteCallback (callbackContext, nodeInfo) {
+export async function rootStepCompleteCallback (callbackContext, nodeInfo, worker) {
   if (PIPELINES_VERBOSE) console.log(`==> Callback rootStepCompleteCallback()`, callbackContext, nodeInfo)
 
   // Get the details of the root step
@@ -41,25 +43,31 @@ export async function rootStepCompleteCallback (callbackContext, nodeInfo) {
   
   // Pass control back to the Transaction.
   // This occurs as an event, because the transaction may have been initiated in a different node group.
-  const nodeGroupWhereTransactionWasInitiated = txData.nodeGroup
+  const txInitNodeGroup = txData.nodeGroup
+  const txInitNodeId = txData.nodeId
+  // console.log(`txInitNodeGroup=`, txInitNodeGroup)
+  // console.log(`txInitNodeId=`, txInitNodeId)
 
   // If the transaction was initiated in a different node group, we'll reply via the group
   // queue for that nodeGroup. If it was initiated in the current node group, we'll
   // run it in this current node, so it'll have access to the cached transaction.
-  const myNodeGroup = schedulerForThisNode.getNodeGroup()
-  const myNodeId = schedulerForThisNode.getNodeId()
-  let queueName
-  if (nodeGroupWhereTransactionWasInitiated === myNodeGroup) {
-    // Run the new pipeline in this node - put the event in this node's pipeline.
-    queueName = Scheduler2.nodeExpressQueueName(myNodeGroup, myNodeId)
-  } else {
-    // The new pipeline will run in a different nodeGroup. Put the event in the group queue.
-    queueName = Scheduler2.groupQueueName(nodeGroupWhereTransactionWasInitiated)
-  }
+  // const myNodeGroup = schedulerForThisNode.getNodeGroup()
+  // const myNodeId = schedulerForThisNode.getNodeId()
+  // let queueName
+  // if (nodeGroupWhereTransactionWasInitiated === myNodeGroup) {
+  //   // Run the new pipeline in this node - put the event in this node's pipeline.
+  //   queueName = Scheduler2.nodeExpressQueueName(myNodeGroup, myNodeId)
+  // } else {
+  //   // The new pipeline will run in a different nodeGroup. Put the event in the group queue.
+  //   queueName = Scheduler2.groupQueueName(nodeGroupWhereTransactionWasInitiated)
+  // }
 
   // const queueName = Scheduler2.nodeRegularQueueName(txData.nodeGroup, txData.nodeId)
   // const queueName = Scheduler2.groupQueueName(txData.nodeGroup)
-  await schedulerForThisNode.enqueue_TransactionCompleted(queueName, {
+
+  const rv = await schedulerForThisNode.schedule_TransactionCompleted(txInitNodeGroup, txInitNodeId, worker, {
     txId: callbackContext.txId,
   })
+  assert(rv === GO_BACK_AND_RELEASE_WORKER)
+  return GO_BACK_AND_RELEASE_WORKER
 }

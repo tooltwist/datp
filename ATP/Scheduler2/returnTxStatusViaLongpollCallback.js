@@ -7,12 +7,13 @@
 import assert from 'assert'
 import { PIPELINES_VERBOSE } from '../hardcoded-steps/PipelineStep'
 import LongPoll from './LongPoll'
+import { GO_BACK_AND_RELEASE_WORKER } from './Worker2'
 
 require('colors')
 
 export const RETURN_TX_STATUS_WITH_LONGPOLL_CALLBACK = `returnTxStatusWithLongPoll`
 
-export async function returnTxStatusWithLongPollCallback (callbackContext, data) {
+export async function returnTxStatusWithLongPollCallback (callbackContext, data, worker) {
   if (PIPELINES_VERBOSE) console.log(`==> returnTxStatusWithLongPollCallback()`.magenta, callbackContext, data)
 
   assert(data.owner)
@@ -20,4 +21,5 @@ export async function returnTxStatusWithLongPollCallback (callbackContext, data)
 
   const sent = await LongPoll.tryToReply(data.txId)
   // console.log(`sent=`, sent)
+  return GO_BACK_AND_RELEASE_WORKER
 }//- returnTxStatusWithLongPollCallback

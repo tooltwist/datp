@@ -4,11 +4,14 @@
  * rights reserved. No warranty, explicit or implicit, provided. In no event shall
  * the author or owner be liable for any claim or damages.
  */
+import { assert } from 'joi'
 import { schedulerForThisNode } from '../..'
+import { getPipelineVersionInUse } from '../../database/dbPipelines'
 import { deepCopy } from '../../lib/deepCopy'
 import GenerateHash from '../GenerateHash'
 import { CHILD_PIPELINE_COMPLETION_CALLBACK } from '../Scheduler2/ChildPipelineCompletionCallback'
 import Scheduler2 from '../Scheduler2/Scheduler2'
+import { GO_BACK_AND_RELEASE_WORKER } from '../Scheduler2/Worker2'
 import Step from '../Step'
 import StepTypeRegister from '../StepTypeRegister'
 import XData from '../XData'
@@ -42,6 +45,14 @@ export class RouterStep extends Step {
   }//- constructor
 
 
+  /**
+   * Start this step.
+   * This function will use the input data to determine a pipeline to run,
+   * and will then initiate that pipeline.
+   * 
+   * @param {StepInstance} instance 
+   * @returns GO_BACK_AND_RELEASE_WORKER
+   */
   async invoke(instance) {
     if (ROUTERSTEP_VERBOSE) {
       // instance.trace(`*****`)
@@ -59,79 +70,94 @@ export class RouterStep extends Step {
     return await this.invokeChildPipeline(instance, pipelineName, null)
   }//- invoke
 
+
+  /**
+   * 
+   * @param {StepInstance} instance
+   * @param {string} pipelineName 
+   * @param {*} data 
+   * @returns 
+   */
   async invokeChildPipeline(instance, pipelineName, data) {
     if (ROUTERSTEP_VERBOSE) {
       // instance.trace(`*****`)
       instance.trace(`RouterStep::invokeChildPipeline (${pipelineName})`)
     }
 
-    const parentInstance = instance
-    const txId = parentInstance.getTransactionId()//ZZZZ rename
+    const txId = instance.getTransactionId()//ZZZZ rename
 
     // assert(data)
     if (!data) {
-      data = await parentInstance.getDataAsObject()
+      data = await instance.getDataAsObject()
     }
     if (ROUTERSTEP_VERBOSE) instance.trace(`RouterStep.invokeChildPipeline() input is `, data)
     const childData = deepCopy(data)
     if (ROUTERSTEP_VERBOSE) instance.trace(`RouterStep.invokeChildPipeline() data for child pipeline is `, childData)
-    const metadata = await parentInstance.getMetadata()
+    const metadata = await instance.getMetadata()
 
     // Start the child pipeline
     instance.trace(`Start child transaction pipeline - ${pipelineName}`)
-    const parentStepId = await parentInstance.getStepId()
-    const parentNodeGroup = parentInstance.getNodeGroup() // ZZZZ shouldn't this be the current node?
+    const parentStepId = await instance.getStepId()
+    const parentNodeGroup = instance.getNodeGroup() // ZZZZ shouldn't this be the current node?
     const myNodeGroup = schedulerForThisNode.getNodeGroup()
     const myNodeId = schedulerForThisNode.getNodeId()
     const childStepId = GenerateHash('s')
 
-    const childNodeGroup = myNodeGroup // Temporary hack - let's start it here
-
-    // If this pipeline runs in a different node group, we'll start it via the group
-    // queue for that nodeGroup. If the pipeline runs in the current node group, we'll
-    // run it in this current node, so it'll have access to the cached transaction.
-    let queueToNewPipeline
-    if (childNodeGroup === myNodeGroup) {
-      // Run the new pipeline in this node - put the event in this node's pipeline.
-      queueToNewPipeline = Scheduler2.nodeRegularQueueName(myNodeGroup, myNodeId)
-    } else {
-      // The new pipeline will run in a different nodeGroup. Put the event in the group queue.
-      queueToNewPipeline = Scheduler2.groupQueueName(childNodeGroup)
+    // Where does this pipeline run?
+    const pipelineDetails = await getPipelineVersionInUse(pipelineName)
+    if (ROUTERSTEP_VERBOSE) console.log(`RouterStep.invokeChildPipeline() - pipelineDetails:`, pipelineDetails)
+    if (!pipelineDetails) {
+      throw new Error(`Unknown transaction type ${metadata.transactionType}`)
     }
+    const childNodeGroup = pipelineDetails.nodeGroup
+    // const childNodeId = null
+
+    // // If this pipeline runs in a different node group, we'll start it via the group
+    // // queue for that nodeGroup. If the pipeline runs in the current node group, we'll
+    // // run it in this current node, so it'll have access to the cached transaction.
+    // let queueToNewPipeline
+    // if (childNodeGroup === myNodeGroup) {
+    //   // Run the new pipeline in this node - put the event in this node's pipeline.
+    //   queueToNewPipeline = Scheduler2.nodeRegularQueueName(myNodeGroup, myNodeId)
+    // } else {
+    //   // The new pipeline will run in a different nodeGroup. Put the event in the group queue.
+    //   queueToNewPipeline = Scheduler2.groupQueueName(childNodeGroup)
+    // }
 
     // const queueToPipelineNode = Scheduler2.groupQueueName(parentNodeGroup)
     // console.log(`parentNodeGroup=`, parentNodeGroup)
     // console.log(`queueToPipelineNode=`, queueToPipelineNode)
 
-    const childFullSequence = `${parentInstance.getFullSequence()}.1` // Start sequence at 1
+    const childFullSequence = `${instance.getFullSequence()}.1` // Start sequence at 1
 
 
     instance.trace(`Start child pipeline ${pipelineName}`)
     instance.syncLogs()
 
+    const workerForShortcut = instance.getWorker()
+    await schedulerForThisNode.schedule_StepStart(childNodeGroup, null, workerForShortcut, {
+      txId,
+      nodeGroup: childNodeGroup,
+      // nodeId: childNodeGroup,
+      stepId: childStepId,
+      // parentNodeId,
+      parentStepId,
+      fullSequence: childFullSequence,
+      stepDefinition: pipelineName,
+      metadata: metadata,
+      data: childData,
+      level: instance.getLevel() + 1,
+      onComplete: {
+        nodeGroup: myNodeGroup,
+        nodeId: myNodeId,
+        callback: CHILD_PIPELINE_COMPLETION_CALLBACK,
+        context: { txId, parentNodeGroup, parentStepId, childStepId }
+      }
+    })
 
-      // console.log(`metadata=`, metadata)
-      // console.log(`txdata=`, txdata)
-      // console.log(`parentNodeGroup=`, parentNodeGroup)
-      await schedulerForThisNode.enqueue_StepStart(queueToNewPipeline, {
-        txId,
-        nodeGroup: childNodeGroup,
-        // nodeId: childNodeGroup,
-        stepId: childStepId,
-        // parentNodeId,
-        parentStepId,
-        fullSequence: childFullSequence,
-        stepDefinition: pipelineName,
-        metadata: metadata,
-        data: childData,
-        level: parentInstance.getLevel() + 1,
-        onComplete: {
-          nodeGroup: myNodeGroup,
-          nodeId: myNodeId,
-          callback: CHILD_PIPELINE_COMPLETION_CALLBACK,
-          context: { txId, parentNodeGroup, parentStepId, childStepId }
-        }
-      })
+    // We need to tell the instance that we are returning without calling succeeded(), failed(), etc.
+    instance.stepWillNotCallCompletionFunction()
+    return GO_BACK_AND_RELEASE_WORKER
   }//- invoke
 
   /**

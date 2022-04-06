@@ -15,6 +15,7 @@ import { PIPELINES_VERBOSE } from '../hardcoded-steps/PipelineStep'
 import Transaction from './Transaction'
 import { schedulerForThisNode } from '../..'
 import dbLogbook from '../../database/dbLogbook'
+import { GO_BACK_AND_RELEASE_WORKER } from './Worker2'
 
 export const CHILD_PIPELINE_COMPLETION_CALLBACK = 'childPipelineComplete'
 
@@ -23,8 +24,9 @@ export const CHILD_PIPELINE_COMPLETION_CALLBACK = 'childPipelineComplete'
  * to a child pipeline. When the child pipline completes, the RouterStep completes with the
  * status of the child pipeline it invoked.
  */
-export async function childPipelineCompletionCallback (callbackContext, nodeInfo) {
-  if (PIPELINES_VERBOSE) console.log(`==> Callback childPipelineCompletionCallback()`, callbackContext, nodeInfo)
+export async function childPipelineCompletionCallback (callbackContext, nodeInfo, worker) {
+  // if (PIPELINES_VERBOSE)
+  console.log(`==> Callback childPipelineCompletionCallback()`, callbackContext, nodeInfo)
   // constructor() {
   //   super()
   // }
@@ -94,58 +96,19 @@ export async function childPipelineCompletionCallback (callbackContext, nodeInfo
 
 
         // Send the event back to whoever started this step
-        const queueToParent = Scheduler2.groupQueueName(parentStep.onComplete.nodeGroup)
-        await schedulerForThisNode.enqueue_StepCompleted(queueToParent, {
+        const parentNodeGroup = parentStep.onComplete.nodeGroup
+        const parentNodeId = parentStep.onComplete.nodeId ? parentStep.onComplete.nodeId : null
+
+console.log(`parentNodeId=`, parentNodeId)
+        const workerForShortcut = worker
+        const rv = await schedulerForThisNode.schedule_StepCompleted(parentNodeGroup, parentNodeId, tx, {
+        // const queueToParent = Scheduler2.groupQueueName(parentStep.onComplete.nodeGroup)
+        // const rv = await schedulerForThisNode.enqueue_StepCompletedZZ(queueToParent, {
           txId,
           // parentStepId: '-',
           stepId: parentStepId,
           completionToken: parentStep.onComplete.completionToken
-        })
-        return
-
-
-/*
-
-      // const parentStepId = callbackContext.parentStepId
-      // const parentIndexEntry = await Scheduler.getStepEntry(parentStepId)
-      // if (!parentIndexEntry) {
-      //   throw new Error(`Internal error 827772: could not find transfer step in Scheduler (${parentStepId})`)
-      // }
-      // const parentInstance = await parentIndexEntry.getStepInstance()
-
-      // Complete the parent step, based on what the child pipline returned.
-      assert(status !== STEP_FAILED) // Should not happen. Pipelines either rollback or abort.
-      switch (status) {
-        case STEP_COMPLETED:
-          console.log(`Child pipeline is COMPLETED`)
-          return await parentInstance.succeeded(note, response)
-
-        // case STEP_FAILED:
-        //   console.log(`Child pipeline is FAILED`)
-        //   return await parentInstance.failed(note, response)
-
-        case STEP_ABORTED:
-          console.log(`Child pipeline is ABORTED`)
-          return await parentInstance.failed(note, response)
-
-        default:
-          console.log(`------- Step completed with an unrecognised status ${status}`)
-          return await parentInstance.exceptionInStep(`Child transfer pipeline returned unknown status [${status}]`, { })
-      }
-*/
-    // } catch (e) {
-    //   console.trace(`Error in ChildPipelineCompletionHandler`, e)
-    //   throw e
-    // }
-  // }//- haveResult
+        }, workerForShortcut)
+        assert(rv === GO_BACK_AND_RELEASE_WORKER)
+        return GO_BACK_AND_RELEASE_WORKER
 }
-
-// async function register() {
-//   await ResultReceiverRegister.register(CHILD_PIPELINE_COMPLETION_HANDLER_NAME, new ChildPipelineCompletionHandler())
-// }//- register
-
-// const myDef = {
-//   register,
-//   CHILD_PIPELINE_COMPLETION_HANDLER_NAME
-// }
-// export default myDef

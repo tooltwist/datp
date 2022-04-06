@@ -12,6 +12,7 @@ import { logger } from '../../lib/pino-deltas'
 import juice from '@tooltwist/juice-client'
 
 const VERBOSE = 0
+
 let hackCount = 0
 let countDbAtpTransactionDelta = 0
 let countDbAtpTransactionInsert = 0

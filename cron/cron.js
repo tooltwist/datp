@@ -12,6 +12,8 @@ import juice from "@tooltwist/juice-client"
 
 export const CRON_INTERVAL = 15 // seconds
 const VERBOSE = 0
+const PERSIST_VERBOSE = 0
+
 
 export default class DatpCron {
 
@@ -88,14 +90,33 @@ export default class DatpCron {
     // Move these to the queue
     for (const tx of rows) {
       try {
+        // Clear the wake time, so we don't rerun it a second time. If required,
+        // the step will specify to rerun itself.
+        const sql2 = `UPDATE atp_transaction2 SET wake_time = NULL WHERE transaction_id = ?`
+        const params2 = [ tx.txId ]
+        await query(sql2, params2)
+
         // console.log(`Restarting transaction [${tx.txId}]`)
-        await schedulerForThisNode.enqueue_StepRestart(nodeGroup, tx.txId, tx.wakeStepId)  
+        await schedulerForThisNode.enqueue_StepRestart(nodeGroup, tx.txId, tx.wakeStepId)
       } catch (e) {
         // Log this and potentially cancel the sleep info in the transaction.
         //ZZZZZ
-        console.log(`Error while waking transaction:`)
-        console.log(`txId: ${tx.txId}`)
-        console.log(e)
+        console.log(`e.message=`, e.message)
+        if (e.message === `Unknown transaction ${tx.txId}`) {
+          //ZZZZZ This should notify the administrator
+          console.log(`---------------------------------------------------------------------------------------------------`)
+          console.log(`SERIOUS ERROR:`)
+          console.log(`Transaction was put to sleep, but when we try to re-awake it the transaction state has gone missing.`)
+          console.log(`Please investigate transaction ${tx.txId}.`)
+          console.log(`We will not try again.`)
+          console.log(`---------------------------------------------------------------------------------------------------`)
+        
+        } else {
+          //ZZZZZ This should notify the administrator
+          console.log(`Error while waking transaction:`)
+          console.log(`txId: ${tx.txId}`)
+          console.log(e)
+        }
       }
     }
   }
@@ -125,10 +146,10 @@ export default class DatpCron {
 
     // Check we have the config
     if (this.#persistInterval < 0) {
-      const persistInterval = await juice.integer('datp.statePersistanceInterval', 0) * 1000
+      const persistInterval = await juice.integer('datp.statePersistanceInterval', 0)
       this.#persistInterval = (persistInterval < 0) ? 0 : (persistInterval * 1000) // Convert to seconds
       if (this.#persistInterval > 0) {
-        console.log(`Node ${schedulerForThisNode.getNodeId()} will persist transaction states every ${this.#persistInterval} seconds.`)
+        console.log(`Node ${schedulerForThisNode.getNodeId()} will persist transaction states every ${this.#persistInterval/1000} seconds.`)
       }
     }
 
@@ -141,6 +162,7 @@ export default class DatpCron {
     const now = Date.now()
     if ((now - this.#lastPersisted) > this.#persistInterval) {
       // Let's do the persistance
+      if (PERSIST_VERBOSE) console.log(`Persisting transaction states.`)
       this.#lastPersisted = now
       await schedulerForThisNode.persistTransactionStatesToLongTermStorage()
     }

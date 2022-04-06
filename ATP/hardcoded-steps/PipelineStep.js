@@ -13,6 +13,7 @@ import GenerateHash from '../GenerateHash'
 import TransactionCache from '../Scheduler2/TransactionCache'
 import { PIPELINE_STEP_COMPLETE_CALLBACK } from '../Scheduler2/pipelineStepCompleteCallback'
 import { schedulerForThisNode } from '../..'
+import { GO_BACK_AND_RELEASE_WORKER } from '../Scheduler2/Worker2'
 
 // const STEP_COMPLETION_HANDLER = 'pipeline-step-completion-handler'
 export const PIPELINES_VERBOSE = 0
@@ -153,12 +154,6 @@ class Pipeline extends Step {
     const childStepId = childStepIds[0]
     const childNodeGroup = myNodeGroup // Step runs in same node as it's pipeline
 
-    // The child will run in this node - same as this pipeline.
-    // We keep the steps all running on the same node, so they all use the same
-    // cached transaction. We only jump to another node when we are calling a
-    // pipline that runs on another node.
-    const queueToStep = Scheduler2.nodeRegularQueueName(myNodeGroup, myNodeId)
-
     // console.log(`Pipline invoking step with ${queueToStep}`)
     // const queueToPipelineNode = Scheduler2.groupQueueName(parentNodeGroup)
     // console.log(`parentNodeGroup=`, parentNodeGroup)
@@ -169,10 +164,12 @@ class Pipeline extends Step {
     pipelineInstance.trace(`Start pipeline child #0`)
     pipelineInstance.syncLogs()
 
-    // console.log(`metadata=`, metadata)
-    // console.log(`txdata=`, txdata)
-    // console.log(`parentNodeGroup=`, parentNodeGroup)
-    await schedulerForThisNode.enqueue_StepStart(queueToStep, {
+    // The child will run in this node - same as this pipeline.
+    // We keep the steps in a pipeline all running on the same node, so they all use
+    // the same cached transaction state. We only jump to another node when we are
+    // calling a pipline that runs on another node.
+    const workerForShortcut = pipelineInstance.getWorker()
+    const rv = await schedulerForThisNode.schedule_StepStart(myNodeGroup, myNodeId, workerForShortcut, {
       txId,
       nodeGroup: childNodeGroup,
       // nodeId: childNodeGroup,
@@ -191,10 +188,16 @@ class Pipeline extends Step {
         context: { txId, parentNodeGroup, parentStepId, childStepId }
       }
     })
+    assert(rv === GO_BACK_AND_RELEASE_WORKER)
 
     //ZZZZ Handling of sync steps???
 
     //ZZZZ Perhaps we should get the new step ID above and double check it in the completion handler????
+
+
+    // We need to tell the instance that we are returning without calling succeeded(), failed(), etc.
+    pipelineInstance.stepWillNotCallCompletionFunction()
+    return GO_BACK_AND_RELEASE_WORKER
 
   }//- invoke
 }

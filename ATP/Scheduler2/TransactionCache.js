@@ -11,7 +11,8 @@ import Transaction from './Transaction'
 import TransactionPersistance from './TransactionPersistance'
 import assert from 'assert'
 import { schedulerForThisNode } from '../..'
-import { objectsAreTheSame } from '../../lib/objectDiff'
+import pause from '../../lib/pause'
+// import { objectsAreTheSame } from '../../lib/objectDiff'
 
 const PERSIST_FAST_DURATION = 10 // Almost immediately
 const PERSIST_REGULAR_DURATION = 120 // Two minutes
@@ -20,9 +21,11 @@ const VERBOSE = 0
 
 class TransactionCache {
   #cache
+  #cacheId // To check we only have one cache!
 
   constructor() {
     this.#cache = new Map() // txId => Transaction2
+    this.#cacheId = GenerateHash('cache')
   }
 
   /**
@@ -46,6 +49,13 @@ class TransactionCache {
     return tx
   }
 
+  assertNotInCache(txId) {
+    if (this.#cache.has(txId)) {
+      console.trace(`Transaction state for ${txId} should not be in the local transaction cache [${this.#cacheId}]`)
+      system.exit(1)
+    }
+  }
+
   /**
    *
    * @param {string} txId
@@ -67,9 +77,14 @@ class TransactionCache {
       return tx
     }
 
+    if (!loadIfNecessary) {
+      return null
+    }
+
     // Not in our in-memory cache
     // Try loading the transaction from our global (REDIS) cache
     if (VERBOSE) console.log(`TransactionCache.getTransactionState(${txId}): try to fetch from REDIS`)
+    // await pause(20)//ZZZZZZ Hack to give REDIS time to sync or flush or whatever...
     const tx1 = await schedulerForThisNode.getTransactionStateFromREDIS(txId)
 
     // Compare to the transaction reconstructed from deltas
@@ -85,6 +100,8 @@ class TransactionCache {
       if (saveInLocalMemoryCache) {
         this.#cache.set(txId, tx1)
       }
+      // YARP248
+      // console.log(`${schedulerForThisNode.getNodeId()}: yarp loaded ${txId} from REDIS (${tx1.getDeltaCounter()})`)
       return tx1
     }
 
@@ -152,12 +169,18 @@ class TransactionCache {
   async removeFromCache(txId) {
     if (VERBOSE) console.log(`TransactionCache.removeFromCache(${txId})`)
 
-    let tx = this.#cache.get(txId)
-    if (tx) {
-      this.#cache.delete(txId)
-    } else {
-      // Not in the cache
-    }
+    // let tx = this.#cache.get(txId)
+    // if (tx) {
+      const have1 = this.#cache.has(txId)
+      const rv = this.#cache.delete(txId)
+      const have2 = this.#cache.has(txId)
+      if (have1 && have2) {
+        console.log(`YARP TX CACHE DELETE IS NOT WORKING`)
+      }
+      return rv
+    // } else {
+    //   // Not in the cache
+    // }
   }
 
   /**
@@ -168,24 +191,36 @@ class TransactionCache {
    * @param {boolean} shortTerm Move to database very soon
    */
   async moveToGlobalCache(txId, shortTerm=false) {
-    if (VERBOSE) console.log(`TransactionCache.moveToGlobalCache(${txId}): persistence=${persistence}`)
+    if (VERBOSE) console.log(`TransactionCache.moveToGlobalCache(${txId}): shortTerm=${shortTerm}`)
 
     let tx = this.#cache.get(txId)
     if (tx) {
 
       // Save the transaction state in REDIS, and schedule it to be
       // saved to long term storage (and removal from REDIS).
-      if (shortTerm) {
-        await schedulerForThisNode.saveTransactionStateToREDIS(tx, PERSIST_FAST_DURATION)
-      } else if (!!persistence) {
-        await schedulerForThisNode.saveTransactionStateToREDIS(tx, PERSIST_REGULAR_DURATION)
-      }
+      const timeTillPersist = shortTerm ? PERSIST_FAST_DURATION : PERSIST_REGULAR_DURATION
+      await schedulerForThisNode.saveTransactionStateToREDIS(tx, timeTillPersist)
 
       // Delete from our memory cache here.
-      await this.removeFromCache(txId)
+      // await this.removeFromCache(txId)
+      this.#cache.delete(txId)
+
     } else {
-      // Not in the cache
+      // Not found in the cache
     }
+  }
+
+  /**
+   * Add a transaction state to the cache.
+   * This is used when the transaction state is passed between nodes within an event.
+   * @param {Transaction} tx 
+   */
+  async addToCache(tx) {
+    if (VERBOSE) console.log(`TransactionCache.addToCache():`, tx)
+
+    const txId = tx.getTxId()
+    assert(txId)
+    this.#cache.set(txId, tx)
   }
 
   // /**
@@ -211,7 +246,7 @@ class TransactionCache {
   // }
 
   async size() {
-    return this.#cache.size
+    return this.#cache.size // Yep, not a function.
   }
 
   /**

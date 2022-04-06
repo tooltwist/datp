@@ -12,6 +12,7 @@ import { PIPELINES_VERBOSE } from '../hardcoded-steps/PipelineStep'
 import Transaction from './Transaction'
 import juice from '@tooltwist/juice-client'
 import crypto from 'crypto'
+import { GO_BACK_AND_RELEASE_WORKER } from './Worker2'
 import { convertReply } from './ReplyConverter'
 
 require('colors')
@@ -28,15 +29,7 @@ export const WEBHOOK_EVENT_PROGRESS = 'progressReport'
 
 export const RETURN_TX_STATUS_WITH_WEBHOOK_CALLBACK = `returnTxStatusWithWebhook`
 
-export function requiresWebhookReply(metadata) {
-  return metadata.reply && (typeof(metadata.reply) === 'string') && metadata.reply.startsWith('http')
-}
-
-export function requiresWebhookProgressReports(metadata) {
-  return requiresWebhookReply(metadata) && metadata.progressReports
-}
-
-export async function returnTxStatusWithWebhookCallback (callbackContext, data) {
+export async function returnTxStatusWithWebhookCallback (callbackContext, data, worker) {
   if (PIPELINES_VERBOSE) console.log(`==> returnTxStatusWithWebhookCallback()`.magenta, callbackContext, data)
 
   assert(callbackContext.webhook)
@@ -44,6 +37,16 @@ export async function returnTxStatusWithWebhookCallback (callbackContext, data) 
   assert(data.txId)
 
   await sendStatusByWebhook(data.owner, data.txId, callbackContext.webhook, WEBHOOK_EVENT_TXSTATUS)
+  return GO_BACK_AND_RELEASE_WORKER
+}
+
+export function requiresWebhookReply(metadata) {
+  // return metadata.reply && (typeof(metadata.reply) === 'string') && metadata.reply.startsWith('http')
+  return (typeof(metadata.webhook) === 'string') && metadata.webhook.startsWith('http')
+}
+
+export function requiresWebhookProgressReports(metadata) {
+  return requiresWebhookReply(metadata) && metadata.progressReports
 }
 
 export async function sendStatusByWebhook(owner, txId, webhookUrl, eventType) {

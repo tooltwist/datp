@@ -174,6 +174,16 @@ export default class Transaction {
     }
   }
 
+  /**
+   * Return transaction state in it's JSON form.
+   * 
+   * @param {boolean} pretty Display with indenting
+   * @returns 
+   */
+  asJSON(pretty=false) {
+    return JSON.stringify(this.asObject(), '', pretty ? 2 : 0)
+  }
+
   txData() {
     return this.#tx
   }
@@ -388,7 +398,7 @@ export default class Transaction {
               wake_node_group=?,
               wake_step_id=?`
 
-            //ZZZZ Check that the transaction hasn't been updated by someone else.
+//ZZZZ Check that the transaction hasn't been updated by someone else.
             //  AND sequence_of_update=?   [ this.#sequenceOfUpdate ]
             const transactionOutputJSON = this.#transactionOutput ? JSON.stringify(this.#transactionOutput) : null
             const progressReportJSON = this.#progressReport ? JSON.stringify(this.#progressReport) : null
@@ -478,6 +488,7 @@ export default class Transaction {
       owner,
       transaction_id AS txId,
       external_id AS externalId,
+      transaction_type AS transactionType,
       status,
       sequence_of_update AS sequenceOfUpdate,
       progress_report AS progressReport,
@@ -541,6 +552,7 @@ export default class Transaction {
       owner,
       transaction_id AS txId,
       external_id AS externalId,
+      transaction_type AS transactionType,
       status,
       sequence_of_update AS sequenceOfUpdate,
       progress_report AS progressReport,
@@ -885,12 +897,12 @@ export default class Transaction {
     tx.#sequenceOfUpdate = obj.sequenceOfUpdate
     tx.#progressReport = obj.progressReport
     tx.#transactionOutput = obj.transactionOutput
-    tx.#completionTime = new Date(obj.completionTime)
+    tx.#completionTime = obj.completionTime ? new Date(obj.completionTime) : null
   
     // Sleep related stuff
-    tx.#sleepingSince = obj.sleepingSince
+    tx.#sleepingSince = obj.sleepingSince ? new Date(obj.sleepingSince) : null
     tx.#sleepCounter = obj.sleepCounter
-    tx.#wakeTime = obj.wakeTime
+    tx.#wakeTime = obj.wakeTime ? new Date(obj.wakeTime) : null
     tx.#wakeSwitch = obj.wakeSwitch
     tx.#wakeNodeGroup = obj.wakeNodeGroup
     tx.#wakeStepId = obj.wakeStepId

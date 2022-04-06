@@ -19,10 +19,15 @@ import dbLogbook from '../database/dbLogbook'
 import { DEEP_SLEEP_SECONDS } from '../datp-constants'
 import { requiresWebhookProgressReports, sendStatusByWebhook, WEBHOOK_EVENT_PROGRESS } from './Scheduler2/returnTxStatusWithWebhookCallback'
 import isEqual  from 'lodash.isequal'
+import { GO_BACK_AND_RELEASE_WORKER } from './Scheduler2/Worker2'
+import { ThirdPartyAttributeExtensionBuilder } from 'yoti'
 
 const VERBOSE = 0
+const PARANOID_RETRY = true
 
 export default class StepInstance {
+  #worker
+
   #txId
   #nodeGroup  // Cluster of redundant servers, performing the same role
   #nodeId     // Specific server
@@ -45,8 +50,11 @@ export default class StepInstance {
   // What to do after the step completes {nodeId, completionToken}
   #onComplete
 
+  #waitingForCompletionFunction
+
   constructor() {
     // console.log(`StepInstance.materialize()`, options)
+    this.#worker = null
 
     this.#nodeGroup = null
     this.#nodeId = null
@@ -76,6 +84,8 @@ export default class StepInstance {
     // recreated if we reload this stepInstance from persistant storage.
     this.stepObject = null
 
+    // This gets set when one of the step completion functions is called (succeeded, failed, aborted, etc)
+    this.#waitingForCompletionFunction = true
 
     this.TRACE = 'trace'
     this.WARNING = 'warning'
@@ -84,15 +94,15 @@ export default class StepInstance {
   }
 
 
-  async materialize(options, tx) {
+  async materialize(options, tx, worker) {
     // console.log(``)
 // console.log(`StepInstance.materialize options=`, options)
+    this.#worker = worker
+
     const txData = tx.txData()
     // console.log(`txData=`, txData)
     const stepData = tx.stepData(options.stepId)
     // console.log(`stepData=`, stepData)
-
-
 
     assert (typeof(options.txId) === 'string')
     assert (typeof(options.nodeGroup) === 'string')
@@ -203,6 +213,10 @@ export default class StepInstance {
     }
 
     // console.log(`END OF MATRIALIZE, txdata IS ${this.#txdata.getJson()}`.magenta)
+  }
+
+  getWorker() {
+    return this.#worker
   }
 
   getTxId() {
@@ -327,6 +341,7 @@ export default class StepInstance {
    */
   async succeeded(note, stepOutput) {
     if (VERBOSE) console.log(`StepInstance.succeeded(note=${note}, ${typeof stepOutput})`, stepOutput)
+    this.#waitingForCompletionFunction = false
 
     const myStepOutput = this._sanitizedOutput(stepOutput)
     if (VERBOSE) console.log(`succeeded: step out is `.magenta, myStepOutput)
@@ -355,29 +370,33 @@ export default class StepInstance {
     }, 'stepInstance.succeeded()')
 
 
-    // Tell the parent we've completed.
-    // If the parent is in the node group of this node, then we assume that
-    // it was invoked from within this node.
-    // We keep the steps all running on the same node as their pipellines, so they all
-    // use the same cached transaction. We only jump to another node when we are calling a
-    // pipline that runs on another node.
-    const myNodeGroup = schedulerForThisNode.getNodeGroup()
-    const myNodeId = schedulerForThisNode.getNodeId()
+    // // Tell the parent we've completed.
+    // // If the parent is in the node group of this node, then we assume that
+    // // it was invoked from within this node.
+    // // We keep the steps all running on the same node as their pipellines, so they all
+    // // use the same cached transaction. We only jump to another node when we are calling a
+    // // pipline that runs on another node.
+    // const myNodeGroup = schedulerForThisNode.getNodeGroup()
+    // const myNodeId = schedulerForThisNode.getNodeId()
+    // let queueName
+    // if (parentNodeGroup === myNodeGroup) {
+    //   // Use this node's personal express queue
+    //   queueName = Scheduler2.nodeRegularQueueName(myNodeGroup, myNodeId)
+    // } else {
+    //   // Use this group queue for the different node group
+    //   queueName = Scheduler2.groupQueueName(myNodeGroup)
+    // }
+    // const rv = await schedulerForThisNode.enqueue_StepCompletedZZ(queueName, {
     const parentNodeGroup = this.#onComplete.nodeGroup
-    let queueName
-    if (parentNodeGroup === myNodeGroup) {
-      // Use this node's personal express queue
-      queueName = Scheduler2.nodeRegularQueueName(myNodeGroup, myNodeId)
-    } else {
-      // Use this group queue for the different node group
-      queueName = Scheduler2.groupQueueName(myNodeGroup)
-    }
-    await schedulerForThisNode.enqueue_StepCompleted(queueName, {
+    const parentNodeId = this.#onComplete.nodeId ? this.#onComplete.nodeId : null
+    const workerForShortcut = this.#worker
+    const rv = await schedulerForThisNode.schedule_StepCompleted(parentNodeGroup, parentNodeId, tx, {
       txId: this.#txId,
       stepId: this.#stepId,
       completionToken: this.#onComplete.completionToken,
-    })
-
+    }, workerForShortcut)
+    assert(rv === GO_BACK_AND_RELEASE_WORKER)
+    return GO_BACK_AND_RELEASE_WORKER
   }
 
   /**
@@ -387,6 +406,7 @@ export default class StepInstance {
    */
   async aborted(note, stepOutput) {
     if (VERBOSE) console.log(`StepInstance.aborted(note=${note}, ${typeof stepOutput})`, stepOutput)
+    this.#waitingForCompletionFunction = false
 
     // Sync any buffered logs
     this.trace(`Step aborted`, dbLogbook.LOG_SOURCE_SYSTEM)
@@ -415,12 +435,18 @@ export default class StepInstance {
     }, 'stepInstance.aborted()')
 
     // Tell the parent we've completed.
-    const queueName = Scheduler2.groupQueueName(this.#onComplete.nodeGroup)
-    await schedulerForThisNode.enqueue_StepCompleted(queueName, {
+    // const queueName = Scheduler2.groupQueueName(this.#onComplete.nodeGroup)
+    const parentNodeGroup = this.#onComplete.nodeGroup
+    const parentNodeId = this.#onComplete.nodeId ? this.#onComplete.nodeId : null
+    const workerForShortcut = this.#worker
+    const rv = await schedulerForThisNode.schedule_StepCompleted(parentNodeGroup, parentNodeId, tx, {
+    // const rv = await schedulerForThisNode.enqueue_StepCompletedZZ(queueName, {
       txId: this.#txId,
       stepId: this.#stepId,
       completionToken: this.#onComplete.completionToken,
-    })
+    }, workerForShortcut)
+    assert(rv === GO_BACK_AND_RELEASE_WORKER)
+    return GO_BACK_AND_RELEASE_WORKER
   }
 
   /**
@@ -430,6 +456,7 @@ export default class StepInstance {
    */
   async failed(note, stepOutput) {
     if (VERBOSE) console.log(`Step failed (note=${note}, ${typeof stepOutput})`, stepOutput)
+    this.#waitingForCompletionFunction = false
 
     // Sync any buffered logs
     this.trace(`instance.failed(${note})`, dbLogbook.LOG_SOURCE_SYSTEM)
@@ -462,12 +489,18 @@ export default class StepInstance {
 
     // Tell the parent we've completed.
     // console.log(`replying to `, this.#onComplete)
-    const queueName = Scheduler2.groupQueueName(this.#onComplete.nodeGroup)
-    await schedulerForThisNode.enqueue_StepCompleted(queueName, {
+    const parentNodeGroup = this.#onComplete.nodeGroup
+    const parentNodeId = this.#onComplete.nodeId ? this.#onComplete.nodeId : null
+    const workerForShortcut = this.#worker
+    const rv = await schedulerForThisNode.schedule_StepCompleted(parentNodeGroup, parentNodeId, tx, {
+    // const queueName = Scheduler2.groupQueueName(this.#onComplete.nodeGroup)
+    // const rv = await schedulerForThisNode.enqueue_StepCompletedZZ(queueName, {
       txId: this.#txId,
       stepId: this.#stepId,
       completionToken: this.#onComplete.completionToken,
-    })
+    }, workerForShortcut)
+    assert(rv === GO_BACK_AND_RELEASE_WORKER)
+    return GO_BACK_AND_RELEASE_WORKER
   }
 
   /**
@@ -477,6 +510,7 @@ export default class StepInstance {
    */
   async badDefinition(msg) {
     console.log(`StepInstance.badDefinition(${msg})`)
+    this.#waitingForCompletionFunction = false
 
     // Sync any buffered logs
     this.trace(msg, dbLogbook.LOG_SOURCE_DEFINITION)
@@ -507,12 +541,18 @@ export default class StepInstance {
     }, 'stepInstance.badDefinition()')
 
     // Tell the parent we've completed.
-    const queueName = Scheduler2.groupQueueName(this.#onComplete.nodeGroup)
-    await schedulerForThisNode.enqueue_StepCompleted(queueName, {
+    const parentNodeGroup = this.#onComplete.nodeGroup
+    const parentNodeId = this.#onComplete.nodeId ? this.#onComplete.nodeId : null
+    const workerForShortcut = this.getWorker()
+    const rv = await schedulerForThisNode.schedule_StepCompleted(parentNodeGroup, parentNodeId, tx, {
+    // const queueName = Scheduler2.groupQueueName(this.#onComplete.nodeGroup)
+    // const rv = await schedulerForThisNode.enqueue_StepCompletedZZ(queueName, {
       txId: this.#txId,
       stepId: this.#stepId,
       completionToken: this.#onComplete.completionToken,
-    })
+    }, workerForShortcut)
+    assert(rv === GO_BACK_AND_RELEASE_WORKER)
+    return GO_BACK_AND_RELEASE_WORKER
   }
 
   /**
@@ -522,6 +562,7 @@ export default class StepInstance {
    */
   async exceptionInStep(message, e) {
     console.log(this.#indent + `StepInstance.exceptionInStep(${message})`, e)
+    this.#waitingForCompletionFunction = false
     // console.log(new Error('YARP').stack)
 
     // Sync any buffered logs
@@ -570,12 +611,18 @@ export default class StepInstance {
     }, 'stepInstance.exceptionInStep()')
 
     // Tell the parent we've completed.
-    const queueName = Scheduler2.groupQueueName(this.#onComplete.nodeGroup)
-    await schedulerForThisNode.enqueue_StepCompleted(queueName, {
+    const parentNodeGroup = this.#onComplete.nodeGroup
+    const parentNodeId = this.#onComplete.nodeId ? this.#onComplete.nodeId : null
+    const workerForShortcut = this.getWorker()
+    const rv = await schedulerForThisNode.schedule_StepCompleted(parentNodeGroup, parentNodeId, tx, {
+    // const queueName = Scheduler2.groupQueueName(this.#onComplete.nodeGroup)
+    // const rv = await schedulerForThisNode.enqueue_StepCompletedZZ(queueName, {
       txId: this.#txId,
       stepId: this.#stepId,
       completionToken: this.#onComplete.completionToken,
-    })
+    }, workerForShortcut)
+    assert(rv === GO_BACK_AND_RELEASE_WORKER)
+    return GO_BACK_AND_RELEASE_WORKER
   }
 
   /**
@@ -627,8 +674,10 @@ export default class StepInstance {
    */
   async retryLater(nameOfSwitch=null, sleepDuration=120) {
     sleepDuration = Math.round(sleepDuration)
-    const wakeTime = new Date(Date.now() + (sleepDuration * 1000))
     if (VERBOSE) console.log(`StepInstance.retryLater(nameOfSwitch=${nameOfSwitch}, sleepDuration=${sleepDuration})`)
+    this.#waitingForCompletionFunction = false
+
+    const wakeTime = new Date(Date.now() + (sleepDuration * 1000))
 
     // Sync any buffered logs
     this.trace(`Retry in ${sleepDuration} seconds at ${wakeTime.toLocaleTimeString('PST')}`, dbLogbook.LOG_SOURCE_SYSTEM)
@@ -646,13 +695,25 @@ export default class StepInstance {
       status: STEP_SLEEPING,
     }, 'stepInstance.retryLater()')
 
-// sleepDuration = 15
+    // During development, the server is often restarted during a sleep.
+    // At this point in the code the wake time has been written to the database,
+    // but the transaction state is only in local memory. Upon restart the cron
+    // process will see the wake request, but the transaction state is not
+    // available. Normally we only persist the transaction state for a long
+    // sleep, but in this paranoid mode we'll save it to REDIS immediately.
+    if (PARANOID_RETRY) {
+      const shortTerm = true
+      await TransactionCache.moveToGlobalCache(this.#txId, shortTerm)
+    }
 
+
+    // sleepDuration = 15
+
+    const nodeGroup = this.#nodeGroup
+    const txId = this.#txId
+    const stepId = this.#stepId
     if (sleepDuration < DEEP_SLEEP_SECONDS) {
-      const nodeGroup = this.#nodeGroup
-      const txId = this.#txId
-      const stepId = this.#stepId
-      console.log(`Step will nap for ${sleepDuration} seconds till ${wakeTime.toLocaleTimeString('PST')}`)
+      console.log(`Step will NAP for ${sleepDuration} seconds till ${wakeTime.toLocaleTimeString('PST')}`)
       console.log(`    tx: ${txId}`)
       console.log(`  step: ${stepId}`)
       setTimeout(async() => {
@@ -663,8 +724,18 @@ export default class StepInstance {
       }, sleepDuration * 1000)
     } else {
       // Long term sleep - will be woken by our cron process.
-      // Nothing to do here.
+      // We need to persist the transaction state, so the step can pick it up when it retries.
+      console.log(`Step will SLEEP for ${sleepDuration} seconds till ${wakeTime.toLocaleTimeString('PST')}`)
+      console.log(`    tx: ${txId}`)
+      console.log(`  step: ${stepId}`)
+
+      if (!PARANOID_RETRY) {
+        // Already moved to REDIS above.
+        const shortTerm = true
+        await TransactionCache.moveToGlobalCache(this.#txId, shortTerm)
+      }
     }
+    return GO_BACK_AND_RELEASE_WORKER
   }
 
   /**
@@ -808,6 +879,24 @@ console.log(new Error().stack)
       await dbLogbook.bulkLogging(this.#txId, this.#stepId, this.#logBuffer)
       this.#logBuffer = [ ]
     }
+  }
+
+  /**
+   * Normally, a step's invoke function must call one of the completion functions (succeeded, failed, aborted, etc) before
+   * returning. Pipelines however do not hang around waiting for their child steps to complete, and do not call any of
+   * these completion functions. Calling this function prevents an error occurring.
+   */
+  stepWillNotCallCompletionFunction() {
+    this.#waitingForCompletionFunction = false
+  }
+
+  /**
+   * This internal function is called by a worker to check that a step that has just completed used one of
+   * the instance completion functions to complete properly (i.e instance.succeeded, instance.failed, etc)
+   * @returns True if the step called one of the step completion functions.
+   */
+  _correctlyFinishedStep() {
+    return (this.#waitingForCompletionFunction === false)
   }
 
   // Add details into toString() when debugging

@@ -11,6 +11,8 @@ import { childPipelineCompletionCallback, CHILD_PIPELINE_COMPLETION_CALLBACK } f
 import { returnTxStatusWithWebhookCallback, RETURN_TX_STATUS_WITH_WEBHOOK_CALLBACK } from "./returnTxStatusWithWebhookCallback"
 import { rootStepCompleteCallback, ROOT_STEP_COMPLETE_CALLBACK } from "./rootStepCompleteCallback"
 import { returnTxStatusWithLongPollCallback, RETURN_TX_STATUS_WITH_LONGPOLL_CALLBACK } from "./returnTxStatusViaLongpollCallback"
+import assert from "assert"
+import { GO_BACK_AND_RELEASE_WORKER } from "./Worker2"
 
 const VERBOSE = 0
 
@@ -52,7 +54,7 @@ export default class CallbackRegister {
     CallbackRegister._index[name] = func
   }
 
-  static async call(name, context, nodeInfo) {
+  static async call(name, context, nodeInfo, worker) {
     if (VERBOSE) { console.log(`% CallbackRegister.call(${name})`, context, nodeInfo)}
     this._checkInitialized()
 
@@ -64,7 +66,10 @@ export default class CallbackRegister {
       }
       throw new Error(`Unknown callback [${name}]`)
     }
-    await func(context, nodeInfo)
+    const rv = await func(context, nodeInfo, worker)
+    // console.log(`name=`, name)
+    assert(rv === GO_BACK_AND_RELEASE_WORKER)
+    return GO_BACK_AND_RELEASE_WORKER
   }
 
 
