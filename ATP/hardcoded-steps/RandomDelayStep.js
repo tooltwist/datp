@@ -21,10 +21,10 @@ class RandomDelayStep extends Step {
     this.#minDelay = 500
     this.#maxDelay = 10000
 
-    if (definition.min) {
+    if (typeof(definition.min) !== 'undefined') {
       this.#minDelay = definition.min
     }
-    if (definition.max) {
+    if (typeof(definition.max) !== 'undefined') {
       this.#maxDelay = definition.max
     }
   }//- constructor
@@ -40,6 +40,7 @@ class RandomDelayStep extends Step {
       console.log(`RandomDelayStep (${instance.getStepId()})`)
     }
 
+// console.log(`1. util/delay - worker.state = ${instance.getWorker().getState()}`)
     // Deide how long to sleep
     const input = instance.getDataAsObject()
     if (input.delay) {
@@ -59,6 +60,7 @@ class RandomDelayStep extends Step {
     const minmax = (this.#maxDelay === this.#minDelay) ? `` : `(${this.#minDelay}ms - ${this.#maxDelay}ms)`
 
     instance.trace(`Delay ${delayMs}ms ${minmax}`)
+    // console.log(`2. util/delay - worker.state = ${instance.getWorker().getState()}`)
 
     // If this is the first time this step has been called, do the sleep.
     const counter = await instance.getRetryCounter()
@@ -69,18 +71,23 @@ class RandomDelayStep extends Step {
       }
       await instance.syncLogs()
 
-      
+// console.log(`delayMs=`, delayMs)
       if (delayMs < 10000) { // 10 seconds
         // Sleep using pause, which has millisecond resolution (sort of)
         instance.trace(`Will retry again in ${delayMs}ms`)
         await pause(delayMs)
+        // console.log(`3. util/delay - worker.state = ${instance.getWorker().getState()}`)
       } else {
         // Sleep using retry, which will work via cron
         const delaySeconds = Math.round(delayMs / 1000)
         instance.trace(`Will retry again in ${delaySeconds} seconds`)
-        return await instance.retryLater(null, delaySeconds)
+        // console.log(`4. util/delay - worker.state = ${instance.getWorker().getState()}`)
+        const rv = await instance.retryLater(null, delaySeconds)
+        // console.log(`4a. util/delay - worker.state = ${instance.getWorker().getState()}`)
+        return rv
       }
     }
+    // console.log(`5. util/delay - worker.state = ${instance.getWorker().getState()}`)
 
     // Time to finish
     const note = `${delayMs}ms`
@@ -88,7 +95,9 @@ class RandomDelayStep extends Step {
       console.log(`Random delay completed`)
     }
     const output = input
-    return await instance.succeeded(note, output)
+    const rv = await instance.succeeded(note, output)
+    // console.log(`6. util/delay - worker.state = ${instance.getWorker().getState()}`)
+    return rv
   }//- invoke
 }//- class RandomDelayStep
 
