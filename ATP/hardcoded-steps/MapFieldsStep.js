@@ -320,7 +320,18 @@ async function register() {
  async function defaultDefinition() {
   return {
     "targetView": "domain_service_request",
-    "mappingId": "domain_service_request",
+
+    _mappingId: 'string:Mapping Id',
+    mappingId: "domain_service_request",
+
+    retainInput: '_original',
+    _retainInput: 'string:Retain the input as',
+
+    _convertAmountsZ: 'text:Convert amount fields',
+    _convertDatesZ: 'text:Convert dates',
+    _appendFieldsZ: 'text:AppendFields',
+
+    _showJSON: true
   }
 }
 

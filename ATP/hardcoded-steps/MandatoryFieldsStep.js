@@ -4,7 +4,8 @@
  * rights reserved. No warranty, explicit or implicit, provided. In no event shall
  * the author or owner be liable for any claim or damages.
  */
-import { ConversionHandler, FormsAndFields } from '../..'
+import DATP, { ConversionHandler, FormsAndFields } from '../..'
+import { generateErrorByName } from '../../lib/errorCodes'
 import Step from '../Step'
 import StepTypes from '../StepTypeRegister'
 
@@ -33,9 +34,20 @@ const FORM_TENANT = 'datp'
  */
 class MandatoryFieldsStep extends Step {
   #view
-  #validations
-  #unknownFields
+  #unknownFields // Error if given unrecognized fields
+  #validateFieldTypes // Check the type of each field
+  #errorsAsOutput // Errors do not fail the transaction, but get passed in the output
   #definition
+
+  /**
+   * Validations are defined like this:
+   * ```javascript
+   * validations: {
+   *   'field.name': [ value1, value2, value3 ]
+   * }
+   * ```
+   */
+  #validations
 
   static UNKNOWN_FIELDS_IGNORE = 'ignore'
   static UNKNOWN_FIELDS_WARNING = 'warning'
@@ -47,13 +59,14 @@ class MandatoryFieldsStep extends Step {
     // console.log(`MandatoryFieldsStep.constructor()`, definition)
     this.#definition = definition
 
-
     this.#view = definition.view
     this.#validations = definition.validations ? definition.validations : [ ]
-    this.#unknownFields = definition.unknownFields ? definition.unknownFields : 'ignore'
+    this.#unknownFields = (typeof(definition.unknownFields)==='undefined') ? definition.unknownFields : 'ignore'
+    this.#validateFieldTypes = (typeof(definition.validateFieldTypes)==='undefined') ? false : !!definition.unknownFields
+    this.#errorsAsOutput = (typeof(definition.errorsAsOutput)==='undefined') ? false : !!definition.errorsAsOutput
   }
 
-  async validateView(instance, handler, viewName, errors, viewFieldIndex) {
+  async validateView(instance, handler, viewName, errors, viewFieldIndex, lang) {
     if (typeof(viewName) != 'string') {
       await instance.badDefinition(`Parameter 'view' must be a string`)
       return { fatal: true }
@@ -63,9 +76,7 @@ class MandatoryFieldsStep extends Step {
     const views = await FormsAndFields.getForms(FORM_TENANT, this.#view)
     // console.log(`views=`, views)
     if (views.length === 0) {
-      // await instance.badDefinition(`view parameter must be a string`)
-      errors.push(`Unknown view [${this.#view}]`)
-      // return true
+      await instance.badDefinition(`Unknown view [${this.#view}]`)
     }
 
     // Check all the fields exist
@@ -91,40 +102,128 @@ class MandatoryFieldsStep extends Step {
 
       // If the field is mandatory, check it is in the input
       // console.log(`fld=`, fld)
-      if (fld.mandatory) {
-        if (fld.type === 'amount3') {
-          // console.log(`\n\n----- IS amount3 ----\n`)
+      if (fld.type === 'amount3') {
 
-          // Special handling for amount3, which requires a three part object.
-          const value1 = handler.getSourceValue(`request:${fld.name}.currency`)
-          const value2 = handler.getSourceValue(`request:${fld.name}.unscaledAmount`)
-          const value3 = handler.getSourceValue(`request:${fld.name}.scale`)
-          if (value1 === null) {
-            errors.push(`Expected request to contain field [${fld.name}.currency]`)
-          }
-          if (value2 === null) {
-            errors.push(`Expected request to contain field [${fld.name}.unscaledAmount]`)
-          }
-          if (value3 === null) {
-            errors.push(`Expected request to contain field [${fld.name}.scale]`)
-          }
+        /*
+         *  Special handling for amount3, which requires a three part object.
+         */
 
+        // Check the currency
+        const value1 = handler.getSourceValue(`request:${fld.name}.currency`)
+        if (value1 != null) {
+          // Field found - perhaps check the type
+          if (this.#validateFieldTypes && typeof(value1) !== 'string') {
+            const error = generateErrorByName('FIELD_IS_INVALID', { field: `${fld.name}.currency` }, lang)
+            errors.push(error)
+          }
         } else {
-          // Regular field
-          // console.log(`==> mandatory ${fld.name} of type ${fld.type}`)
-          const value = handler.getSourceValue(`request:${fld.name}`)
-          // console.log(`    value=`, value)
-          if (value === null) {
-            errors.push(`Expected request to contain field [${fld.name}]`)
+          // Field not found. Is it mandatory?
+          if (fld.mandatory) {
+            const error = generateErrorByName('FIELD_IS_REQUIRED', { field: `${fld.name}.currency` }, lang)
+            errors.push(error)
           }
         }
 
+        // Check the unscaled amount
+        const value2 = handler.getSourceValue(`request:${fld.name}.unscaledAmount`)
+        if (value2 != null) {
+          // Found - perhaps check it is a number (can be float)
+          if (this.#validateFieldTypes && typeof(value2) !== 'number') {
+            const error = generateErrorByName('FIELD_IS_INVALID', { field: `${fld.name}.unscaledAmount` }, lang)
+            errors.push(error)
+          }
+        } else {
+          // Not found - was it mandatory?
+          if (fld.mandatory) {
+            const error = generateErrorByName('FIELD_IS_REQUIRED', { field: `${fld.name}.unscaledAmount` }, lang)
+            errors.push(error)
+          }
+        }
+
+        // Check the scale
+        const value3 = handler.getSourceValue(`request:${fld.name}.scale`)
+        if (value3 != null) {
+          // Found - perhaps check it is an integer
+          if (this.#validateFieldTypes && !Number.isInteger(value3)) {
+            const error = generateErrorByName('FIELD_IS_INVALID', { field: `${fld.name}.scale` }, lang)
+            errors.push(error)
+          }
+        } else {
+          // Not found - is it mandatory?
+          if (fld.mandatory) {
+            const error = generateErrorByName('FIELD_IS_REQUIRED', { field: `${fld.name}.scale` }, lang)
+            errors.push(error)
+          }
+        }
+
+      }//- fld.type === 'amount3'
+      else {
+
+        /*
+          *  This is a Regular single-value field (not amount3)
+          */
+        // console.log(`==> mandatory ${fld.name} of type ${fld.type}`)
+        const value = handler.getSourceValue(`request:${fld.name}`)
+        // console.log(`    value=`, value)
+        if (value !== null) {
+          // Field is provided - check the type of it's value
+          if (this.#validateFieldTypes) {
+            let valid
+            switch (fld.type) {
+              case 'string':
+                valid = typeof(value) === 'string'
+                break
+              case 'integer':
+                valid = typeof(value) === 'number' && Number.isInteger(value)
+                break
+              case 'float':
+              case 'amount':
+                valid = typeof(value) === 'number'
+                break
+              case 'boolean':
+                valid = typeof(value) === 'boolean'
+                break
+              case 'date':
+              case 'time':
+              case 'timestamp':
+                valid = typeof(value) === 'string'
+                break
+
+              default:
+                console.log(`Internal error: unknown field type [${fld.type}]`)
+            }
+            if (!valid) {
+              const error = generateErrorByName('FIELD_IS_INVALID', { field: fld.name }, lang)
+              errors.push(error)
+            }
+
+          }//- this.#validateFieldTypes
+        } else {
+
+          // Field is not provided. Is it mandatory?
+          if (fld.mandatory) {
+            const error = generateErrorByName('FIELD_IS_REQUIRED', { field: fld.name }, lang, null)
+            errors.push(error)
+          }
+        }
       }
+
     }
     return { fatal: false }
   }
 
-  async validateFields(instance, handler, validations, errors) {
+  /**
+   * Check validations defined in the step definition.
+   * Errors are added to the `errors` array.
+   * 
+   * @param {StepInstance} instance 
+   * @param {ConversionHandler} handler Used to get field values
+   * @param {object} validations Object { 'field.name': [ value1, value2, ...], ... }
+   * @param {Array} errors
+   * @param {string} lang 
+   * @returns object { fatal }
+   */
+  async validateFields(instance, handler, validations, errors, lang) {
     if (typeof(validations) != 'object') {
       await instance.badDefinition(`Parameter 'validations' must be an object`)
       return { fatal: true }
@@ -147,7 +246,9 @@ class MandatoryFieldsStep extends Step {
           }
         }
         if (!ok) {
-          errors.push(`Invalid value for field [${fieldName}=${actualValue}]. Acceptable values: ${values}`)
+          // Invalid value
+          const error = generateErrorByName('FIELD_ENUM_IS_INVALID', { field: fieldName, values }, lang, `{{field}} is invalid. Acceptable values: ${values}`)
+          errors.push(error)
         }
       }
     }
@@ -164,49 +265,54 @@ class MandatoryFieldsStep extends Step {
     instance.trace(`"${this.#view}"`)
 
     const data = await instance.getDataAsObject()
+    const lang = await instance.getLangFromMetadata()
+
     const handler = new ConversionHandler()
     handler.addSource('request', null, data)
     const errors = [ ]
     let viewName = null
     let viewFieldIndex = [ ]
-    let checkForUnknownFields = true
+    // let validateFieldTypes = (typeof(this.#definition.validateFieldTypes) === 'undefined') ? true : this.#definition.validateFieldTypes
+    // let errorsAsOutput = (typeof(this.#definition.errorsAsOutput) === 'undefined') ? true : this.#definition.errorsAsOutput
+    
 
     for (let def in this.#definition) {
       // console.log(`--------> `, def)
       switch (def) {
+
         case 'view':
           viewName = this.#definition.view
-          let { fatal2 } = await this.validateView(instance, handler, viewName, errors, viewFieldIndex)
+          let { fatal2 } = await this.validateView(instance, handler, viewName, errors, viewFieldIndex, lang)
           if (fatal2) {
             return
           }
           break
-        case 'unknownFields':
-          const unknownFields = this.#definition.unknownFields
-          if (!unknownFields) {
-            checkForUnknownFields = false
-          }
-          break
+
         case 'validations':
-          const validations = this.#definition.validations
+          // const validations = this.#definition.validations
           // console.log(`validations=`, validations)
           // console.log(`typeof(validations)=`, typeof(validations))
-          let { fatal3 } = await this.validateFields(instance, handler, validations, errors)
+          let { fatal3 } = await this.validateFields(instance, handler, this.#validations, errors, lang)
           if (fatal3) {
             return
           }
           break
+
+        case 'unknownFields':
         case 'stepType':
         case 'description':
+        case 'validateFieldTypes':
+        case 'errorsAsOutput':
           // Ignore these
           break
+
         default:
-          return await instance.badDefinition(`Unknown parameter in definition [${def}]`)
+          return await instance.badDefinition(`Unknown parameter in step definition [${def}]`)
       }
     }
 
-    // Check for unkown fields
-    if (checkForUnknownFields) {
+    // Check for unknown fields
+    if (!this.#unknownFields) {
       // console.log(`Checking fields`, viewFieldIndex)
       if (!viewName) {
         return await instance.badDefinition(`Cannot use [unknownFields] parameter without specifying [view]`)
@@ -214,22 +320,45 @@ class MandatoryFieldsStep extends Step {
       handler.recurseThroughAllFields('request', (fieldName, value) => {
         // console.log(`-> ${fieldName}, ${value}`)
         if (!viewFieldIndex[fieldName]) {
-          errors.push(`Unknown field [${fieldName}]`)
+          const error = generateErrorByName('FIELD_IS_UNKNOWN', { field: fieldName }, lang, null)
+          errors.push(error)
         }
       })
     }
 
     // Time to complete the step and send a result
     if (errors.length > 0) {
+
+      // Add errors to the transaction log.
       instance.trace(`${errors.length} errors:`)
       for (const error of errors) {
         instance.error(`    ${error}`)
+
+        // Strip out stuff the API user does not need.
+        delete error.httpStatus
+        delete error.scope
+        delete error.data
       }
-      instance.error(`Step failed due to invalid input.`)
-      return await instance.failed('Invalid input', errors)
+
+      // console.log(`this.#errorsAsOutput=`, this.#errorsAsOutput)
+      if (this.#errorsAsOutput) {
+
+        // Pass the errors in the output of the step
+        instance.error(`Errors passed to the next step.`)
+        data.mandatoryFieldErrors = errors
+        return await instance.succeeded('With errors', data)
+
+      } else {
+
+        // Fail the step
+        instance.error(`Step failed due to invalid input.`)
+        return await instance.failed('Invalid input', errors)
+      }
     }
+
+    // Successful
     instance.trace(`Step success`)
-    return await instance.succeeded('', data)
+    return await instance.succeeded('No errors', data)
   }
 }
 
@@ -249,6 +378,17 @@ async function register() {
  async function defaultDefinition() {
   return {
     "view": "std-SERVICE-request",
+    validateFieldTypes: true,
+    errorsAsOutput: false,
+    unknownFields: 'error',
+
+    // Field definitions
+    "_view": "standard-form:Fields to be validated",
+    "_errorsAsOutput": "checkbox:Send errors to the next step",
+    "_validateFieldTypes": "checkbox:Validate field types",
+    "_unknownFields": "select:How to handle unknown fields:ignore=Ignore:warning=Warning message:error=Error, cannot proceed",
+
+    _showJSON: true,
   }
 }
 
