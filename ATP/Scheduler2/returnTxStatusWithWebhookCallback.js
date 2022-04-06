@@ -12,6 +12,7 @@ import { PIPELINES_VERBOSE } from '../hardcoded-steps/PipelineStep'
 import Transaction from './Transaction'
 import juice from '@tooltwist/juice-client'
 import crypto from 'crypto'
+import { convertReply } from './ReplyConverter'
 
 require('colors')
 
@@ -92,12 +93,17 @@ export async function tryTheWebhook(owner, txId, webhookUrl, eventType, eventTim
     return
   }
 
+  // Convert the reply as required by the app.
+  // ReplyConverter
+  // console.log(`ReplyConverter 5`)
+  const { reply: convertedSummary } = convertReply(summary)
+
   // Prepare the webhook payload
   const payload = {
     eventType,
-    metadata: summary.metadata,
-    progressReport: summary.progressReport,
-    data: summary.data,
+    metadata: convertedSummary.metadata,
+    progressReport: convertedSummary.progressReport,
+    data: convertedSummary.data,
     eventTime,
     deliveryTime: new Date(),
   }
@@ -131,7 +137,7 @@ export async function tryTheWebhook(owner, txId, webhookUrl, eventType, eventTim
       errorMsg = 'ZZZZZZZZZ'
     } else {
       // Cancel the webhook
-      const message = JSON.stringify(summary)
+      const message = JSON.stringify(convertedSummary)
       const sql2 = `
         UPDATE atp_webhook
         SET status='complete', next_attempt = NULL, message=?

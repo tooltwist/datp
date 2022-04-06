@@ -5,6 +5,7 @@
  * the author or owner be liable for any claim or damages.
  */
 import query from "../../database/query"
+import { convertReply } from "./ReplyConverter"
 import Transaction from "./Transaction"
 
 const LONGPOLL_TIMEOUT = 15
@@ -36,6 +37,13 @@ export default class LongPoll {
       let summary = await Transaction.getSummary(tenant, txId)
       if (VERBOSE) console.log(`LongPoll:returnTxStatusAfterDelayWithPotentialEarlyReply - reply after timeout`, summary)
       response.send(summary)
+
+      // Convert the reply as required by the app.
+      // ReplyConverter
+      // console.log(`ReplyConverter 3`)
+      const { httpStatus, reply } = convertReply(summary)
+      response.send(httpStatus, reply)
+      // response.send(summary)
       return next()
     }, duration * 1000)
 
@@ -81,6 +89,12 @@ export default class LongPoll {
         console.log(`LongPoll:tryToReply - send summary`, json)
       }
       entry.response.send(summary)
+
+      // Convert the reply as required by the app.
+      // ReplyConverter
+      // console.log(`ReplyConverter 4`)
+      const { httpStatus, reply } = convertReply(summary)
+      entry.response.send(httpStatus, reply)
       entry.next()
 
       return true

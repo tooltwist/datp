@@ -25,6 +25,7 @@ import DatpCron from './cron/cron'
 import { generateErrorByName, registerErrorLibrary } from './lib/errorCodes'
 import errors_datp_EN from './lib/errors-datp-EN'
 import errors_datp_FIL from './lib/errors-datp-FIL'
+import { registerReplyConverter, convertReply } from './ATP/Scheduler2/ReplyConverter'
 
 const VERBOSE = 0
 
@@ -172,7 +173,9 @@ export async function startTransactionRoute(req, res, next, tenant, transactionT
     throw new Error(`Invalid value for option 'reply' [${reply}]`)
   }
 
-  // Sanitize the metadata to make sure it contains no mischief (getters/setter, functions, etc)
+  /*
+   *  Sanitize the metadata and data to make sure it contains no mischief (getters/setter, functions, etc)
+   */
   const metadataCopy = deepCopy(metadata)
   metadataCopy.owner = tenant
   metadataCopy.nodeGroup = 'master'
@@ -188,6 +191,11 @@ export async function startTransactionRoute(req, res, next, tenant, transactionT
   // console.log(`metadataCopy=`, metadataCopy)
   // console.log(`dataCopy=`, dataCopy)
 
+
+
+  /*
+   *  Start the transaction.
+   */
   let tx
   try {
     tx = await schedulerForThisNode.startTransaction({ metadata: metadataCopy, data: dataCopy })
@@ -217,25 +225,37 @@ export async function startTransactionRoute(req, res, next, tenant, transactionT
     // Reply with the current transaction status
     let summary = await Transaction.getSummary(tenant, tx.getTxId())
     if (VERBOSE) console.log(`DATP.startTransactionRoute() - IMMEDIATE REPLY`)
-    res.send(summary)
+
+    // Convert the reply as required by the app.
+    // ReplyConverter
+    // console.log(`ReplyConverter 1`)
+    const { httpStatus, reply } = convertReply(summary)
+    res.send(httpStatus, reply)
+    // res.send(summary)
     next()
   }// !isLongpoll
 }//- startTransactionRoute
 
 
 export async function transactionStatusByTxIdRoute(req, res, next) {
-  console.log(`\n----- transactionStatusByTxIdRoute()`)
-  console.log(`req.params=`, req.params)
+  // console.log(`\n----- transactionStatusByTxIdRoute()`)
+  // console.log(`req.params=`, req.params)
 
   const tenant = await tenantFromCredentials(req)
   const txId = req.params.txId
-  console.log(`txId=`, txId)
+  // console.log(`txId=`, txId)
   assert(txId)
 
   const summary = await Transaction.getSummary(tenant, txId)
-  console.log(`summary=`, summary)
+  // console.log(`summary=`, summary)
   if (summary) {
-    res.send(summary)
+
+    // Convert the reply as required by the app.
+    // ReplyConverter
+    // console.log(`ReplyConverter 2`)
+    const { httpStatus, reply } = convertReply(summary)
+    res.send(httpStatus, reply)
+    // res.send(summary)
     return next()
   } else {
     res.send(new errors.NotFoundError('Unknown transaction'))
@@ -244,15 +264,15 @@ export async function transactionStatusByTxIdRoute(req, res, next) {
 }
 
 export async function transactionStatusByExternalIdRoute(req, res, next) {
-  console.log(`\n----- transactionStatusByExternalIdRoute()`)
-  console.log(`req.params=`, req.params)
+  // console.log(`\n----- transactionStatusByExternalIdRoute()`)
+  // console.log(`req.params=`, req.params)
 
   const tenant = await tenantFromCredentials(req)
   const externalId = req.params.externalId
   assert(externalId)
 
   const summary = await Transaction.getSummaryByExternalId(tenant, externalId)
-  console.log(`summary=`, summary)
+  // console.log(`summary=`, summary)
   if (summary) {
     res.send(summary)
     return next()
@@ -288,4 +308,5 @@ export default {
 
   // v2.1.2 functions
   generateErrorByName,
+  registerReplyConverter,
 }
