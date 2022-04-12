@@ -4,15 +4,12 @@
  * rights reserved. No warranty, explicit or implicit, provided. In no event shall
  * the author or owner be liable for any claim or damages.
  */
-import XData from '../XData'
 import assert from 'assert'
 import TransactionCache from './TransactionCache'
-import Scheduler2 from './Scheduler2'
 import { STEP_FAILED } from '../Step'
 import { ROUTERSTEP_VERBOSE } from '../hardcoded-steps/RouterStep'
 import indentPrefix from '../../lib/indentPrefix'
 import { PIPELINES_VERBOSE } from '../hardcoded-steps/PipelineStep'
-import Transaction from './Transaction'
 import { schedulerForThisNode } from '../..'
 import dbLogbook from '../../database/dbLogbook'
 import { GO_BACK_AND_RELEASE_WORKER } from './Worker2'
@@ -25,8 +22,7 @@ export const CHILD_PIPELINE_COMPLETION_CALLBACK = 'childPipelineComplete'
  * status of the child pipeline it invoked.
  */
 export async function childPipelineCompletionCallback (callbackContext, nodeInfo, worker) {
-  // if (PIPELINES_VERBOSE)
-  console.log(`==> Callback childPipelineCompletionCallback()`, callbackContext, nodeInfo)
+  if (PIPELINES_VERBOSE) console.log(`==> Callback childPipelineCompletionCallback()`, callbackContext, nodeInfo)
   // constructor() {
   //   super()
   // }
@@ -99,7 +95,6 @@ export async function childPipelineCompletionCallback (callbackContext, nodeInfo
         const parentNodeGroup = parentStep.onComplete.nodeGroup
         const parentNodeId = parentStep.onComplete.nodeId ? parentStep.onComplete.nodeId : null
 
-console.log(`parentNodeId=`, parentNodeId)
         const workerForShortcut = worker
         const rv = await schedulerForThisNode.schedule_StepCompleted(parentNodeGroup, parentNodeId, tx, {
         // const queueToParent = Scheduler2.groupQueueName(parentStep.onComplete.nodeGroup)

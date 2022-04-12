@@ -19,7 +19,11 @@ export async function returnTxStatusWithLongPollCallback (callbackContext, data,
   assert(data.owner)
   assert(data.txId)
 
-  const sent = await LongPoll.tryToReply(data.txId)
+  const { sent, cancelWebhook }  = await LongPoll.tryToReply(data.txId)
+  console.log(`sent=`, sent)
+  console.log(`cancelWebhook=`, cancelWebhook)
+
+  // const sent = await LongPoll.tryToReply(data.txId)
   // console.log(`sent=`, sent)
   return GO_BACK_AND_RELEASE_WORKER
 }//- returnTxStatusWithLongPollCallback

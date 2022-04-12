@@ -5,12 +5,10 @@
  * the author or owner be liable for any claim or damages.
  */
 
-import { doNotReturnTxResultCallback, DO_NOT_RETURN_TX_RESULT_CALLBACK } from "./doNotReturnTxResult"
 import { pipelineStepCompleteCallback, PIPELINE_STEP_COMPLETE_CALLBACK } from "./pipelineStepCompleteCallback"
 import { childPipelineCompletionCallback, CHILD_PIPELINE_COMPLETION_CALLBACK } from "./ChildPipelineCompletionCallback"
-import { returnTxStatusWithWebhookCallback, RETURN_TX_STATUS_WITH_WEBHOOK_CALLBACK } from "./returnTxStatusWithWebhookCallback"
 import { rootStepCompleteCallback, ROOT_STEP_COMPLETE_CALLBACK } from "./rootStepCompleteCallback"
-import { returnTxStatusWithLongPollCallback, RETURN_TX_STATUS_WITH_LONGPOLL_CALLBACK } from "./returnTxStatusViaLongpollCallback"
+import { returnTxStatusCallback, RETURN_TX_STATUS_CALLBACK } from "./returnTxStatusCallback"
 import assert from "assert"
 import { GO_BACK_AND_RELEASE_WORKER } from "./Worker2"
 
@@ -35,9 +33,7 @@ export default class CallbackRegister {
       CallbackRegister._index[ROOT_STEP_COMPLETE_CALLBACK] = rootStepCompleteCallback
       CallbackRegister._index[PIPELINE_STEP_COMPLETE_CALLBACK] = pipelineStepCompleteCallback
       CallbackRegister._index[CHILD_PIPELINE_COMPLETION_CALLBACK] = childPipelineCompletionCallback
-      CallbackRegister._index[RETURN_TX_STATUS_WITH_WEBHOOK_CALLBACK] = returnTxStatusWithWebhookCallback
-      CallbackRegister._index[RETURN_TX_STATUS_WITH_LONGPOLL_CALLBACK] = returnTxStatusWithLongPollCallback
-      CallbackRegister._index[DO_NOT_RETURN_TX_RESULT_CALLBACK] = doNotReturnTxResultCallback // They reply will be accessed via short polling
+      CallbackRegister._index[RETURN_TX_STATUS_CALLBACK] = returnTxStatusCallback
     }
   }
 

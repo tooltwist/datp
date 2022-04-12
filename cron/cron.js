@@ -5,10 +5,10 @@
  * the author or owner be liable for any claim or damages.
  */
 import { schedulerForThisNode } from ".."
-import { tryTheWebhook } from "../ATP/Scheduler2/returnTxStatusWithWebhookCallback"
 import { STEP_SLEEPING } from "../ATP/Step"
 import query from "../database/query"
 import juice from "@tooltwist/juice-client"
+import { tryTheWebhook } from "../ATP/Scheduler2/returnTxStatusCallback"
 
 export const CRON_INTERVAL = 15 // seconds
 const VERBOSE = 0

@@ -9,7 +9,6 @@ import Step, { STEP_ABORTED, STEP_FAILED, STEP_INTERNAL_ERROR, STEP_RUNNING, STE
 import dbPipelines from "../database/dbPipelines"
 import XData, { dataFromXDataOrObject } from "./XData"
 import { STEP_TYPE_PIPELINE } from './StepTypeRegister'
-import Scheduler2 from "./Scheduler2/Scheduler2";
 import TransactionCache from "./Scheduler2/TransactionCache";
 import indentPrefix from '../lib/indentPrefix'
 import assert from 'assert'
@@ -17,10 +16,9 @@ import Transaction from './Scheduler2/Transaction'
 import { schedulerForThisNode } from '..'
 import dbLogbook from '../database/dbLogbook'
 import { DEEP_SLEEP_SECONDS } from '../datp-constants'
-import { requiresWebhookProgressReports, sendStatusByWebhook, WEBHOOK_EVENT_PROGRESS } from './Scheduler2/returnTxStatusWithWebhookCallback'
 import isEqual  from 'lodash.isequal'
 import { GO_BACK_AND_RELEASE_WORKER } from './Scheduler2/Worker2'
-import { ThirdPartyAttributeExtensionBuilder } from 'yoti'
+import { requiresWebhookProgressReports, sendStatusByWebhook, WEBHOOK_EVENT_PROGRESS } from './Scheduler2/returnTxStatusCallback'
 
 const VERBOSE = 0
 const PARANOID_RETRY = true
@@ -462,7 +460,14 @@ export default class StepInstance {
     this.trace(`instance.failed(${note})`, dbLogbook.LOG_SOURCE_SYSTEM)
     await this.syncLogs()
 
-    const myStepOutput = this._sanitizedOutput(stepOutput)
+    let myStepOutput
+    try {
+      myStepOutput = this._sanitizedOutput(stepOutput)
+    } catch (e) {
+      console.log(`StepInstance.failed: Could not get the output from failed step.`)
+      console.log(`stepOutput=`, stepOutput)
+      myStepOutput = { }
+    }
     if (VERBOSE) console.log(`failed: step out is `.magenta, myStepOutput)
 
     // Quick sanity check - make sure this step is actually running, and has not already exited.

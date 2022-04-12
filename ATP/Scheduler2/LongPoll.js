@@ -128,12 +128,12 @@ export default class LongPoll {
         }
       }
 
-      return true
+      return { sent: true, cancelWebhook: entry.cancelWebhook }
     }
 
     // Could not send the reply via long poll
     if (VERBOSE) console.log(`LongPoll:tryToReply - entry not found`)
-    return false
+    return { sent: false, cancelWebhook: false }
   }
 
   /**

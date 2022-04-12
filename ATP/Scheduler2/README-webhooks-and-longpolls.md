@@ -1,18 +1,42 @@
-# Webhooks
+# Webhooks and Longpolls
 
-The API client has request to receive updates on transaction status by providing a URL in the request.
+ZZZ This needs to be revised - Phil 12th April 2022
+
+
+The API client can request to receive updates on transaction status by providing a
+webhook URL in the request. They can also use long polling to get the transaction
+result, provided the transaction completes within the configured timeout.
 
 ```json
 {
-  "reply": "http://..........",
-  "progressReports": true
+  "webhook": "http..........",
+  "progressReports": true,
+  "poll": "long"
 }
 ```
 
 If progress reports is also true, the webhook will also be called whenever the _progress report_  value for the transaction changes.
 
 ## Completed Transactions
-Transaction completion, whether success or failure, is reported by the webhook via the completion handler for the transaction pipeline. The name is `RETURN_TX_STATUS_WITH_WEBHOOK_CALLBACK` and it is handled in `returnTxStatusWithWebhookCallback.js`. The completion handler runs on the same node as the transaction pipeline, and calls `sendStatusByWebhook()`
+Transaction completion, whether success or failure, is reported via the completion handler for the transaction pipeline. The name is `RETURN_TX_STATUS_CALLBACK` and it is handled in `returnTxStatusCallback.js`. The completion handler runs on the same node as the transaction pipeline.
+
+First it tries to send the ttransaction status to the API client via long poll,
+and will succeed if there is currently an API long polling to get the transaction
+status. This could be the initial transaction initiation request, or a subsequent
+call to get the transaction status, in either case having long polling set.
+
+The completion handler also tries to reply via webhook, if the transaction
+initiation request specified a webhook, by calling `sendStatusByWebhook()`.
+
+It is possible to have the transaction status returned by both long polling _and_
+the webhook. There is a special case however...
+
+If the API call that initiates the transaction specified long polling, and the
+transaction completes before that long poll timeouts, then the transaction
+status will be returned by the longpoll, but not by the webook.
+
+Once the initial API call's long poll expires however, this webhook cancelling
+will not occur.
 
 ## Progress reports
 Progress reports are triggered within `StepInstance.progressReport()` when the progress report value is changed, by also calling `sendStatusByWebhook()`.

@@ -15,19 +15,18 @@ import juice from '@tooltwist/juice-client'
 import { RouterStep as RouterStepInternal } from './ATP/hardcoded-steps/RouterStep'
 import pause from './lib/pause'
 import Scheduler2 from './ATP/Scheduler2/Scheduler2'
-import { requiresWebhookReply, RETURN_TX_STATUS_WITH_WEBHOOK_CALLBACK } from './ATP/Scheduler2/returnTxStatusWithWebhookCallback'
 import Transaction from './ATP/Scheduler2/Transaction'
 import { deepCopy } from './lib/deepCopy'
 import LongPoll from './ATP/Scheduler2/LongPoll'
-import { RETURN_TX_STATUS_WITH_LONGPOLL_CALLBACK } from './ATP/Scheduler2/returnTxStatusViaLongpollCallback'
 import { DuplicateExternalIdError } from './ATP/Scheduler2/TransactionPersistance'
 import DatpCron from './cron/cron'
 import { generateErrorByName, registerErrorLibrary } from './lib/errorCodes'
 import errors_datp_EN from './lib/errors-datp-EN'
 import errors_datp_FIL from './lib/errors-datp-FIL'
 import { registerReplyConverter, convertReply } from './ATP/Scheduler2/ReplyConverter'
+import { requiresWebhookReply, RETURN_TX_STATUS_CALLBACK } from './ATP/Scheduler2/returnTxStatusCallback'
 
-const VERBOSE = 0
+const VERBOSE = 1
 
 export const Step = step
 export const StepTypes = stepTypeRegister
@@ -150,21 +149,21 @@ export async function startTransactionRoute(req, res, next, tenant, transactionT
   const reply = metadata.reply
 
   // Let's see how we should reply - shortpoll (default), longpoll, or webhook (http...)
-  let callback = RETURN_TX_STATUS_WITH_LONGPOLL_CALLBACK
+  let callback = RETURN_TX_STATUS_CALLBACK
 
   // Work out polling and webhook details.
   let pollType = 'short'
   let webhook = null
   if (metadata.reply) {
     // This is deprecated, but supported for a while.
-    if (metadata.reply === 'shortpoll' || metadata.reply === 'shortpoll') {
+    if (metadata.reply === 'shortpoll' || metadata.reply === 'short') {
       metadata.poll = 'short'
     } else if (metadata.reply === 'longpoll' || metadata.reply === 'long') {
       metadata.poll = 'long'
-    } else if (requiresWebhookReply(metadata)) {
+    } else if (typeof(metadata.reply)==='string' && metadata.reply.startsWith('http')) {
       metadata.webhook = metadata.reply
     } else {
-      throw new Error('Invalid value for metadata.reply [${metadata.reply}]')
+      throw new Error(`Invalid value for metadata.reply [${metadata.reply}]`)
     }
     delete metadata.reply
 
@@ -191,24 +190,23 @@ export async function startTransactionRoute(req, res, next, tenant, transactionT
     // Reply by webhook.
     // Note that this does not preclude polling to get the status.
     if (VERBOSE) console.log(`Will reply with web hook to ${reply}`)
-    if (VERBOSE && progressReports) console.log(`Will also send progress reports via webhook`)
-    callback = RETURN_TX_STATUS_WITH_WEBHOOK_CALLBACK
+    callback = RETURN_TX_STATUS_CALLBACK
     context.webhook = metadata.webhook
     context.progressReports = !!metadata.progressReports
-
+    if (VERBOSE && context.progressReports) console.log(`Will also send progress reports via webhook`)
   }
   
   //ZZZZ This 'else' will be removed once the two callbacks are combined:
   // RETURN_TX_STATUS_WITH_WEBHOOK_CALLBACK
   // RETURN_TX_STATUS_WITH_LONGPOLL_CALLBACK
-  else
+  // else
   if (metadata.poll  === 'long') {
 
     // Reply with LONG POLLING.
     // We'll retain the response object for a while and not reply to this API call
     // just yet, in the hope that the transaction completes and we can use the
     // response object to send our reply.
-    callback = RETURN_TX_STATUS_WITH_LONGPOLL_CALLBACK
+    callback = RETURN_TX_STATUS_CALLBACK
     context.longpoll = true
 
   } else {
@@ -242,14 +240,13 @@ export async function startTransactionRoute(req, res, next, tenant, transactionT
   // console.log(`metadataCopy=`, metadataCopy)
   // console.log(`dataCopy=`, dataCopy)
 
-  // ZZZ Hack to see if metadata.replly still used somewhere.
+  // ZZZ Hack to see if metadata.reply is still used somewhere.
   metadataCopy.reply = {
     get: () => {
       console.trace('Accessing metadata.reply()')
       throw new Error('metadata.reply is being used!!!')
     }
   };
-
 
   /*
    *  Start the transaction.
