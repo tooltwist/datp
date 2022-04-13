@@ -662,7 +662,7 @@ export default class StepInstance {
       // If this transaction requires progress reports via webhooks, start that now.
       if (requiresWebhookProgressReports(this.#metadata)) {
         if (VERBOSE) console.log(`Sending progress report by webhook`)
-        await sendStatusByWebhook(tx.getOwner(), tx.getTxId(), this.#metadata.reply, WEBHOOK_EVENT_PROGRESS)
+        await sendStatusByWebhook(tx.getOwner(), tx.getTxId(), this.#metadata.webhook, WEBHOOK_EVENT_PROGRESS)
       }
     }
   }

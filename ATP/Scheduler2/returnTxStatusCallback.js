@@ -98,6 +98,7 @@ export function requiresWebhookProgressReports(metadata) {
 }
 
 export async function sendStatusByWebhook(owner, txId, webhookUrl, eventType) {
+  // console.log(`sendStatusByWebhook(${owner}, ${txId}, webhookUrl=${webhookUrl}, eventType=${eventType})`)
 
   // Save this webhook in the database
   const eventTime = new Date()
@@ -119,7 +120,7 @@ export async function sendStatusByWebhook(owner, txId, webhookUrl, eventType) {
       const sql2 = `UPDATE atp_webhook SET event_type=?, initial_attempt=?, next_attempt = DATE_ADD(NOW(), INTERVAL ${MIN_WEBHOOK_RETRY} SECOND) WHERE transaction_id=?`
       const params2 = [ eventType, eventTime, txId ]
       const reply2 = await query(sql2, params2)
-      console.log(`reply2=`, reply2)
+      // console.log(`reply2=`, reply2)
     } else {
       throw e
     }
@@ -129,7 +130,8 @@ export async function sendStatusByWebhook(owner, txId, webhookUrl, eventType) {
 }
 
 export async function tryTheWebhook(owner, txId, webhookUrl, eventType, eventTime, retryCount) {
-  // if (VERBOSE) console.log(`tryTheWebhook(${owner}, ${txId}, ${webhookUrl}, ${eventType}, ${eventTime}, ${retryCount})`)
+  if (VERBOSE) console.log(`tryTheWebhook(${owner}, ${txId}, ${webhookUrl}, ${eventType}, ${eventTime}, ${retryCount})`)
+
   // Get the status
   const summary = await Transaction.getSummary(owner, txId)
   // if (VERBOSE) console.log(`summary=`, summary)
@@ -248,7 +250,7 @@ export async function tryTheWebhook(owner, txId, webhookUrl, eventType, eventTim
     WHERE transaction_id=?`
   const params2 = [ txId, errorMsg ]
   const reply2 = await query(sql2, params2)
-  console.log(`reply2=`, reply2)
+  // console.log(`reply2=`, reply2)
 
   const wakeTime = new Date(Date.now() + (interval * 1000))
   await dbLogbook.bulkLogging(txId, null, [ {
