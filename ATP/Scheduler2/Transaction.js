@@ -22,6 +22,7 @@ import Scheduler2 from "./Scheduler2"
 import { schedulerForThisNode } from "../.."
 import { DEBUG_DB_ATP_TRANSACTION } from "../../datp-constants"
 import { route_transactionStatusV1 } from "../../mondat/transactions"
+import dbupdate from "../../database/dbupdate"
 
 // Debug stuff
 const VERBOSE = 0
@@ -420,12 +421,12 @@ export default class Transaction {
             params.push(this.#owner)
             // console.log(`sql=`, sql)
             // console.log(`params=`, params)
-            const response = await query(sql, params)
+            const response = await dbupdate(sql, params)
             // console.log(`response=`, response)
             if (response.changedRows !== 1) {
               // This should never happen.
-              //ZZZZZ What do we do if the transaction was not updated
-              throw new Error(`INTERNAL ERROR: Could not update transaction record`)
+              //ZZZZZ What do we do if the transaction was not updated?
+              throw new Error(`INTERNAL ERROR: Could not update transaction summary (atp_transaction2 record not found for ${txId})`)
             }
 
             // Notify any event handler
@@ -684,7 +685,7 @@ export default class Transaction {
     if (DEBUG_DB_ATP_TRANSACTION) console.log(`TX UPDATE ${countTxCoreUpdate++} (switch)`)
     const sql = `UPDATE atp_transaction2 SET switches=?, sequence_of_update=? WHERE owner=? AND transaction_id=? AND sequence_of_update=?`
     const params = [ json, sequenceOfUpdate+1, owner, txId, sequenceOfUpdate ]
-    const reply = await query(sql, params)
+    const reply = await dbupdate(sql, params)
     // console.log(`reply=`, reply)
     if (reply.changedRows !== 1) {
       throw new Error('Concurrent attempts to set transaction switches - switch not set')

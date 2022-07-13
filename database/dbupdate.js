@@ -46,7 +46,7 @@ async function checkPool() {
 
     // See https://github.com/sidorares/node-mysql2/issues/840
     const pool = mysql.createPool({
-      host: await juice.string('db.host', juice.MANDATORY),
+      host: await juice.string('db.writehost', juice.MANDATORY),
       user: await juice.string('db.user', juice.MANDATORY),
       password: await juice.string('db.password', juice.MANDATORY),
       port: await juice.integer('db.port', juice.MANDATORY),
@@ -90,18 +90,18 @@ async function checkPool() {
   }
 }
 
-export default async function query(dbQuery, params = []) {
+export default async function dbupdate(dbQuery, params = []) {
   const counter = ++queryCounter
   if (VERBOSE > 1) console.log(`----------------------------`)
   if (VERBOSE > 1) {
-    console.log(`query() ${counter}:\n${dbQuery}`)
+    console.log(`dbupdate() ${counter}:\n${dbQuery}`)
   // if (VERBOSE) {
-    // console.log('query: ', dbQuery);
+    // console.log('dbupdate: ', dbQuery);
     console.log('params: ', params);
   }
 
   // if (SHOW_PROGRESS) {
-  //   console.log(`query 1 - ${dbQuery}`)
+  //   console.log(`dbupdate 1 - ${dbQuery}`)
   // }
 
   // Check we have no undefined bind parameters, because they create
@@ -113,13 +113,13 @@ export default async function query(dbQuery, params = []) {
   }
 
   if (SHOW_PROGRESS) {
-    console.log(`query (${counter}) 2`)
+    console.log(`dbupdate (${counter}) 2`)
   }
 
   await checkPool()
 
   if (SHOW_PROGRESS) {
-    console.log(`query (${counter}) 3`)
+    console.log(`dbupdate (${counter}) 3`)
   }
 
   // See https://www.npmjs.com/package/mysql2#using-promise-wrapper
@@ -132,14 +132,14 @@ export default async function query(dbQuery, params = []) {
   const [rows, fields] = await promisePool.query(dbQuery, params);
   if (VERBOSE) {
     const after = new Date().getMilliseconds()
-    console.log(`query (${counter}): ${after-before}ms`)
+    console.log(`dbupdate (${counter}): ${after-before}ms`)
   }
 
   if (SHOW_PROGRESS) {
-    console.log(`query (${counter}) 4`)
+    console.log(`dbupdate (${counter}) 4`)
   }
 
   return rows
 }
 
-module.exports = query;
+module.exports = dbupdate;

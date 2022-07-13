@@ -38,3 +38,6 @@ export const INCLUDE_STATE_IN_NODE_HOPPING_EVENTS = true
 
 // Should we save transacrion states (or just rely on the deltas?)
 export const PERSIST_FINAL_TRANSACTION_STATE = false
+
+// How often should we check the number of workers (ms)
+export const WORKER_CHECK_INTERVAL = 30 * 1000

@@ -5,6 +5,7 @@
  * the author or owner be liable for any claim or damages.
  */
 import Step, { STEP_RUNNING } from '../ATP/Step'
+import dbupdate from './dbupdate'
 import query from './query'
 
 export default {
@@ -22,7 +23,7 @@ async function startStep(stepId, stepType, transactionId, parentId, sequence, js
   const params = [ stepId, stepType, transactionId, parentId, sequence, jsonDefinition ]
   // console.log(`sql=`, sql)
   // console.log(`params=`, params)
-  const result = await query(sql, params)
+  const result = await dbupdate(sql, params)
   // console.log(`result=`, result)
 }
 
@@ -54,7 +55,7 @@ async function updateStatus(stepId, status, progress, percentage) {
   params.push(stepId)
   // console.log(`sql=`, sql)
   // console.log(`params=`, params)
-  const result = await query(sql, params)
+  const result = await dbupdate(sql, params)
   // console.log(`result=`, result)
 }
 
@@ -90,7 +91,7 @@ async function updateStatus(stepId, status, progress, percentage) {
 //   let params = [ status, status, 100, response, stepId ]
 //   // console.log(`sql=`, sql)
 //   // console.log(`params=`, params)
-//   const result = await query(sql, params)
+//   const result = await dbupdat(sql, params)
 //   // console.log(`result=`, result)
 // }
 

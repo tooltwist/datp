@@ -6,8 +6,9 @@
  */
 import query from './query'
 import assert from 'assert'
+import dbupdate from './dbupdate'
 
-const VERBOSE = false
+const VERBOSE = 0
 
 /**
  *
@@ -93,7 +94,7 @@ export async function saveNodeGroup(group) {
   sql = `${sql1}${sql2}`
   // console.log(`sql=`, sql)
   // console.log(`params=`, params)
-  reply = await query(sql, params)
+  reply = await dbupdate(sql, params)
   if (VERBOSE) {
     console.log(`- New group: ${group.nodeGroup} - ${group.description}`)
   }

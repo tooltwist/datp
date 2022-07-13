@@ -21,7 +21,7 @@ import StepTypeRegister from '../StepTypeRegister'
 import { getNodeGroup } from '../../database/dbNodeGroup'
 import { appVersion, datpVersion, buildTime } from '../../build-version'
 import { validateEvent_StepCompleted, validateEvent_StepStart, validateEvent_TransactionChange, validateEvent_TransactionCompleted } from './eventValidation'
-import { SHORTCUT_STEP_START, SHORTCUT_STEP_COMPLETE, SHORTCUT_TX_COMPLETION } from '../../datp-constants'
+import { SHORTCUT_STEP_START, SHORTCUT_STEP_COMPLETE, SHORTCUT_TX_COMPLETION, WORKER_CHECK_INTERVAL } from '../../datp-constants'
 import { DUP_EXTERNAL_ID_DELAY, INCLUDE_STATE_IN_NODE_HOPPING_EVENTS } from '../../datp-constants'
 import { getPipelineVersionInUse } from '../../database/dbPipelines'
 import juice from '@tooltwist/juice-client'
@@ -29,6 +29,7 @@ import juice from '@tooltwist/juice-client'
 import Transaction from './Transaction'
 import dbLogbook from '../../database/dbLogbook'
 import { getSystemErrorMap } from 'util'
+import LongPoll from './LongPoll'
 
 // Debug related
 const VERBOSE = 0
@@ -54,8 +55,8 @@ export default class Scheduler2 {
   #nodeExpressQueue
 
   // Worker threads
-  #requiredWorkers
-  #workers
+  #requiredWorkers // int
+  #workers // Worker2[]
 
   // Event loop parameters
   #eventloopPauseBusy
@@ -132,6 +133,8 @@ export default class Scheduler2 {
 
     // Allocate some StepWorkers
     this.#workers = [ ]
+    this.#requiredWorkers = 0
+
 
     // this.#timeout = null
     // this.#tickCounter = 1
@@ -195,25 +198,43 @@ export default class Scheduler2 {
     }
     this.#state = Scheduler2.RUNNING
 
-    // Get node group parameters from the database
-    await this.loadNodeGroupParameters()
-
-    // Allocate and start workers
-    if (VERBOSE) console.log(`Creating ${this.#requiredWorkers} workers`)
-    while (this.#workers.length < this.#requiredWorkers) {
-      const id = this.#workers.length
-      const worker = new Worker2(id)
-      this.#workers.push(worker)
-    }
-    // console.log(`  - created ${this.#workers.length} workers`)
 
 
     // Loop around getting events and passing them to the workers
     // We count how many workers are waiting for an event, then
     // hand out that many events before counting again.
+    let lastCheck = -1 // Last time we check the required number of workers.
     const eventLoop = async () => {
       // if (VERBOSE) console.log(`######## Start event loop.`)
 
+      // If we haven't checked for a while (or ever) then make
+      // sure we have the number of required workers available.
+      const now = Date.now()
+      if (lastCheck < 0 || now > lastCheck + WORKER_CHECK_INTERVAL) {
+        if (VERBOSE) console.log(`Checking number of worker threads.`)
+
+        // Get node group parameters from the database
+        await this.loadNodeGroupParameters()
+
+        // Create new workers if required
+        let numToAllocate = this.#requiredWorkers - this.#workers.length
+        if (VERBOSE && numToAllocate > 0) console.log(`Creating ${numToAllocate} new workers`)
+        while (numToAllocate-- > 0) {
+          const id = this.#workers.length
+          const worker = new Worker2(id)
+          this.#workers.push(worker)
+        }
+        lastCheck = now
+      }
+
+      // // Create new workers if required
+      // if (VERBOSE) console.log(`Creating ${this.#requiredWorkers} workers`)
+      // while (this.#workers.length < this.#requiredWorkers) {
+      //   const id = this.#workers.length
+      //   const worker = new Worker2(id)
+      //   this.#workers.push(worker)
+      // }
+  
       // Create a list of all the workers waiting for an event
       const workersWaiting = [ ]
       for (const worker of this.#workers) {
@@ -224,19 +245,21 @@ export default class Scheduler2 {
       }
 
       // If no workers are available, wait a bit and try again
-      if (workersWaiting.length === 0) {
-        // if (VERBOSE)
-        // console.log(`All workers are busy - Event loop sleeping a bit`)
+      const numBusy = this.#workers.length - workersWaiting.length
+      let numEvents = this.#requiredWorkers - numBusy
+      if (numEvents === 0) {
+        if (VERBOSE) console.log(`No workers available - event loop sleeping for a while...`)
         setTimeout(eventLoop, this.#eventloopPauseBusy)
         return
       }
+      // if (VERBOSE) console.log(`Need ${numEvents} events (${this.#workers.length} workers, require ${this.#requiredWorkers}, ${numBusy} busy)`)
 
       // Get events for these workers
       // We read from three queues, in the following priority:
       //  1. Express queue for node (replies)
       //  2. Normal queue for node (steps)
       //  3. Queue for group (incoming transactions)
-      const numEvents = workersWaiting.length
+      // const numEvents = workersWaiting.length
       const block = false
       const queues = [
         this.#nodeExpressQueue,
@@ -292,103 +315,112 @@ export default class Scheduler2 {
 
     // Let's start the event loop in the background
     setTimeout(eventLoop, 0)
-  }
+  }//- start
 
   /**
    * This function gets called periodically, to allow this node
    * to keep itself registered within REDIS.
    */
   async keepAlive () {
-    // console.log(`keepAlive()`)
+    // console.log(`\n\n\n\n\n`)
+    // console.log(`keepAlive() ${this.#requiredWorkers}`, this)
 
-    // if (VERBOSE) console.log(`Scheduler2.getStatus()`)
+    // if (VERBOSE) console.log(`Scheduler2.keepAlive()`)
     await this._checkConnectedToQueue()
+
+    // const info = this.getCurrentNodeDetails({ withStats: true, withStepTypes: false })
+    const info = await this.getCurrentNodeDetails({ withStats: true, withStepTypes: true })
 
     // this.#transactionsInPastMinute.display('tx/sec')
     // this.#stepsPastMinute.display('steps/sec')
 
-    const waiting = await this.#queueObject.queueLength(this.#groupQueue)
-
-    const info = {
-      appVersion,
-      datpVersion,
-      buildTime,
-      stepTypes: await StepTypeRegister.myStepTypes(),
-      events: {
-        waiting,
-        processing: 0
-      },
-      workers: {
-        total: this.#workers.length,
-        running: 0,
-        waiting: 0,
-        shuttingDown: 0,
-        standby: 0
-      },
-      throughput: { }
-      // stats: {
-      //   transactionsInPastMinute: this.#transactionsInPastMinute.getStats().values,
-      //   transactionsInPastHour: this.#transactionsInPastHour.getStats().values,
-      //   transactionsOutPastMinute: this.#transactionsOutPastMinute.getStats().values,
-      //   transactionsOutPastHour: this.#transactionsOutPastHour.getStats().values,
-      //   stepsPastMinute: this.#stepsPastMinute.getStats().values,
-      //   stepsPastHour: this.#stepsPastHour.getStats().values,
-      //   enqueuePastMinute: this.#enqueuePastMinute.getStats().values,
-      //   enqueuePastHour: this.#enqueuePastHour.getStats().values,
-      //   dequeuePastMinute: this.#dequeuePastMinute.getStats().values,
-      //   dequeuePastHour: this.#dequeuePastHour.getStats().values,
-      // }
+    // const waiting = await this.#queueObject.queueLength(this.#groupQueue)
+    // 
+    // const info = {
+    //   appVersion,
+    //   datpVersion,
+    //   buildTime,
+    //   stepTypes: await StepTypeRegister.myStepTypes(),
+    //   events: {
+    //     waiting,
+    //     processing: 0
+    //   },
+    //   workers: {
+    //     total: this.#workers.length,
+    //     running: 0,
+    //     waiting: 0,
+    //     shuttingDown: 0,
+    //     standby: 0,
+    //     required: this.#requiredWorkers,
+    //   },
+    //   throughput: {
+    //     // Filled in below
+    //   },
+    //   stats: {
+    //     transactionsInPastMinute: this.#transactionsInPastMinute.getStats().values,
+    //     transactionsInPastHour: this.#transactionsInPastHour.getStats().values,
+    //     transactionsOutPastMinute: this.#transactionsOutPastMinute.getStats().values,
+    //     transactionsOutPastHour: this.#transactionsOutPastHour.getStats().values,
+    //     stepsPastMinute: this.#stepsPastMinute.getStats().values,
+    //     stepsPastHour: this.#stepsPastHour.getStats().values,
+    //     enqueuePastMinute: this.#enqueuePastMinute.getStats().values,
+    //     enqueuePastHour: this.#enqueuePastHour.getStats().values,
+    //     dequeuePastMinute: this.#dequeuePastMinute.getStats().values,
+    //     dequeuePastHour: this.#dequeuePastHour.getStats().values,
+    //   }
       
-    }
+    // }
 
-    // transactions in per second
-    {
-      const arr = this.#transactionsInPastMinute.getStats().values
-      const l = arr.length
-      const total = arr[l-1] + arr[l-2] + arr[l-3] + arr[l-4] + arr[l-5]
-      info.throughput.txInSec = Math.round(total / 5)
-    }
+    // // transactions in per second
+    // {
+    //   const arr = this.#transactionsInPastMinute.getStats().values
+    //   const l = arr.length
+    //   const total = arr[l-1] + arr[l-2] + arr[l-3] + arr[l-4] + arr[l-5]
+    //   info.throughput.txInSec = Math.round(total / 5)
+    // }
 
-    // transactions out per second
-    {
-      const arr = this.#transactionsOutPastMinute.getStats().values
-      const l = arr.length
-      const total = arr[l-1] + arr[l-2] + arr[l-3] + arr[l-4] + arr[l-5]
-      info.throughput.txOutSec = Math.round(total / 5)
-    }
+    // // transactions out per second
+    // {
+    //   const arr = this.#transactionsOutPastMinute.getStats().values
+    //   const l = arr.length
+    //   const total = arr[l-1] + arr[l-2] + arr[l-3] + arr[l-4] + arr[l-5]
+    //   info.throughput.txOutSec = Math.round(total / 5)
+    // }
 
-    // steps per second
-    {
-      const arr = this.#stepsPastMinute.getStats().values
-      const l = arr.length
-      const total = arr[l-1] + arr[l-2] + arr[l-3] + arr[l-4] + arr[l-5]
-      info.throughput.stepsSec = Math.round(total / 5)
-    }
+    // // steps per second
+    // {
+    //   const arr = this.#stepsPastMinute.getStats().values
+    //   const l = arr.length
+    //   const total = arr[l-1] + arr[l-2] + arr[l-3] + arr[l-4] + arr[l-5]
+    //   info.throughput.stepsSec = Math.round(total / 5)
+    // }
 
-    // Check the status of the workers
-    for (const worker of this.#workers) {
-      switch (await worker.getState()) {
-        case Worker2.INUSE:
-          info.workers.running++
-          info.events.processing++
-          break
+    // // Check the status of the workers
+    // for (const worker of this.#workers) {
+    //   switch (await worker.getState()) {
+    //     case Worker2.INUSE:
+    //       info.workers.running++
+    //       info.events.processing++
+    //       break
 
-        case Worker2.WAITING:
-          info.workers.waiting++
-          break
+    //     case Worker2.WAITING:
+    //       info.workers.waiting++
+    //       break
 
-        case Worker2.SHUTDOWN:
-          info.workers.shuttingDown++
-          break
+    //     case Worker2.SHUTDOWN:
+    //       info.workers.shuttingDown++
+    //       break
 
-        case Worker2.STANDBY:
-          info.workers.standby++
-          break
-      }
-    }
+    //     case Worker2.STANDBY:
+    //       info.workers.standby++
+    //       break
+    //   }
+    // }
 
-    await this.#queueObject.registerNode(this.#nodeGroup, this.#nodeId, info)
-  }
+    // console.log(`info=`, info)
+    // console.log(`YARP 8: Saving node details to REDIS`)
+    await this.#queueObject.registerNodeInREDIS(this.#nodeGroup, this.#nodeId, info)
+  }// - keepAlive
 
   async loadNodeGroupParameters() {
     const group = await getNodeGroup(this.#nodeGroup)
@@ -406,11 +438,11 @@ export default class Scheduler2 {
     this.#eventloopPauseBusy = group.eventloopPauseBusy
     this.#eventloopPauseIdle = group.eventloopPauseIdle
     this.#delayToEnterSlothMode = group.delayToEnterSlothMode
-    console.log(`  requiredWorkers=`, this.#requiredWorkers)
-    console.log(`  eventloopPause=`, this.#eventloopPause)
-    console.log(`  eventloopPauseBusy=`, this.#eventloopPauseBusy)
-    console.log(`  eventloopPauseIdle=`, this.#eventloopPauseIdle)
-    console.log(`  delayToEnterSlothMode=`, this.#delayToEnterSlothMode)
+    // console.log(`  requiredWorkers=`, this.#requiredWorkers)
+    // console.log(`  eventloopPause=`, this.#eventloopPause)
+    // console.log(`  eventloopPauseBusy=`, this.#eventloopPauseBusy)
+    // console.log(`  eventloopPauseIdle=`, this.#eventloopPauseIdle)
+    // console.log(`  delayToEnterSlothMode=`, this.#delayToEnterSlothMode)
 
     this.#delayToEnterSlothMode = group.delayToEnterSlothMode
 
@@ -425,7 +457,7 @@ export default class Scheduler2 {
     this.#debugTransactionCache = group.debugTransactionCache
     this.#debugRedis = group.debugRedis
     this.#debugDb = group.debugDb
-  }
+  }//- loadNodeGroupParameters
 
   async getDebugScheduler() { return this.#debugScheduler }
   async getDebugWorkers() { return this.#debugWorkers }
@@ -1124,6 +1156,7 @@ export default class Scheduler2 {
 
         // Need to include the transaction state in the event
         if (INCLUDE_STATE_IN_NODE_HOPPING_EVENTS) {
+          const tx = await TransactionCache.getTransactionState(event.txId)
           event.state = tx.asJSON()
         }
       }
@@ -1334,19 +1367,19 @@ export default class Scheduler2 {
     this.#state = Scheduler2.DESTROYED
   }
 
-  async getDetailsOfActiveNodes(withStepTypes=false) {
-    // if (VERBOSE) console.log(`Scheduler2.getDetailsOfActiveNodes(withStepTypes=${withStepTypes})`)
+  async getDetailsOfActiveNodesfromREDIS(withStepTypes=false) {
+    // if (VERBOSE) console.log(`Scheduler2.getDetailsOfActiveNodesfromREDIS(withStepTypes=${withStepTypes})`)
     await this._checkConnectedToQueue()
-    return await this.#queueObject.getDetailsOfActiveNodes(withStepTypes)
+    return await this.#queueObject.getDetailsOfActiveNodesfromREDIS(withStepTypes)
   }
 
-  async getNodeDetails(nodeGroup, nodeId) {
-    // if (VERBOSE) console.log(`Scheduler2.getNodeDetails(${nodeGroup}, ${nodeId})`)
+  async getNodeDetailsFromREDIS(nodeGroup, nodeId) {
+    // if (VERBOSE) console.log(`Scheduler2.getNodeDetailsFromREDIS(${nodeGroup}, ${nodeId})`)
     await this._checkConnectedToQueue()
-    await this.#queueObject.getNodeDetails(nodeGroup, nodeId)
+    return await this.#queueObject.getNodeDetailsFromREDIS(nodeGroup, nodeId)
   }
 
-  async getStatus() {
+  async getCurrentNodeDetails({ withStats, withStepTypes }) {
     // if (VERBOSE) console.log(`Scheduler2.getStatus()`)
     await this._checkConnectedToQueue()
 
@@ -1354,7 +1387,12 @@ export default class Scheduler2 {
     // this.#stepsPastMinute.display('steps/sec')
 
     const waiting = await this.#queueObject.queueLength(this.#groupQueue)
-    const obj = {
+    const info = {
+      nodeGroup: schedulerForThisNode.getNodeGroup(),
+      nodeId: schedulerForThisNode.getNodeId(),
+      appVersion,
+      datpVersion,
+      buildTime,
       events: {
         waiting,
         processing: 0
@@ -1364,9 +1402,20 @@ export default class Scheduler2 {
         running: 0,
         waiting: 0,
         shuttingDown: 0,
-        standby: 0
+        standby: 0,
+        required: this.#requiredWorkers
       },
-      stats: {
+      stats: { },
+      throughput: { },
+      stepTypes: [ ],
+    }
+
+    if (withStepTypes) {
+      info.stepTypes = await StepTypeRegister.myStepTypes()
+    }
+
+    if (withStats) {
+      info.stats = {
         transactionsInPastMinute: this.#transactionsInPastMinute.getStats().values,
         transactionsInPastHour: this.#transactionsInPastHour.getStats().values,
         transactionsOutPastMinute: this.#transactionsOutPastMinute.getStats().values,
@@ -1378,31 +1427,47 @@ export default class Scheduler2 {
         dequeuePastMinute: this.#dequeuePastMinute.getStats().values,
         dequeuePastHour: this.#dequeuePastHour.getStats().values,
       }
+      info.throughput = { }
+      {
+        const arr = this.#transactionsInPastMinute.getStats().values
+        const l = arr.length
+        const total = arr[l-1] + arr[l-2] + arr[l-3] + arr[l-4] + arr[l-5]
+        info.throughput.txInSec = Math.round(total / 5)
+      }
+      // transactions out per second
+      {
+        const arr = this.#transactionsOutPastMinute.getStats().values
+        const l = arr.length
+        const total = arr[l-1] + arr[l-2] + arr[l-3] + arr[l-4] + arr[l-5]
+        info.throughput.txOutSec = Math.round(total / 5)
+      }
+      info.transactionsInCache = await TransactionCache.size()
+      info.outstandingLongPolls = await LongPoll.outstandingLongPolls()
     }
 
     // Check the status of the workers
     for (const worker of this.#workers) {
       switch (await worker.getState()) {
         case Worker2.INUSE:
-          obj.workers.running++
-          obj.events.processing++
+          info.workers.running++
+          info.events.processing++
           break
 
         case Worker2.WAITING:
-          obj.workers.waiting++
+          info.workers.waiting++
           break
 
         case Worker2.SHUTDOWN:
-          obj.workers.shuttingDown++
+          info.workers.shuttingDown++
           break
 
         case Worker2.STANDBY:
-          obj.workers.standby++
+          info.workers.standby++
           break
       }
     }
-    // if (VERBOSE) console.log(`getStatus returning`, obj)
-    return obj
+    // if (VERBOSE) console.log(`getStatus returning`, info)
+    return info
   }
 
   /**

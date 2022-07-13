@@ -170,7 +170,7 @@ console.log(`url=`, url)//ZZZZZZ
       const key = listName(queueName)
       keys.push(key)
     }
-    console.log(`keys=`, keys)
+    // console.log(`keys=`, keys)
 
     // console.log(`dequeue from ${list}`)
     // let value = null

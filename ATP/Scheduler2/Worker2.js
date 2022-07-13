@@ -292,9 +292,10 @@ export default class Worker2 {
       // const hackSource = 'system' // Not sure why, but using dbLogbook.LOG_SOURCE_SYSTEM causes a compile error
       // instance.trace(`Invoke step ${instance.getStepId()}`, hackSource)
       const stepDesc = (typeof(stepData.stepDefinition) === 'string') ? `Pipeline ${stepData.stepDefinition}` : `Step ${stepData.stepDefinition.stepType}`
-      instance.trace(`Invoked: ${stepDesc}`)
-      instance.trace(`${schedulerForThisNode.getNodeGroup()}: ${schedulerForThisNode.getNodeId()}`)
-      instance.trace(`deltaCounter=${tx.getDeltaCounter()}`)
+      // instance.trace(`Invoked: ${stepDesc}`)
+      instance.trace(stepDesc)
+      instance.trace(`Run on ${schedulerForThisNode.getNodeGroup()} / ${schedulerForThisNode.getNodeId()}`)
+      // instance.trace(`deltaCounter=${tx.getDeltaCounter()}`)
       await instance.syncLogs()
 
       // Start the step in the background, immediately

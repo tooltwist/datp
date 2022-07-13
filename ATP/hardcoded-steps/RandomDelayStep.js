@@ -41,7 +41,7 @@ class RandomDelayStep extends Step {
     }
 
 // console.log(`1. util/delay - worker.state = ${instance.getWorker().getState()}`)
-    // Deide how long to sleep
+    // Decide how long to sleep
     const input = instance.getDataAsObject()
     if (input.delay) {
       // Specified the exact delay

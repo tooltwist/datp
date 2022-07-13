@@ -5,6 +5,7 @@
  * the author or owner be liable for any claim or damages.
  */
 import errors from 'restify-errors'
+import dbupdate from '../../../database/dbupdate';
 import query from '../../../database/query';
 
 import View from './View'
@@ -200,7 +201,7 @@ export default class Schema {
     const viewType = 'message'
     const sql = `INSERT INTO formservice_view (tenant, version, view, view_type) VALUES (?,?,?,?)`
     const params = [ this.tenant, version, viewName, viewType ]
-    const reply = await query(sql, params)
+    const reply = await dbupdate(sql, params)
     // console.log(`reply=`, reply)
     return view
   }

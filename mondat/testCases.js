@@ -6,6 +6,7 @@
  */
 import query from '../database/query'
 import errors from 'restify-errors';
+import dbupdate from '../database/dbupdate';
 
 export async function getTestCasesV1(req, res, next) {
   // console.log(`getTestCasesV1()`)
@@ -39,7 +40,7 @@ export async function saveTestCasesV1(req, res, next) {
     let params = [ req.body.name, req.body.description, req.body.transactionType, req.body.inputData, name ]
     // console.log(`sql=`, sql)
     // console.log(`params=`, params)
-    let result = await query(sql, params)
+    let result = await dbupdate(sql, params)
     // console.log(`result=`, result)
     if (result.affectedRows === 1) {
       res.send({ status: 'ok' })
@@ -51,7 +52,7 @@ export async function saveTestCasesV1(req, res, next) {
     params = [ req.body.name, req.body.description, req.body.transactionType, req.body.inputData ]
     // console.log(`sql=`, sql)
     // console.log(`params=`, params)
-    result = await query(sql, params)
+    result = await dbupdate(sql, params)
     // console.log(`result=`, result)
 
     if (result.affectedRows === 1) {

@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@tooltwist/juice-client": "^1.0.20",
+    "aws-sdk": "^2.1143.0",
     "colors": "^1.4.0",
     "esm": "^3.2.25",
     "figlet": "^1.5.2",

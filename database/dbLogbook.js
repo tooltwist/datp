@@ -9,6 +9,7 @@ import { DEBUG_DB_ATP_LOGBOOK } from '../datp-constants'
 import { schedulerForThisNode } from '..'
 import { logger } from '../lib/pino-logbook'
 import juice from '@tooltwist/juice-client'
+import dbupdate from './dbupdate'
 
 let hackCount = 0
 let countDbAtpLogbook = 0
@@ -81,7 +82,7 @@ export default class dbLogbook {
   //   const params = [ transactionId, stepId, sequence, msg ]
   //   // console.log(`sql=`, sql)
   //   // console.log(`params=`, params)
-  //   const result = await query(sql, params)
+  //   const result = await dbupdate(sql, params)
   //   // console.log(`result=`, result)
   // }
 
@@ -198,7 +199,7 @@ export default class dbLogbook {
     }// for
     // console.log(`sql=`, sql)
     // console.log(`params=`, params)
-    const result = await query(sql, params)
+    const result = await dbupdate(sql, params)
     // console.log(`result=`, result)
     if (result.affectedRows !== array.length) {
       console.log(`**************************************************************************`)

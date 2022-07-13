@@ -8,6 +8,7 @@ import query from '../../database/query'
 import constants from './constants'
 // import providers from '../providers/providers'
 import assert from 'assert'
+import dbupdate from '../../database/dbupdate'
 
 
 export default {
@@ -29,7 +30,7 @@ async function deleteParameters(provider, service, messageType) {
   assert(false)
   const sql = `DELETE FROM formservice_field WHERE provider=? AND service=? AND message_type=? AND version=?`
   const params = [provider, service, messageType, constants.SCRATCH_VERSION]
-  await query(sql, params)
+  await dbupdate(sql, params)
 
 }
 
@@ -44,7 +45,7 @@ async function saveParameter(provider, service, messageType, sequence, name, typ
   const params = [provider, service, messageType, version, sequence, name, type, mandatory]
   // console.log(`sql=`, sql)
   // console.log(`params=`, params)
-  const result = await query(sql, params)
+  const result = await dbupdate(sql, params)
   // console.log(`result=`, result)
 }
 
@@ -201,7 +202,7 @@ async function setMapping(tenant, mappingId, version, toField, source, converter
     const params2 = [ tenant, mappingId, version, toField, source, converter ]
     console.log(`sql2=`, sql2)
     console.log(`params2=`, params2)
-    const result2 = await query(sql2, params2)
+    const result2 = await dbupdate(sql2, params2)
     console.log(`result2=`, result2)
   }
 }
@@ -233,7 +234,7 @@ async function setViewDetails(view) {
 
   // console.log(`sql=`, sql)
   // console.log(`params=`, params)
-  await query(sql, params)
+  await dbupdate(sql, params)
 }
 
 // /**

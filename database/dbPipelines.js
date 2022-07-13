@@ -5,6 +5,7 @@
  * the author or owner be liable for any claim or damages.
  */
 import { generatePipelineHash } from '../mondat/pipelines'
+import dbupdate from './dbupdate'
 import query from './query'
 
 const VERBOSE = 0
@@ -127,7 +128,7 @@ export async function saveDraftPipelineSteps(pipelineName, steps) {
   let  params = [ json, pipelineName, version ]
   // console.log(`sql=`, sql)
   // console.log(`params=`, params)
-  let result = await query(sql, params)
+  let result = await dbupdate(sql, params)
   // console.log(`result=`, result)
 
   if (result.affectedRows === 0) {
@@ -137,7 +138,7 @@ export async function saveDraftPipelineSteps(pipelineName, steps) {
     // params = [ name, version, nodeName, description, notes, status, stepsJson ]
     // // console.log(`sql=`, sql)
     // // console.log(`params=`, params)
-    // result = await query(sql, params)
+    // result = await dbupdate(sql, params)
     // // console.log(`result=`, result)
   }
 }
@@ -178,7 +179,7 @@ export async function clonePipeline(name, version) {
   const params = [ pipeline.name, pipeline.version, pipeline.stepsJson, pipeline.notes, pipeline.status, pipeline.commitComments, pipeline.tags ]
   // console.log(`sql=`, sql)
   // console.log(`params=`, params)
-  const result = await query(sql, params)
+  const result = await dbupdate(sql, params)
   // console.log(`result=`, result)
   return pipeline
 }
@@ -218,7 +219,7 @@ export async function commitPipelineDraftVersion(pipelineName, comment) {
   params = [ hash, newCommitLogJson, pipelineName, 'draft']
   // console.log(`sql=`, sql)
   // console.log(`params=`, params)
-  const result = await query(sql, params)
+  const result = await dbupdate(sql, params)
   // console.log(`result=`, result)
   if (result.affectedRows !== 1) {
     throw new Error(`Could not update atp_pipeline`)
@@ -249,7 +250,7 @@ export async function db_importPipelineVersion(pipeline) {
     const params = [ pipeline.name, pipeline.version, pipeline.stepsJson, pipeline.status, pipeline.commitComments, pipeline.notes ]
     // console.log(`sql=`, sql)
     // console.log(`params=`, params)
-    const result = await query(sql, params)
+    const result = await dbupdate(sql, params)
     // console.log(`result=`, result)
     return hash
   } catch (e) {

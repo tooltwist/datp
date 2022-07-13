@@ -35,16 +35,16 @@ export class QueueManager {
     throw new Error(`Fatal error: class ${this.constructor.name} does not extend QueueManager.repeatEventDetection()`)
   }
 
-  async registerNode(nodeId, status) {
-    throw new Error(`Fatal error: class ${this.constructor.name} does not extend QueueManager.registerNode()`)
+  async registerNodeInREDIS(nodeId, status) {
+    throw new Error(`Fatal error: class ${this.constructor.name} does not extend QueueManager.registerNodeInREDIS()`)
   }
 
-  async getDetailsOfActiveNodes(withStepTypes=false) {
-    throw new Error(`Fatal error: class ${this.constructor.name} does not extend QueueManager.getDetailsOfActiveNodes()`)
+  async getDetailsOfActiveNodesfromREDIS(withStepTypes=false) {
+    throw new Error(`Fatal error: class ${this.constructor.name} does not extend QueueManager.getDetailsOfActiveNodesfromREDIS()`)
   }
 
-  async getNodeDetails() {
-    throw new Error(`Fatal error: class ${this.constructor.name} does not extend QueueManager.getNodeDetails()`)
+  async getNodeDetailsFromREDIS() {
+    throw new Error(`Fatal error: class ${this.constructor.name} does not extend QueueManager.getNodeDetailsFromREDIS()`)
   }
 
   async moveElementsToAnotherQueue(fromQueueName, toQueueName) {

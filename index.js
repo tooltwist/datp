@@ -9,11 +9,12 @@ import step from './ATP/Step'
 import stepTypeRegister from './ATP/StepTypeRegister'
 import conversionHandler from './CONVERSION/lib/ConversionHandler'
 import formsAndFields from './CONVERSION/lib/formsAndFields'
+import callbackRegister from './ATP/Scheduler2/CallbackRegister'
 import dbQuery from './database/query'
 import healthcheck from './restify/healthcheck'
 import juice from '@tooltwist/juice-client'
 import { RouterStep as RouterStepInternal } from './ATP/hardcoded-steps/RouterStep'
-import pause from './lib/pause'
+import Pause from './lib/pause'
 import Scheduler2 from './ATP/Scheduler2/Scheduler2'
 import Transaction from './ATP/Scheduler2/Transaction'
 import { deepCopy } from './lib/deepCopy'
@@ -26,14 +27,16 @@ import errors_datp_FIL from './lib/errors-datp-FIL'
 import { registerReplyConverter, convertReply } from './ATP/Scheduler2/ReplyConverter'
 import { requiresWebhookReply, RETURN_TX_STATUS_CALLBACK } from './ATP/Scheduler2/returnTxStatusCallback'
 
-const VERBOSE = 1
+const VERBOSE = 0
 
 export const Step = step
 export const StepTypes = stepTypeRegister
 export const ConversionHandler = conversionHandler
 export const FormsAndFields = formsAndFields
+export const CallbackRegister = callbackRegister
 export const RouterStep = RouterStepInternal
 
+export const pause = Pause
 export const query = dbQuery
 export let schedulerForThisNode = null
 export let cron = null
@@ -47,7 +50,7 @@ async function restifyMasterServer(options) {
 }
 
 export async function goLive(server) {
-  const nodeGroup = await juice.string('datp.nodeGroup', null)
+  const nodeGroup = await juice.string('datp.nodeGroup', "master")
   if (!nodeGroup) {
     console.log(`FATAL ERROR: Config does not specify datp.nodeGroup. Shutting down.`)
     process.exit(1)
@@ -363,7 +366,7 @@ export default {
   query: dbQuery,
   // initiateTransaction,
   RouterStep,
-  pause,
+  pause: Pause,
   prepareForUnitTesting,
 
   // v2.0 functions

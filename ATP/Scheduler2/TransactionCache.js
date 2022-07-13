@@ -119,16 +119,28 @@ class TransactionCache {
       if (VERBOSE) console.log(`Transaction state was found in the database`)
       const json = rows[0].json
       try {
-        const tx3 = Transaction.transactionStateFromJSON(json)
+        const tx2 = Transaction.transactionStateFromJSON(json)
         if (saveInLocalMemoryCache) {
-          this.#cache.set(txId, tx3)
+          this.#cache.set(txId, tx2)
         }
-        return tx3
+        return tx2
       } catch (e) {
         // Serious error - notify the administrator
         //ZZZZZZ
         console.log(`Internal Error: Invalid JSON in atp_transaction_state [${txId}]`)
       }
+    }
+
+    // Not in the database. Can we reconstruct it from the deltas?
+    const tx3 = await TransactionPersistance.reconstructTransaction(txId)
+    // console.log(`tx3=`, tx3)
+    if (tx3) {
+      //ZZZZZ This should be raised as an administrator's notification.
+      console.log(`WARNING: Transaction ${txId} had to be resurrected from deltas. Why was this required?`)
+      if (saveInLocalMemoryCache) {
+        this.#cache.set(txId, tx3)
+      }
+      return tx3
     }
 
     // Not found anywhere

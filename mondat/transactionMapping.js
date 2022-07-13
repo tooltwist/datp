@@ -6,6 +6,7 @@
  */
 import query from '../database/query'
 import errors from 'restify-errors';
+import dbupdate from '../database/dbupdate';
 
 export async function getTransactionMappingsV1(req, res, next) {
   // console.log(`getTransactionMappingsV1()`)
@@ -41,7 +42,7 @@ export async function saveTransactionMappingsV1(req, res, next) {
     params.push(req.body.transactionType)
     // console.log(`sql=`, sql)
     // console.log(`params=`, params)
-    let result = await query(sql, params)
+    let result = await dbupdate(sql, params)
     // console.log(`result=`, result)
     if (result.affectedRows === 1) {
       res.send({ status: 'ok' })
@@ -61,7 +62,7 @@ export async function saveTransactionMappingsV1(req, res, next) {
     let sql2 = `${sql2a}${sql2b}${sql2c}`
     // console.log(`sql2=`, sql2)
     // console.log(`params2=`, params2)
-    result = await query(sql2, params2)
+    result = await dbupdate(sql2, params2)
     // console.log(`result=`, result)
 
     if (result.affectedRows === 1) {

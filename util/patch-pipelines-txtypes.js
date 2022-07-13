@@ -11,6 +11,7 @@
  * This script does the conversion, renaming pipelines to match their corresponding transaction type.
  */
 
+import dbupdate from '../database/dbupdate'
 import query from '../database/query'
 
 
@@ -48,7 +49,7 @@ async function main() {
   for (const pipeline of unmappedPipelines) {
     const sql = `INSERT INTO atp_transaction_type (transaction_type, pipeline_name, pipeline_version) VALUES (?,?,?)`
     const params = [ pipeline, pipeline, '1.0']
-    await query(sql, params)
+    await dbupdate(sql, params)
     cnt++
   }
   if (cnt === 0) {
@@ -68,9 +69,9 @@ async function main() {
     const params = [ rec.transaction_type, rec.pipeline_name]
     console.log(`sql=`, sql)
     console.log(`params=`, params)
-    await query(sql, params)
+    await dbupdate(sql, params)
 
-    await query(`UPDATE atp_transaction_type SET pipeline_name=? WHERE transaction_type=?`, [ rec.transaction_type, rec.transaction_type])
+    await dbupdate(`UPDATE atp_transaction_type SET pipeline_name=? WHERE transaction_type=?`, [ rec.transaction_type, rec.transaction_type])
   }
 
   // At this point, the transaction types and the pipeline names correspond.
@@ -93,7 +94,7 @@ async function main() {
     }
     if (desc) {
       console.log(`  - ${noDescTxType.transaction_type}: ${desc}`)
-      await query(`UPDATE atp_transaction_type SET description=? WHERE transaction_type=?`, [ desc, noDescTxType.transaction_type ])
+      await dbupdate(`UPDATE atp_transaction_type SET description=? WHERE transaction_type=?`, [ desc, noDescTxType.transaction_type ])
     }
   }
   process.exit(0)

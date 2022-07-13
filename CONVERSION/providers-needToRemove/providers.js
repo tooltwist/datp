@@ -107,7 +107,7 @@ async function init() {
 //   //   if (p.domain_code !== 'std' && !plugin && (p.status !== 'noplugin' && p.status !== 'prepare')) {
 //   //     // Set to 'noplugin' status
 //   //     console.log(`No plugin found for provider ${p.domain_code} - updating database status to 'noplugin'.`)
-//   //     await query(`UPDATE provider SET status='noplugin' WHERE domain_code=?`, [ p.domain_code ])
+//   //     await dbupdate(`UPDATE provider SET status='noplugin' WHERE domain_code=?`, [ p.domain_code ])
 //   //   } else {
 //   //     const provider = {
 //   //       code: p.domain_code,
@@ -130,7 +130,7 @@ async function init() {
 //   //   }
 //   //   if (!found) {
 //   //     console.log(`Adding new provider ${pluginName} to the database.`)
-//   //     await query(`INSERT INTO provider (domain_code, name, status) VALUES (?, ?, ?)`, [ pluginName, pluginName, 'prepare' ])
+//   //     await dbupdate(`INSERT INTO provider (domain_code, name, status) VALUES (?, ?, ?)`, [ pluginName, pluginName, 'prepare' ])
 //   //   }
 //   // }
 

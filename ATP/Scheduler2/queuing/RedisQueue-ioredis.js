@@ -13,6 +13,7 @@ import query from '../../../database/query';
 import Scheduler2 from '../Scheduler2';
 import { schedulerForThisNode } from '../../..';
 import pause from '../../../lib/pause';
+import dbupdate from '../../../database/dbupdate';
 const Redis = require('ioredis');
 
 // This adds colors to the String class
@@ -338,13 +339,16 @@ export class RedisQueue extends QueueManager {
    * @returns Number of elements moved
    */
   async moveElementsToAnotherQueue(fromQueueName, toQueueName) {
-    console.log(`moveElementsToAnotherQueue(${fromQueueName}, ${toQueueName})`)
+    // console.log(`moveElementsToAnotherQueue(${fromQueueName}, ${toQueueName})`)
     const fromQueue = listName(fromQueueName)
     const toQueue = listName(toQueueName)
+    // console.log(`fromQueue=`, fromQueue)
+    // console.log(`toQueue=`, toQueue)
     for (let i = 0; ; i++) {
       const value = await this.#adminRedis.lmove(fromQueue, toQueue, 'left', 'right')
       if (!value) {
         // None left
+        console.log(`- moved ${i} events.`)
         return i
       }
 // return 1
@@ -427,8 +431,8 @@ export class RedisQueue extends QueueManager {
    * @param {*} nodeId
    * @param {*} status
    */
-  async registerNode(nodeGroup, nodeId, status) {
-    // console.log(`registerNode(${nodeGroup}, ${nodeId})`)
+  async registerNodeInREDIS(nodeGroup, nodeId, status) {
+    // console.log(`registerNodeInREDIS(${nodeGroup}, ${nodeId})`)
     await this._checkLoaded()
     const key = `${KEYPREFIX_NODE_REGISTRATION}${nodeGroup}:${nodeId}`
     status.timestamp = Date.now()
@@ -464,8 +468,8 @@ export class RedisQueue extends QueueManager {
    * @param {boolean} withStepTypes Should the reply include step types
    * @returns
    */
-  async getDetailsOfActiveNodes(withStepTypes=false) {
-    // console.log(`getDetailsOfActiveNodes()`)
+  async getDetailsOfActiveNodesfromREDIS(withStepTypes=false) {
+    // console.log(`getDetailsOfActiveNodesfromREDIS()`)
     const keys = await this.#adminRedis.keys(`${KEYPREFIX_NODE_REGISTRATION}*`)
     // console.log(`keys=`, keys)
 
@@ -473,6 +477,7 @@ export class RedisQueue extends QueueManager {
     const groups = { }
     for (const key of keys) {
       // Get the nodeGroup and nodeId from the key
+      // e.g. datp:node-registration:RECORD:master:nodeId-e4a22be588913654d4d0b404a3828b55f1b98153
       const arr = key.split(':')
       if (arr.length === 5) {
         const nodeGroup = arr[3]
@@ -495,11 +500,13 @@ export class RedisQueue extends QueueManager {
           } catch (e) {
             console.log(`nodeJSON=`, nodeJSON)
             console.log(`Internal error: REDIS contains invalid JSON definition in node registration ${key}`)
+            console.log(`e=`, e)
             group._nodeDefinitions[nodeId] = { stepTypes: [ ] }
           }
         }
       } else {
         console.log(`Internal error: REDIS contains invalid JSON definition in node registration ${key}`)
+        console.log(`(Does not have 5 sections)`)
       }
     }
 
@@ -526,8 +533,8 @@ export class RedisQueue extends QueueManager {
       return 0
     })
 
-    // console.log(`list=`, list)
-    // console.log(`RedisQueue-ioredis.getDetailsOfActiveNodes():`, JSON.stringify(list, '', 2))
+    // console.log(`YARP 96 list=`, list)
+    // console.log(`RedisQueue-ioredis.getDetailsOfActiveNodesfromREDIS():`, JSON.stringify(list, '', 2))
     return list
   }
 
@@ -568,18 +575,18 @@ export class RedisQueue extends QueueManager {
    *
    * @returns { stepTypes }
    */
-  async getNodeDetails(nodeGroup, nodeId) {
+  async getNodeDetailsFromREDIS(nodeGroup, nodeId) {
+    // console.log(`getNodeDetailsFromREDIS(${nodeGroup}, ${nodeId})`)
     const key = `${KEYPREFIX_NODE_REGISTRATION}${nodeGroup}:${nodeId}`
     const json = await this.#adminRedis.get(key)
-    console.log(`json=`, json)
+    // console.log(`json=`, json)
     try {
-      const status = JSON.parse(nodeJSON)
-      // status.nodeGroup = nodeGroup
-      // stat.nodeId = nodeId
-      console.log(`status=`, status)
+      const status = JSON.parse(json)
       return status
+
     } catch (e) {
       console.log(`Internal error: REDIS contains invalid JSON definition in node registration ${key}`)
+      console.log(`e=`, e)
       return null
     }
   }
@@ -676,7 +683,7 @@ export class RedisQueue extends QueueManager {
          */
         let sql = `INSERT INTO atp_transaction_state (transaction_id, json) VALUES (?, ?)`
         let params = [ txId, json ]
-        let result2 = await query(sql, params)
+        let result2 = await dbupdate(sql, params)
         // console.log(`result2=`, result2)
         if (result2.affectedRows !== 1) {
           //ZZZZZZ Notify the admin
@@ -697,7 +704,7 @@ export class RedisQueue extends QueueManager {
         // console.log(`Need to update`)
         const sql = `UPDATE atp_transaction_state SET json=? WHERE transaction_id=?`
         const params = [ json, txId ]
-        const result2 = await query(sql, params)
+        const result2 = await dbupdate(sql, params)
         // console.log(`result2=`, result2)
         if (result2.affectedRows !== 1) {
           //ZZZZZZ Notify the admin

@@ -9,6 +9,7 @@ import { STEP_SLEEPING } from "../ATP/Step"
 import query from "../database/query"
 import juice from "@tooltwist/juice-client"
 import { tryTheWebhook } from "../ATP/Scheduler2/returnTxStatusCallback"
+import dbupdate from "../database/dbupdate"
 
 export const CRON_INTERVAL = 15 // seconds
 const VERBOSE = 0
@@ -94,7 +95,7 @@ export default class DatpCron {
         // the step will specify to rerun itself.
         const sql2 = `UPDATE atp_transaction2 SET wake_time = NULL WHERE transaction_id = ?`
         const params2 = [ tx.txId ]
-        await query(sql2, params2)
+        await dbupdate(sql2, params2)
 
         // console.log(`Restarting transaction [${tx.txId}]`)
         await schedulerForThisNode.enqueue_StepRestart(nodeGroup, tx.txId, tx.wakeStepId)

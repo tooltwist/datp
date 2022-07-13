@@ -16,7 +16,7 @@ export async function route_activeNodesV1(req, res, next) {
     }
 
     // Get the list of active nodes.
-    const nodeList = await schedulerForThisNode.getDetailsOfActiveNodes(withStepTypes)
+    const nodeList = await schedulerForThisNode.getDetailsOfActiveNodesfromREDIS(withStepTypes)
 
     // If any defined groups are missing, add them even though the group is not active.
     const existingNodeGroups = new Set()

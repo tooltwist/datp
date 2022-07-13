@@ -56,7 +56,7 @@ export async function startDatpServer(options) {
   // await DATP.registerAsMaster(server)
 
   // If this is a master node, provide routes for MONDAT to call
-  const nodeGroup = await juice.string('datp.nodeGroup', null) // Checked elsewhere
+  const nodeGroup = await juice.string('datp.nodeGroup', "master") // Checked elsewhere
   if (nodeGroup === 'master') {
     mondat.registerRoutes(server)
     // await DATP.monitorMidi()

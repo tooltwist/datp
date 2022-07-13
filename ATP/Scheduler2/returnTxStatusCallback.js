@@ -15,6 +15,7 @@ import crypto from 'crypto'
 import { GO_BACK_AND_RELEASE_WORKER } from './Worker2'
 import { convertReply } from './ReplyConverter'
 import LongPoll from './LongPoll'
+import dbupdate from '../../database/dbupdate'
 
 require('colors')
 
@@ -103,13 +104,13 @@ export async function sendStatusByWebhook(owner, txId, webhookUrl, eventType) {
   // Save this webhook in the database
   const eventTime = new Date()
   try {
-    const sql = `INSERT into atp_webhook
+    const sql = `INSERT INTO atp_webhook
       (transaction_id, owner, url, event_type, initial_attempt, next_attempt)
       VALUES (?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ${MIN_WEBHOOK_RETRY} SECOND))`
     const params = [ txId, owner, webhookUrl, eventType, eventTime ]
     // console.log(`sql=`, sql)
     // console.log(`params=`, params)
-    const result = await query(sql, params)
+    const result = await dbupdate(sql, params)
     // console.log(`result=`, result)
   } catch (e) {
 
@@ -119,7 +120,7 @@ export async function sendStatusByWebhook(owner, txId, webhookUrl, eventType) {
       // The record already exists, so we'll update it. This happens when we have progress reports.
       const sql2 = `UPDATE atp_webhook SET event_type=?, initial_attempt=?, next_attempt = DATE_ADD(NOW(), INTERVAL ${MIN_WEBHOOK_RETRY} SECOND) WHERE transaction_id=?`
       const params2 = [ eventType, eventTime, txId ]
-      const reply2 = await query(sql2, params2)
+      const reply2 = await dbupdate(sql2, params2)
       // console.log(`reply2=`, reply2)
     } else {
       throw e
@@ -141,7 +142,7 @@ export async function tryTheWebhook(owner, txId, webhookUrl, eventType, eventTim
     console.log(`Cancelling webhook for unknown transaction ${txId}`)
     const sql2 = `UPDATE atp_webhook SET status='cancelled', next_attempt = NULL WHERE transaction_id=?`
     const params2 = [ txId ]
-    const reply2 = await query(sql2, params2)
+    const reply2 = await dbupdate(sql2, params2)
     // console.log(`reply2=`, reply2)
     return
   }
@@ -249,7 +250,7 @@ export async function tryTheWebhook(owner, txId, webhookUrl, eventType, eventTim
     message=?
     WHERE transaction_id=?`
   const params2 = [ txId, errorMsg ]
-  const reply2 = await query(sql2, params2)
+  const reply2 = await dbupdate(sql2, params2)
   // console.log(`reply2=`, reply2)
 
   const wakeTime = new Date(Date.now() + (interval * 1000))

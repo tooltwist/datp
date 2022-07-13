@@ -5,6 +5,7 @@
  * the author or owner be liable for any claim or damages.
  */
 import errors from 'restify-errors'
+import dbupdate from '../../../database/dbupdate';
 import query from '../../../database/query';
 
 
@@ -389,7 +390,7 @@ export default class View {
     const sql = `INSERT INTO formservice_field (${names}) VALUES (${values})`
     if (VERBOSE) console.log(`sql=`, sql)
     if (VERBOSE) console.log(`params=`, params)
-    await query(sql, params)
+    await dbupdate(sql, params)
   }
 
 

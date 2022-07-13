@@ -5,13 +5,16 @@
  * the author or owner be liable for any claim or damages.
  */
 import { schedulerForThisNode } from '..';
-import TransactionCache from '../ATP/Scheduler2/TransactionCache';
-import LongPoll from '../ATP/Scheduler2/LongPoll'
+// import TransactionCache from '../ATP/Scheduler2/TransactionCache';
+// import LongPoll from '../ATP/Scheduler2/LongPoll'
 import Scheduler2 from '../ATP/Scheduler2/Scheduler2'
 import { getNodeGroups } from '../database/dbNodeGroup';
 
+const VERBOSE = 0
+
 export async function getQueueStatsV1(req, res, next) {
-  // console.log(`getQueueStatsV1()`)
+  if (VERBOSE) console.log(`-----------------`)
+  if (VERBOSE) console.log(`getQueueStatsV1()`)
 
   const stats = { }
   const getGroup = (nodeGroup) => {
@@ -22,52 +25,75 @@ export async function getQueueStatsV1(req, res, next) {
     }
     return grp
   }
-  const intArray = (size) => { const arr = [ ]; for (let i = 0; i < size; i++) arr.push(0); return arr }
-  const getNode = (group, nodeId, shouldBeKnown) => {
-    let node = group.nodes[nodeId]
-    if (!node) {
+  // const intArray = (size) => { const arr = [ ]; for (let i = 0; i < size; i++) arr.push(0); return arr }
+  const getNode = async (group, nodeId, shouldBeKnown=false) => {
+    // console.log(`        getNode(${group}, ${nodeId}, shouldBeKnown=${shouldBeKnown})`)
 
-      // The node was not found in the main list. Perhaps it is already
-      // registered as an orphan?
-      node = group.orphanNodes[nodeId]
+    let node = group.nodes[nodeId]
+    if (node) {
+      console.log(`        - found node in main list`, node)
+      return node
+    }
+
+    // The node was not found in the main list.
+    // Perhaps it is already registered as an orphan?
+    node = group.orphanNodes[nodeId]
+    if (node) {
+      console.log(`        - found node in orphan list`, node)
+      return node
+    }
+
+    // Let's get the node details from REDIS
+    if (!shouldBeKnown) {
+      node = await schedulerForThisNode.getNodeDetailsFromREDIS(group.nodeGroup, nodeId)
       if (node) {
-        // console.log(`Found node ${nodeId} in orphan list`)
+        group.nodes[nodeId] = node
         return node
       }
-
-      // Create a new node
-      node = {
-        nodeId,
-        queueLength: 0,
-        regularQueueLength: 0,
-        expressQueueLength: 0,
-        workers: {total: 0, running: 0, waiting: 0, shuttingDown: 0, standby: 0},
-        stats: {
-          transactionsInPastMinute: intArray(60),
-          transactionsInPastHour: intArray(60),
-          transactionsOutPastMinute: intArray(60),
-          transactionsOutPastHour: intArray(60),
-          stepsPastMinute: intArray(60),
-          stepsPastHour: intArray(60),
-          enqueuePastMinute: intArray(60),
-          enqueuePastHour: intArray(60),
-          dequeuePastMinute: intArray(60),
-          dequeuePastHour: intArray(60),
-        }
-      }
-      if (shouldBeKnown) {
-        // Should be in the main node list but was not. Must be an orphan.
-console.log(`FOUND AN ORPHAN NODE [${nodeId}] IN GROUP ${group.nodeGroup}`)
-        group.orphanNodes[nodeId] = node
-        // console.log(`group.orphanNodes=`, group.orphanNodes)
-        // console.log(`orphan node ${nodeId}`)
-      } else {
-        // Add to list
-        group.nodes[nodeId] = node
-      }
     }
+
+
+    /*
+     *  We are getting details for a node that is not running. We know this because
+     *  its keepalive has not saved details to REDIS recently, so they've been removed.
+     *    i) It is in the node groups list, which hasn't removed the node yet.
+     *    ii) A queue refers to the node.
+     *  In either case we need to consider this an orphan node.
+     */
+    // console.log(`------------------------> Creating fake details for orphan ${nodeId}`)
+
+    // Create a fake new node for an orphin
+    node = {
+      nodeId,
+      queueLength: 0,
+      regularQueueLength: 0,
+      expressQueueLength: 0,
+      workers: {total: 0, running: 0, waiting: 0, shuttingDown: 0, standby: 0, required: 0},
+      stats: {
+        // transactionsInPastMinute: intArray(60),
+        // transactionsInPastHour: intArray(60),
+        // transactionsOutPastMinute: intArray(60),
+        // transactionsOutPastHour: intArray(60),
+        // stepsPastMinute: intArray(60),
+        // stepsPastHour: intArray(60),
+        // enqueuePastMinute: intArray(60),
+        // enqueuePastHour: intArray(60),
+        // dequeuePastMinute: intArray(60),
+        // dequeuePastHour: intArray(60),
+      },
+      throughput: {
+        txInSec: 0,
+        txOutSec: 0
+      },
+      transactionsInCache: 0,
+      outstandingLongPolls: 0,
+      stepTypes: [ ],
+    }
+    console.log(`FOUND AN ORPHAN NODE [${nodeId}] IN GROUP ${group.nodeGroup}`)
+    group.orphanNodes[nodeId] = node
     return node
-  }
+
+  }//- getNode()
 
   // Get the groups from the database
   const groups = await getNodeGroups()
@@ -81,51 +107,61 @@ console.log(`FOUND AN ORPHAN NODE [${nodeId}] IN GROUP ${group.nodeGroup}`)
 
   // Get a list of currently active nodes (grouped by nodeGroup)
   const withSteptypes = false
-  const activeNodes = await schedulerForThisNode.getDetailsOfActiveNodes(withSteptypes)
-  // console.log(`activeNodes=`, activeNodes)
-  for (const activeGroup of activeNodes) {
+  const activeNodeGroups = await schedulerForThisNode.getDetailsOfActiveNodesfromREDIS(withSteptypes)
+  // console.log(`activeNodeGroups=`, activeNodeGroups)
+  for (const activeGroup of activeNodeGroups) {
+    // console.log(`  activeGroup=`, activeGroup)
     // Add the group and node to our lists
     const group = getGroup(activeGroup.nodeGroup)
-    // console.log(`activeGroup=`, activeGroup)
+    group.queueLength = 0
+    // console.log(`    group=`, group)
     for (const nodeId of activeGroup.nodes) {
-      getNode(group, nodeId)
+      // console.log(`    nodeId=`, nodeId)
+      const node = await getNode(group, nodeId)
+      node.queueLength = 0
+      node.regularQueueLength = 0
+      node.expressQueueLength = 0
     }
+    // console.log(`^^^`)
   }
 
 
 
 
-{
-  const nodeGroup = 'master'
-  const nodeId = schedulerForThisNode.getNodeId()
+// {
+//   const nodeGroup = 'master'
+//   const nodeId = schedulerForThisNode.getNodeId()
 
-  const myStatus = await schedulerForThisNode.getStatus()
-  // console.log(`myStatus=`, myStatus)
-  const transactionsInCache = await TransactionCache.size()
-  const outstandingLongPolls = await LongPoll.outstandingLongPolls()
-  // console.log(`transactionsInCache=`, transactionsInCache)
+//   const myStatus = await schedulerForThisNode.getCurrentNodeDetails()
+//   // console.log(`myStatus=`, myStatus)
+//   const transactionsInCache = await TransactionCache.size()
+//   const outstandingLongPolls = await LongPoll.outstandingLongPolls()
+//   // console.log(`transactionsInCache=`, transactionsInCache)
 
-  // console.log(`YARP 1:`, myStatus.stats.transactionsInPastMinute)
+//   // console.log(`YARP 1:`, myStatus.stats.transactionsInPastMinute)
 
-  const grp = getGroup(nodeGroup)
-  grp.nodes[nodeId]
+//   const grp = getGroup(nodeGroup)
+//   grp.nodes[nodeId]
 
-  if (nodeId) {
-    const node = getNode(grp, nodeId, false)
-    node.workers = myStatus.workers
-    node.stats = myStatus.stats
-    node.transactionsInCache = transactionsInCache
-    node.outstandingLongPolls = outstandingLongPolls
-    // console.log(`node=`, node)
-    // console.log(`YARP 2:`, node.stats.transactionsInPastMinute)
-  }
-}
+//   if (nodeId) {
+//     const node = await getNode(grp, nodeId, false)
+//     node.workers = myStatus.workers
+//     node.stats = myStatus.stats
+//     node.transactionsInCache = transactionsInCache
+//     node.outstandingLongPolls = outstandingLongPolls
+//     // console.log(`node=`, node)
+//     // console.log(`YARP 2:`, node.stats.transactionsInPastMinute)
+//   }
+// }
 
-
-  // Add the REDIS queue sizes
-  // const queue = await getQueueConnection()
-  // console.log(`queue=`, queue)
+  /*
+   *  Get the queue sizes from REDIS.
+   *  We've already loaded all the currently running nodes, so any
+   *  queue for a node that is unknown must be evidence of a node
+   *  that has died, and left behind an orphan queue.
+   */
   const queues = await schedulerForThisNode.queueLengths() // [ { nodeGroup, nodeId?, queueLength} ]
+  const orphanIfNotAlreadyFound = true
   for (const queue of queues) {
     // console.log(`queue=`, queue)
 
@@ -140,13 +176,15 @@ console.log(`FOUND AN ORPHAN NODE [${nodeId}] IN GROUP ${group.nodeGroup}`)
       switch (type) {
         case Scheduler2.GROUP_QUEUE_PREFIX:
           // Queue is for the group
+          // console.log(`Group queue length ${queue.length} for ${nodeGroup}`)
           grp.queueLength += queue.length
           break
         case Scheduler2.REGULAR_QUEUE_PREFIX:
           {
             // Regular node queue
-            const node = getNode(grp, nodeId, true)
+            const node = await getNode(grp, nodeId, orphanIfNotAlreadyFound)
             if (node) {
+              // console.log(`Regular queue length ${queue.length} for ${nodeId}`)
               node.queueLength += queue.length
               node.regularQueueLength += queue.length
             }
@@ -155,8 +193,9 @@ console.log(`FOUND AN ORPHAN NODE [${nodeId}] IN GROUP ${group.nodeGroup}`)
         case Scheduler2.EXPRESS_QUEUE_PREFIX:
           {
             // Express queue for the node
-            const node = getNode(grp, nodeId, true)
+            const node = await getNode(grp, nodeId, orphanIfNotAlreadyFound)
             if (node) {
+              // console.log(`Express queue length ${queue.length} for ${nodeId}`)
               node.queueLength += queue.length
               node.expressQueueLength += queue.length
             }
@@ -172,7 +211,9 @@ console.log(`FOUND AN ORPHAN NODE [${nodeId}] IN GROUP ${group.nodeGroup}`)
   // for (const node of Object.values(stats.master.nodes)) {
   //   console.log(`=>`, JSON.stringify(node.stats.transactionsInPastMinute, '', 2))
   // }
-  // console.log(`stats.master=`, JSON.stringify(stats, '', 2))
+  // console.log(`stats=`, JSON.stringify(stats, '', 2))
+  // console.log(`RETURNING STATS`)
+  // console.log(`YARP 999 stats=`, stats)
   res.send(stats)
-  return next();
+  next();
 }

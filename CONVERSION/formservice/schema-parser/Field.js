@@ -10,6 +10,7 @@ import errors from 'restify-errors'
 // import field_properties from './field_properties';
 import Schema from './Schema';
 import query from '../../../database/query';
+import dbupdate from '../../../database/dbupdate';
 
 
 /*
@@ -323,7 +324,7 @@ export default class Field {
       console.log(`params=`, params)
       if (sep) {
         // console.log(`Update ${schema.tenant}/${this.viewName}/${this.name}`)
-        await query(sql, params)
+        await dbupdate(sql, params)
       } else {
         // console.log(`no changes`)
       }

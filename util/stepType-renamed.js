@@ -4,6 +4,7 @@
  * rights reserved. No warranty, explicit or implicit, provided. In no event shall
  * the author or owner be liable for any claim or damages.
  */
+import dbupdate from "../database/dbupdate"
 import query from "../database/query"
 
 
@@ -58,7 +59,7 @@ async function stepTypeRenamed(oldName, newName) {
         // console.log(`stepsJson=`, stepsJson)
         const sql2 = `UPDATE atp_pipeline SET steps_json=? WHERE name=?`
         const params2 = [ stepsJson, pipeline.name ]
-        await query(sql2, params2)
+        await dbupdate(sql2, params2)
         changedPipelines++
       } catch (e) {
         console.log(`BIG PROBLEM. COULD NOT UPDATE PIPELINE ${pipeline.name}:`, e)

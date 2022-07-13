@@ -4,6 +4,7 @@
  * rights reserved. No warranty, explicit or implicit, provided. In no event shall
  * the author or owner be liable for any claim or damages.
  */
+import dbupdate from './dbupdate'
 import query from './query'
 
 export default {
@@ -22,7 +23,7 @@ async function saveArtifact(stepId, name, text) {
   const params = [ stepId, name, text ]
   // console.log(`sql=`, sql)
   // console.log(`params=`, params)
-  const result = await query(sql, params)
+  const result = await dbupdate(sql, params)
   // console.log(`result=`, result)
 }
 
@@ -32,7 +33,7 @@ async function artifactsForStep(stepId) {
   const params = [ stepId ]
   // console.log(`sql=`, sql)
   // console.log(`params=`, params)
-  const result = await query(sql, params)
+  const result = await dbupdate(sql, params)
   // console.log(`result=`, result)
   return result
 }

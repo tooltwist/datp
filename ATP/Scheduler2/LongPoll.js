@@ -4,6 +4,7 @@
  * rights reserved. No warranty, explicit or implicit, provided. In no event shall
  * the author or owner be liable for any claim or damages.
  */
+import dbupdate from "../../database/dbupdate"
 import query from "../../database/query"
 import { convertReply } from "./ReplyConverter"
 import Transaction from "./Transaction"
@@ -89,7 +90,7 @@ export default class LongPoll {
       if (VERBOSE) console.log(`LongPoll:tryToReply - set response_acknowledge_time`)
       const sql = `UPDATE atp_transaction2 SET response_acknowledge_time = NOW() WHERE transaction_id=? AND response_acknowledge_time IS NULL`
       const params = [ txId ]
-      const result = await query(sql, params)
+      const result = await dbupdate(sql, params)
       // console.log(`result=`, result)
 
       // Send the reply

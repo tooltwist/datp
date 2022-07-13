@@ -46,6 +46,8 @@ Transaction information exists at several levels:
   The DATP code updates a transaction's state by applying _deltas_. These are the individual changes to the transaction state. The DATP code processes these as instructions to update the state of the transaction at various stages of a pipeline running.
   
   (Optional) As a form of auxilliary backup, these deltas can be streamed to offline storage, similarly to database journaling. In an emergency situation, the deltas can be replayed to reconstruct the state of a transaction. Streaming in this way, rather than updating a database, can provide an additional last-resort transaction state backup with minimum impact on performance.
+  
+  See `README.dynamoDB.md` for more information.
 
 > It's worth noting - the transaction state can be reconstructed from the transaction deltas, and the transaction summary can be reconstructed from the transaction state. It's not decided yet whether we want to automate this process, or just provide the information through MONDAT so that manual remediation is possible in the case of a system failure.
 
@@ -64,7 +66,7 @@ If neccessary, this table can be moved to a super-fast NoSQL database such as Dy
 1. If a transaction's state cannot be found in the in-memory cache, it is loaded into the in-memory cache from the REDIS cache.
 1. All the steps within a pipeline will run on the same server instance. This allows us to use in-memory caching between steps.
 1. When a state change includes information relevant to the initiator of the transaction, it is written to the database (the atp_transaction table).
-1. When a step goes to sleep the transactin state is written to REDIS, but not removed from memory.
+1. When a step goes to sleep the transaction state is written to REDIS, but not removed from memory.
 1. If a step passes control to a pipeline on another node, the transaction state is written to REDIS, and IS removed from the in-memory cache.
 1. When a transaction completes, the transaction state is saved to the database in the `atp-transaction-state` table.
 1. After TX_MEMORY_CACHE_DURATION seconds (five minutes?) in inactivity, transaction state will be moved from in-memory to the REDIS cache. (Note: If the sleep and transaction complete functionality described above is working correctly, this is unlikely to ever happen)
