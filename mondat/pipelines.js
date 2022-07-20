@@ -5,7 +5,7 @@
  * the author or owner be liable for any claim or damages.
  */
 import ATP from '../ATP/ATP'
-import dbPipelines, { clonePipeline, commitPipelineDraftVersion, db_getPipelineTypesV1, db_importPipelineVersion, deletePipelineVersion, getPipelines, saveDraftPipelineSteps } from '../database/dbPipelines'
+import dbPipelines, { clonePipeline, commitPipelineDraftVersion, createPipeline, db_getPipelineTypesV1, db_importPipelineVersion, deletePipelineVersion, getPipelines, saveDraftPipelineSteps } from '../database/dbPipelines'
 import errors from 'restify-errors'
 import { db_updatePipelineType, getPipelineType } from '../database/dbTransactionType'
 import crypto from 'crypto'
@@ -58,10 +58,6 @@ export async function listPipelinesV1(req, res, next) {
 
 /**
  * Clone an existing pipeline version, to create a version named 'draft'.
- * 
- * @param {*} req 
- * @param {*} res 
- * @param {*} next 
  */
 export async function clonePipelineV1(req, res, next) {
   // console.log(`clonePipelineV1()`)
@@ -74,11 +70,6 @@ export async function clonePipelineV1(req, res, next) {
 
 /**
  * Update the steps for a draft pipeline.
- * 
- * @param {*} req 
- * @param {*} res 
- * @param {*} next 
- * @returns 
  */
 export async function savePipelineDraftV1(req, res, next) {
   // console.log(`savePipelineDraftV1()`)
@@ -91,12 +82,7 @@ export async function savePipelineDraftV1(req, res, next) {
 }
 
 /**
- * Commit the current draft version, to create a version that
- * uses a hash as the version number.
- * 
- * @param {*} req 
- * @param {*} res 
- * @param {*} next 
+ * Commit the current draft version, to create a version that uses a hash as the version number.
  */
 export async function commitPipelineV1(req, res, next) {
   // console.log(`commitPipelineV1()`)
@@ -109,6 +95,9 @@ export async function commitPipelineV1(req, res, next) {
   return next();
 }
 
+/**
+ * Delete a version of a pipeline
+ */
 export async function route_deletePipelineVersionV1(req, res, next) {
   // console.log(`route_deletePipelineVersionV1()`)
   const pipelineName = req.params.pipeline
@@ -125,9 +114,11 @@ export async function route_deletePipelineVersionV1(req, res, next) {
   await deletePipelineVersion(pipelineName, version)
   res.send({ status: 'ok' })
   return next()
-}
+}//- route_deletePipelineVersionV1
 
-
+/**
+ * Generate a unique hash based on a pipeline definition.
+ */
 export function generatePipelineHash(pipelineName, stepJson, commitLogJson) {
   // console.log(`---------------------------------`)
   // console.log(`generatePipelineHash()`)
@@ -184,8 +175,11 @@ export function generatePipelineHash(pipelineName, stepJson, commitLogJson) {
   // const newCommitLogJson = JSON.stringify(commitLog)
 
   return hash
-}
+}//- generatePipelineHash
 
+/**
+ * Update pipeline definition.
+ */
 export async function route_updatePipelineTypeV1(req, res, next) {
   // console.log(`route_updatePipelineTypeV1()`)
   const pipelineName = req.params.pipelineName
@@ -197,7 +191,7 @@ export async function route_updatePipelineTypeV1(req, res, next) {
   await db_updatePipelineType(pipelineName, updates)
   res.send({ status: 'ok' })
   return next()
-}
+}//- route_updatePipelineTypeV1
 
 export async function route_exportPipelineVersionV1(req, res, next) {
   // console.log(`route_exportPipelineVersionV1()`)
@@ -239,8 +233,11 @@ export async function route_exportPipelineVersionV1(req, res, next) {
 
   res.send({ status: 'ok', filename, contents })
   return next()
-}
+}//- route_exportPipelineVersionV1
 
+/**
+ * Export a pipeline definition.
+ */
 export async function route_importPipelineVersionV1(req, res, next) {
   console.log(`route_importPipelineVersionV1()`)
   const pipelineName = req.params.pipelineName
@@ -328,5 +325,15 @@ export async function route_importPipelineVersionV1(req, res, next) {
   }
 
   res.send({ status: 'ok', message: warning })
+  return next()
+}//- route_importPipelineVersionV1
+
+export async function route_newPipelineTypeV1(req, res, next) {
+  console.log(`route_newPipelineTypeV1()`)
+  console.log(`req.params=`, req.params)
+
+  const name = req.params.pipelineName.trim()
+  await createPipeline(name)
+  res.send({ status: 'ok' })
   return next()
 }

@@ -12,6 +12,12 @@ import { getNodeGroups } from '../database/dbNodeGroup';
 
 const VERBOSE = 0
 
+/**
+ * Get details of all the queues, nodes and node groups.
+ * @param {Request} req 
+ * @param {Response} res 
+ * @param {*} next 
+ */
 export async function getQueueStatsV1(req, res, next) {
   if (VERBOSE) console.log(`-----------------`)
   if (VERBOSE) console.log(`getQueueStatsV1()`)
@@ -31,7 +37,7 @@ export async function getQueueStatsV1(req, res, next) {
 
     let node = group.nodes[nodeId]
     if (node) {
-      console.log(`        - found node in main list`, node)
+      // console.log(`        - found node in main list`, node)
       return node
     }
 
@@ -39,7 +45,7 @@ export async function getQueueStatsV1(req, res, next) {
     // Perhaps it is already registered as an orphan?
     node = group.orphanNodes[nodeId]
     if (node) {
-      console.log(`        - found node in orphan list`, node)
+      // console.log(`        - found node in orphan list`, node)
       return node
     }
 
@@ -124,35 +130,6 @@ export async function getQueueStatsV1(req, res, next) {
     }
     // console.log(`^^^`)
   }
-
-
-
-
-// {
-//   const nodeGroup = 'master'
-//   const nodeId = schedulerForThisNode.getNodeId()
-
-//   const myStatus = await schedulerForThisNode.getCurrentNodeDetails()
-//   // console.log(`myStatus=`, myStatus)
-//   const transactionsInCache = await TransactionCache.size()
-//   const outstandingLongPolls = await LongPoll.outstandingLongPolls()
-//   // console.log(`transactionsInCache=`, transactionsInCache)
-
-//   // console.log(`YARP 1:`, myStatus.stats.transactionsInPastMinute)
-
-//   const grp = getGroup(nodeGroup)
-//   grp.nodes[nodeId]
-
-//   if (nodeId) {
-//     const node = await getNode(grp, nodeId, false)
-//     node.workers = myStatus.workers
-//     node.stats = myStatus.stats
-//     node.transactionsInCache = transactionsInCache
-//     node.outstandingLongPolls = outstandingLongPolls
-//     // console.log(`node=`, node)
-//     // console.log(`YARP 2:`, node.stats.transactionsInPastMinute)
-//   }
-// }
 
   /*
    *  Get the queue sizes from REDIS.

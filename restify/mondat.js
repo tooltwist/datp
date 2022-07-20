@@ -10,7 +10,7 @@ import { defineRoute, LOGIN_IGNORED } from '../extras/apiVersions'
 import { route_activeNodesV1 } from '../mondat/nodes'
 import { route_nodeGroupsV1 } from '../mondat/nodeGroups'
 import { getQueueStatsV1 } from '../mondat/queueStats';
-import { clonePipelineV1, commitPipelineV1, route_deletePipelineVersionV1, listPipelinesV1, pipelineDefinitionV1, pipelineDescriptionV1, route_getPipelineV1, savePipelineDraftV1, route_updatePipelineTypeV1, route_exportPipelineVersionV1, route_importPipelineVersionV1, route_getPipelinesTypesV1 } from '../mondat/pipelines'
+import { clonePipelineV1, commitPipelineV1, route_deletePipelineVersionV1, listPipelinesV1, pipelineDefinitionV1, pipelineDescriptionV1, route_getPipelineV1, savePipelineDraftV1, route_updatePipelineTypeV1, route_exportPipelineVersionV1, route_importPipelineVersionV1, route_getPipelinesTypesV1, route_newPipelineTypeV1 } from '../mondat/pipelines'
 import { getRecentPerformanceV1 } from '../mondat/recentPerformance';
 import { getStepInstanceDetailsV1 } from '../mondat/stepInstances';
 import { deleteTestCasesV1, getTestCasesV1, saveTestCasesV1 } from '../mondat/testCases';
@@ -18,6 +18,7 @@ import { deleteTransactionMappingsV1, getTransactionMappingsV1, saveTransactionM
 import { mondatTransactionsV1, route_transactionStatusV1 } from '../mondat/transactions';
 import { handleOrphanQueuesV1 } from '../mondat/handleOrphanQueues';
 import { routeCacheStatsV1 } from '../mondat/cacheStats';
+import { setNumWorkersV1 } from '../mondat/setNumWorkers';
 
 
 async function registerRoutes(server) {
@@ -83,6 +84,9 @@ async function registerRoutes(server) {
   defineRoute(server, 'post', false, MONITOR_URL_PREFIX, '/pipelineType/:pipelineName', [
     { versions: '1.0 - 1.0', handler: route_updatePipelineTypeV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
+  defineRoute(server, 'put', false, MONITOR_URL_PREFIX, '/pipelineType/:pipelineName/new', [
+    { versions: '1.0 - 1.0', handler: route_newPipelineTypeV1, auth: LOGIN_IGNORED, noTenant: true }
+  ])
 
   // Return a list of active node groups and nodes. If the stepTypes parameter is set,
   // the group records will contain a list of available step types in the group.
@@ -147,6 +151,9 @@ async function registerRoutes(server) {
    */
   defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/handleOrphanQueues/:nodeGroup/:nodeId', [
     { versions: '1.0 - 1.0', handler: handleOrphanQueuesV1, auth: LOGIN_IGNORED, noTenant: true }
+  ])
+  defineRoute(server, 'put', false, MONITOR_URL_PREFIX, '/nodeGroup/:nodeGroup/setNumWorkers', [
+    { versions: '1.0 - 1.0', handler: setNumWorkersV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
 
 }

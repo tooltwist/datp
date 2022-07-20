@@ -143,6 +143,9 @@ export async function saveDraftPipelineSteps(pipelineName, steps) {
   }
 }
 
+/**
+ * Clone an existing pipeline, as the starting point for a new pipeline / version.
+ */
 export async function clonePipeline(name, version) {
   if (VERBOSE) console.log(`clonePipeline(${name}, ${version})`)
   // Get the specified pipeline version
@@ -182,7 +185,7 @@ export async function clonePipeline(name, version) {
   const result = await dbupdate(sql, params)
   // console.log(`result=`, result)
   return pipeline
-}
+}//- clonePipeline
 
 export async function commitPipelineDraftVersion(pipelineName, comment) {
   // console.log(`commitPipelineDraftVersion()`)
@@ -274,3 +277,45 @@ export async function deletePipelineVersion(pipelineName, version) {
     throw new Error(`Could not delete atp_pipeline`)
   }
 }
+
+/**
+ * Create a new pipeline, by creating it's initial draft version. 
+ */
+export async function createPipeline(name) {
+  if (VERBOSE) console.log(`createPipeline(${name})`)
+
+  // Save the draft pipeline
+  const version = 'draft'
+  const stepsJson = JSON.stringify([
+    {
+      "id": 1,
+      "definition": {
+        "min": 50,
+        "max": 500,
+        "stepType": "util/delay",
+        "description": "Delay a random period of time"
+      }
+    }
+  ])
+  const notes = ''
+  const status = 'draft'
+  const commitComments = JSON.stringify([ { ts: new Date(), v: 'draft', m: 'draft version'} ])
+  const tags = null
+  const nodeGroup = 'master'
+
+  // Create the new transaction type
+  const sql2 = `INSERT INTO atp_transaction_type (transaction_type, is_transaction_type, description, pipeline_version, node_group, notes, pipeline_name) VALUES (?, ?, ?, ?, ?, ?, ?)`
+  const params2 = [ name, 1, '', version, nodeGroup, '', name ]
+  console.log(`sql2=`, sql2)
+  console.log(`params2=`, params2)
+  const result2 = await dbupdate(sql2, params2)
+  console.log(`result2=`, result2)
+
+  // Create the new pipeline
+  const sql = `INSERT INTO atp_pipeline (name, version, steps_json, notes, status, commit_comments, tags) VALUES (?, ?, ?, ?, ?, ?, ?)`
+  const params = [ name, version, stepsJson, notes, status, commitComments, tags ]
+  console.log(`sql=`, sql)
+  console.log(`params=`, params)
+  const result = await dbupdate(sql, params)
+  console.log(`result=`, result)
+}//- createPipeline
