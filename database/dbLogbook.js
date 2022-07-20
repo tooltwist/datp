@@ -5,7 +5,7 @@
  * the author or owner be liable for any claim or damages.
  */
 import query from './query'
-import { DEBUG_DB_ATP_LOGBOOK } from '../datp-constants'
+import { DEBUG_DB_ATP_LOGBOOK, logDestination } from '../datp-constants'
 import { schedulerForThisNode } from '..'
 import { logger } from '../lib/pino-logbook'
 import juice from '@tooltwist/juice-client'
@@ -13,7 +13,6 @@ import dbupdate from './dbupdate'
 
 let hackCount = 0
 let countDbAtpLogbook = 0
-let _logDestination = null
 
 export default class dbLogbook {
 
@@ -32,70 +31,6 @@ export default class dbLogbook {
   static LOG_SOURCE_SYSTEM = 'system'
   static LOG_SOURCE_PROGRESS_REPORT = 'progReport'
   static LOG_SOURCE_UNKNOWN = 'unknown'
-
-  static async logDestination() {
-    if (!_logDestination) {
-      const dest = await juice.string('datp.logDestination', 'db')
-      switch (dest) {
-        case 'pico':
-        case 'db':
-          _logDestination = dest
-          break
-
-        case 'none':
-          if (hackCount++ == 0) {
-            console.log(`WARNING!!!!!`)
-            console.log(`Not saving log entries`)
-          }  
-          _logDestination = dest
-          break
-          
-        default:
-          console.log(`Error: unknown datp.logDestination [${dest}]`)
-          console.log(`Should be pico | db | none`)
-          console.log(`Will proceed with 'db'.`)
-          _logDestination = 'db'
-      }
-    }
-    return _logDestination
-  }
-
-
-  // /**
-  //  *
-  //  * @param {String} msg
-  //  */
-  // static async log(transactionId, stepId, sequence, msg) {
-  //   console.log(`log(${transactionId}, ${stepId}, ${sequence}, ${msg})`)
-
-  //   if (typeof(json) !== 'string') {
-  //     throw new Error('log() requires string value for msg parameter')
-  //   }
-  //   if (HACK_TO_BYPASS_LOGGING_WHILE_TESTING) {
-  //     if (hackCount++ == 0) {
-  //       console.log(`WARNING!!!!!`)
-  //       console.log(`Not saving log entries (HACK_TO_BYPASS_LOGGING_WHILE_TESTING=true)`)
-  //     }
-  //   }
-  //   if (DEBUG_DB_ATP_LOGBOOK) console.log(`atp_logbook INSERT ${countDbAtpLogbook++}`)
-  //   const sql = `INSERT INTO atp_logbook (transaction_id, step_id, sequence, message) VALUES (?, ?, ?, ?)`
-  //   const params = [ transactionId, stepId, sequence, msg ]
-  //   // console.log(`sql=`, sql)
-  //   // console.log(`params=`, params)
-  //   const result = await dbupdate(sql, params)
-  //   // console.log(`result=`, result)
-  // }
-
-  // static async logbookEntries(transactionId) {
-  //   console.log(`logbookEntries(${transactionId})`)
-  //   const sql = `SELECT step_id AS stepId, sequence, message FROM atp_logbook WHERE transaction_id=? ORDER BY sequence`
-  //   const params = [ trasactionId ]
-  //   // console.log(`sql=`, sql)
-  //   // console.log(`params=`, params)
-  //   const result = await query(sql, params)
-  //   // console.log(`result=`, result)
-  //   return result
-  // }
 
   /**
    * Get the log entries for a transaction.
@@ -128,7 +63,7 @@ export default class dbLogbook {
     // console.log(`bulkLogging(${txId}, ${stepId})`, array)
 
     // Where will we send these logs?
-    const dest = await dbLogbook.logDestination()
+    const dest = await logDestination()
     switch (dest) {
       case 'none':
         // Nothing to do

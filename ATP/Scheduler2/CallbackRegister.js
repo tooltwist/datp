@@ -50,7 +50,7 @@ export default class CallbackRegister {
     CallbackRegister._index[name] = func
   }
 
-  static async call(name, context, nodeInfo, worker) {
+  static async call(tx, name, context, nodeInfo, worker) {
     if (VERBOSE) { console.log(`% CallbackRegister.call(${name})`, context, nodeInfo)}
     this._checkInitialized()
 
@@ -62,7 +62,7 @@ export default class CallbackRegister {
       }
       throw new Error(`Unknown callback [${name}]`)
     }
-    const rv = await func(context, nodeInfo, worker)
+    const rv = await func(tx, context, nodeInfo, worker)
     // console.log(`name=`, name)
     assert(rv === GO_BACK_AND_RELEASE_WORKER)
     return GO_BACK_AND_RELEASE_WORKER

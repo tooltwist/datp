@@ -16,7 +16,8 @@ import { startTransactionRoute } from '.';
 import { addRoute } from './extras';
 import { transactionStatusByTxIdV1 } from '../genericEndpoints/routes/transactionStatus';
 import { transactionStatusByExternalIdV1 } from '../genericEndpoints/routes/transactionStatusByExternalId';
-
+import { isDevelopmentMode, TEST_TENANT } from './datp-constants'
+import errors, { UnauthorizedError } from 'restify-errors'
 
 const { showVersions } = apiVersions
 
@@ -32,20 +33,23 @@ async function route_tx_start_$transactionType(req, res, next) {
   // console.log(`req.params=`, req.params)
   // console.log(`req.body=`, req.body)
   // console.log(`req.query=`, req.query)
+  if (await isDevelopmentMode()) {
 
-  const TEST_TENANT = 'acme'
+    const transactionType = req.params.transactionType
+    assert(transactionType && typeof(transactionType) === 'string')
+    assert(req.body)
 
-  const transactionType = req.params.transactionType
-  assert(transactionType && typeof(transactionType) === 'string')
-  assert(req.body)
+    let metadata = req.body.metadata ? req.body.metadata : { }
+    let data = req.body.data ? req.body.data : { }
+    assert(typeof(metadata) === 'object')
+    assert(typeof(data) === 'object')
 
-  let metadata = req.body.metadata ? req.body.metadata : { }
-  let data = req.body.data ? req.body.data : { }
-  assert(typeof(metadata) === 'object')
-  assert(typeof(data) === 'object')
-
-  // This will reply, although maybe not till it times out.
-  await startTransactionRoute(req, res, next, TEST_TENANT, transactionType, data, metadata)
+    // This will reply, although maybe not till it times out.
+    await startTransactionRoute(req, res, next, TEST_TENANT, transactionType, data, metadata)
+  } else {
+    res.send(new errors.UnauthorizedError('Can only start transactions like this in development environment.'))
+    return next()
+  }
 }
 
 

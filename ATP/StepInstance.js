@@ -9,22 +9,23 @@ import Step, { STEP_ABORTED, STEP_FAILED, STEP_INTERNAL_ERROR, STEP_RUNNING, STE
 import dbPipelines from "../database/dbPipelines"
 import XData, { dataFromXDataOrObject } from "./XData"
 import { STEP_TYPE_PIPELINE } from './StepTypeRegister'
-import TransactionCache from "./Scheduler2/TransactionCache";
+import TransactionCache, { PERSIST_TRANSACTION_STATE } from "./Scheduler2/txState-level-1";
 import indentPrefix from '../lib/indentPrefix'
 import assert from 'assert'
 import Transaction from './Scheduler2/Transaction'
 import { schedulerForThisNode } from '..'
 import dbLogbook from '../database/dbLogbook'
-import { DEEP_SLEEP_SECONDS } from '../datp-constants'
+import { DEEP_SLEEP_SECONDS, isDevelopmentMode } from '../datp-constants'
 import isEqual  from 'lodash.isequal'
 import { GO_BACK_AND_RELEASE_WORKER } from './Scheduler2/Worker2'
 import { requiresWebhookProgressReports, sendStatusByWebhook, WEBHOOK_EVENT_PROGRESS } from './Scheduler2/returnTxStatusCallback'
 
 const VERBOSE = 0
-const PARANOID_RETRY = true
 
 export default class StepInstance {
   #worker
+
+  #transactionState
 
   #txId
   #nodeGroup  // Cluster of redundant servers, performing the same role
@@ -94,8 +95,14 @@ export default class StepInstance {
 
   async materialize(options, tx, worker) {
     // console.log(``)
-// console.log(`StepInstance.materialize options=`, options)
+    // console.log(`StepInstance.materialize options=`, options)
+    // console.log(`  typeof(tx)=`, typeof(tx))
+
+    assert(tx instanceof Transaction)
+
     this.#worker = worker
+    this.#transactionState = tx
+    // console.log(`tx.getTxId()=`, tx.getTxId())
 
     const txData = tx.txData()
     // console.log(`txData=`, txData)
@@ -211,6 +218,17 @@ export default class StepInstance {
     }
 
     // console.log(`END OF MATRIALIZE, txdata IS ${this.#txdata.getJson()}`.magenta)
+  }
+
+  // This function gets the transaction state object. We want to keep this unpublished
+  // ans hard to notice - we don't want developers mucking with the internals of DATP.
+  _7agghtstrajj_37(txId) {
+    if (this.#transactionState.getTxId() !== txId) {
+      console.log(`Serious Error: Getting transaction that is not my transaction!!!!`)
+      console.log(`this.#transactionState.txId =`, this.#transactionState.getTxId() )
+      console.log(`txId=`, txId)
+    }
+    return this.#transactionState
   }
 
   getWorker() {
@@ -350,8 +368,7 @@ export default class StepInstance {
     await this.syncLogs()
 
     // Quick sanity check - make sure this step is actually running, and has not already exited.
-    // console.log(`yarp getting tx ${this.#txId}`)
-    const tx = await TransactionCache.getTransactionState(this.#txId)
+    const tx = this.#transactionState
     const stepData = tx.stepData(this.#stepId)
     if (stepData.status !== STEP_RUNNING) {
       //ZZZ Write to the log
@@ -388,7 +405,7 @@ export default class StepInstance {
     const parentNodeGroup = this.#onComplete.nodeGroup
     const parentNodeId = this.#onComplete.nodeId ? this.#onComplete.nodeId : null
     const workerForShortcut = this.#worker
-    const rv = await schedulerForThisNode.schedule_StepCompleted(parentNodeGroup, parentNodeId, tx, {
+    const rv = await schedulerForThisNode.schedule_StepCompleted(tx, parentNodeGroup, parentNodeId, {
       txId: this.#txId,
       stepId: this.#stepId,
       completionToken: this.#onComplete.completionToken,
@@ -414,9 +431,7 @@ export default class StepInstance {
     if (VERBOSE) console.log(`aborted: step out is `.magenta, myStepOutput)
 
     // Quick sanity check - make sure this step is actually running, and has not already exited.
-    // console.log(`yarp getting tx ${this.#txId}`)
-    const tx = await TransactionCache.getTransactionState(this.#txId)
-    // console.log(`tx=`, tx)
+    const tx = this.#transactionState
     const stepData = tx.stepData(this.#stepId)
     if (stepData.status !== STEP_RUNNING) {
       //ZZZ Write to the log
@@ -437,7 +452,7 @@ export default class StepInstance {
     const parentNodeGroup = this.#onComplete.nodeGroup
     const parentNodeId = this.#onComplete.nodeId ? this.#onComplete.nodeId : null
     const workerForShortcut = this.#worker
-    const rv = await schedulerForThisNode.schedule_StepCompleted(parentNodeGroup, parentNodeId, tx, {
+    const rv = await schedulerForThisNode.schedule_StepCompleted(tx, parentNodeGroup, parentNodeId, {
     // const rv = await schedulerForThisNode.enqueue_StepCompletedZZ(queueName, {
       txId: this.#txId,
       stepId: this.#stepId,
@@ -471,8 +486,7 @@ export default class StepInstance {
     if (VERBOSE) console.log(`failed: step out is `.magenta, myStepOutput)
 
     // Quick sanity check - make sure this step is actually running, and has not already exited.
-    // console.log(`yarp getting tx ${this.#txId}`)
-    const tx = await TransactionCache.getTransactionState(this.#txId)
+    const tx = this.#transactionState
     // console.log(`tx=`, tx)
     const stepData = tx.stepData(this.#stepId)
     if (stepData.status !== STEP_RUNNING) {
@@ -497,7 +511,7 @@ export default class StepInstance {
     const parentNodeGroup = this.#onComplete.nodeGroup
     const parentNodeId = this.#onComplete.nodeId ? this.#onComplete.nodeId : null
     const workerForShortcut = this.#worker
-    const rv = await schedulerForThisNode.schedule_StepCompleted(parentNodeGroup, parentNodeId, tx, {
+    const rv = await schedulerForThisNode.schedule_StepCompleted(tx, parentNodeGroup, parentNodeId, {
     // const queueName = Scheduler2.groupQueueName(this.#onComplete.nodeGroup)
     // const rv = await schedulerForThisNode.enqueue_StepCompletedZZ(queueName, {
       txId: this.#txId,
@@ -538,7 +552,7 @@ export default class StepInstance {
     }
 
     // Save the step status
-    const tx = await TransactionCache.getTransactionState(this.#txId)
+    const tx = this.#transactionState
     await tx.delta(this.#stepId, {
       status: STEP_INTERNAL_ERROR,
       note: `Internal error: bad pipeline definition. Please notify system administrator.`,
@@ -549,7 +563,7 @@ export default class StepInstance {
     const parentNodeGroup = this.#onComplete.nodeGroup
     const parentNodeId = this.#onComplete.nodeId ? this.#onComplete.nodeId : null
     const workerForShortcut = this.getWorker()
-    const rv = await schedulerForThisNode.schedule_StepCompleted(parentNodeGroup, parentNodeId, tx, {
+    const rv = await schedulerForThisNode.schedule_StepCompleted(tx, parentNodeGroup, parentNodeId, {
     // const queueName = Scheduler2.groupQueueName(this.#onComplete.nodeGroup)
     // const rv = await schedulerForThisNode.enqueue_StepCompletedZZ(queueName, {
       txId: this.#txId,
@@ -568,7 +582,6 @@ export default class StepInstance {
   async exceptionInStep(message, e) {
     console.log(this.#indent + `StepInstance.exceptionInStep(${message})`, e)
     this.#waitingForCompletionFunction = false
-    // console.log(new Error('YARP').stack)
 
     // Sync any buffered logs
     if (!message) {
@@ -608,7 +621,7 @@ export default class StepInstance {
     }
 
     // Update the status
-    const tx = await TransactionCache.getTransactionState(this.#txId)
+    const tx = this.#transactionState
     await tx.delta(this.#stepId, {
       status: STEP_INTERNAL_ERROR,
       note: `Internal error: exception in step. Please notify system administrator.`,
@@ -619,7 +632,7 @@ export default class StepInstance {
     const parentNodeGroup = this.#onComplete.nodeGroup
     const parentNodeId = this.#onComplete.nodeId ? this.#onComplete.nodeId : null
     const workerForShortcut = this.getWorker()
-    const rv = await schedulerForThisNode.schedule_StepCompleted(parentNodeGroup, parentNodeId, tx, {
+    const rv = await schedulerForThisNode.schedule_StepCompleted(tx, parentNodeGroup, parentNodeId, {
     // const queueName = Scheduler2.groupQueueName(this.#onComplete.nodeGroup)
     // const rv = await schedulerForThisNode.enqueue_StepCompletedZZ(queueName, {
       txId: this.#txId,
@@ -645,7 +658,7 @@ export default class StepInstance {
     await this.syncLogs()
 
     // Save the progressReport
-    const tx = await TransactionCache.getTransactionState(this.#txId)
+    const tx = this.#transactionState
     const previousProgressReport = tx.getProgressReport()
     if (VERBOSE) console.log(`previousProgressReport=`, previousProgressReport)
 
@@ -689,7 +702,7 @@ export default class StepInstance {
     await this.syncLogs()
 
     // Update the transaction status
-    const tx = await TransactionCache.getTransactionState(this.#txId)
+    const tx = this.#transactionState
     await tx.delta(null, {
       status: STEP_SLEEPING,
       wakeSwitch: nameOfSwitch,
@@ -706,9 +719,8 @@ export default class StepInstance {
     // process will see the wake request, but the transaction state is not
     // available. Normally we only persist the transaction state for a long
     // sleep, but in this paranoid mode we'll save it to REDIS immediately.
-    if (PARANOID_RETRY) {
-      const shortTerm = true
-      await TransactionCache.moveToGlobalCache(this.#txId, shortTerm)
+    if (isDevelopmentMode()) {
+      await PERSIST_TRANSACTION_STATE(tx)
     }
 
 
@@ -725,7 +737,7 @@ export default class StepInstance {
         console.log(`Restarting step after a nap of ${sleepDuration} seconds.`)
         console.log(`    tx: ${txId}`)
         console.log(`  step: ${stepId}`)
-        await schedulerForThisNode.enqueue_StepRestart(nodeGroup, txId, stepId)
+        await schedulerForThisNode.enqueue_StepRestart(tx, nodeGroup, txId, stepId)
       }, sleepDuration * 1000)
     } else {
       // Long term sleep - will be woken by our cron process.
@@ -733,12 +745,6 @@ export default class StepInstance {
       console.log(`Step will SLEEP for ${sleepDuration} seconds till ${wakeTime.toLocaleTimeString('PST')}`)
       console.log(`    tx: ${txId}`)
       console.log(`  step: ${stepId}`)
-
-      if (!PARANOID_RETRY) {
-        // Already moved to REDIS above.
-        const shortTerm = true
-        await TransactionCache.moveToGlobalCache(this.#txId, shortTerm)
-      }
     }
     return GO_BACK_AND_RELEASE_WORKER
   }
@@ -750,20 +756,20 @@ export default class StepInstance {
    */
   async getSwitch(name) {
     if (VERBOSE) console.log(`StepInstance.getSwitch(${name})`)
-    const tx = await TransactionCache.getTransactionState(this.#txId)
+    const tx = this.#transactionState
     const value = await Transaction.getSwitch(tx.getOwner(), this.#txId, name)
     return value
   }
 
   async setSwitch(name, value) {
     if (VERBOSE) console.log(`StepInstance.getSwitch(${name})`)
-    const tx = await TransactionCache.getTransactionState(this.#txId)
+    const tx = this.#transactionState
     await Transaction.setSwitch(tx.getOwner(), this.#txId, name, value, false)
   }
 
   async getRetryCounter() {
     if (VERBOSE) console.log(`StepInstance.getRetryCounter()`)
-    const tx = await TransactionCache.getTransactionState(this.#txId)
+    const tx = this.#transactionState
     const counter = tx.getRetryCounter()
     return counter
   }

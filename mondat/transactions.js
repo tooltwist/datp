@@ -6,7 +6,7 @@
  */
 import ATP from '../ATP/ATP'
 import Transaction from '../ATP/Scheduler2/Transaction';
-import TransactionCache from '../ATP/Scheduler2/TransactionCache';
+import TransactionCache from '../ATP/Scheduler2/txState-level-1';
 import { STEP_ABORTED, STEP_FAILED, STEP_SUCCESS } from '../ATP/Step';
 import errors from 'restify-errors'
 import dbLogbook from '../database/dbLogbook';
@@ -63,7 +63,6 @@ export async function route_transactionStatusV1(req, res, next) {
 
   const txId = req.params.txId
   const tx = await TransactionCache.getTransactionState(txId)
-  // console.log(`tx=`, tx)
   if (!tx) {
     console.log(`Transaction state not available: ${txId}`)
     res.send(new errors.NotFoundError(`Unknown transaction`))
@@ -75,7 +74,6 @@ export async function route_transactionStatusV1(req, res, next) {
 
   // Get transaction details
   const txData = tx.txData()
-  // console.log(`txData=`, txData)
 
   // Create a list of steps
   const ids = tx.stepIds()
@@ -90,7 +88,7 @@ export async function route_transactionStatusV1(req, res, next) {
 
   // Load the log entries for this transaction
   const logEntries = await dbLogbook.getLog(txId)
-  // console.log(`logEntries=`, logEntries)
+  const brokenSteps = new Set() // stepIds we've already complained about
   for (const entry of logEntries) {
     const step = index[entry.stepId]
     if (step) {
@@ -98,7 +96,10 @@ export async function route_transactionStatusV1(req, res, next) {
       delete entry.stepId
     } else {
       //ZZZZZ Write this to the system error log
-      console.log(`INTERNAL ERROR: Found log entry for unknown step in transaction [ ${entry.stepId} in ${txId}]`)
+      if (!brokenSteps.has(entry.stepId)) {
+        console.log(`INTERNAL ERROR: Found log entry for unknown step in transaction [ ${entry.stepId} in ${txId}]`)
+        brokenSteps.add(entry.stepId)
+      }
     }
   }
 
@@ -111,6 +112,5 @@ export async function route_transactionStatusV1(req, res, next) {
     pipelineName: txData.pipelineName,
     steps
   })
-  // res.send(steps)
   return next();
 }

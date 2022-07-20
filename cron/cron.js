@@ -89,33 +89,35 @@ export default class DatpCron {
     }
 
     // Move these to the queue
-    for (const tx of rows) {
+    for (const row of rows) {
       try {
         // Clear the wake time, so we don't rerun it a second time. If required,
         // the step will specify to rerun itself.
         const sql2 = `UPDATE atp_transaction2 SET wake_time = NULL WHERE transaction_id = ?`
-        const params2 = [ tx.txId ]
+        const params2 = [ row.txId ]
         await dbupdate(sql2, params2)
 
+        //
+        const tx = await TransactionCache.getTransactionState(txId)
         // console.log(`Restarting transaction [${tx.txId}]`)
-        await schedulerForThisNode.enqueue_StepRestart(nodeGroup, tx.txId, tx.wakeStepId)
+        await schedulerForThisNode.enqueue_StepRestart(tx, nodeGroup, row.txId, row.wakeStepId)
       } catch (e) {
         // Log this and potentially cancel the sleep info in the transaction.
         //ZZZZZ
         console.log(`e.message=`, e.message)
-        if (e.message === `Unknown transaction ${tx.txId}`) {
+        if (e.message === `Unknown transaction ${row.txId}`) {
           //ZZZZZ This should notify the administrator
           console.log(`---------------------------------------------------------------------------------------------------`)
           console.log(`SERIOUS ERROR:`)
           console.log(`Transaction was put to sleep, but when we try to re-awake it the transaction state has gone missing.`)
-          console.log(`Please investigate transaction ${tx.txId}.`)
+          console.log(`Please investigate transaction ${row.txId}.`)
           console.log(`We will not try again.`)
           console.log(`---------------------------------------------------------------------------------------------------`)
         
         } else {
           //ZZZZZ This should notify the administrator
           console.log(`Error while waking transaction:`)
-          console.log(`txId: ${tx.txId}`)
+          console.log(`txId: ${row.txId}`)
           console.log(e)
         }
       }

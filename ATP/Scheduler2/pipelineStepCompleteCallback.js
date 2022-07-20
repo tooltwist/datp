@@ -12,29 +12,23 @@ import GenerateHash from '../GenerateHash'
 import { PIPELINES_VERBOSE } from '../hardcoded-steps/PipelineStep'
 import { STEP_SUCCESS, STEP_ABORTED, STEP_FAILED, STEP_INTERNAL_ERROR } from '../Step'
 import Scheduler2 from './Scheduler2'
-// import Transaction from './Transaction'
-import TransactionCache from './TransactionCache'
+import TransactionCache from './txState-level-1'
 import { GO_BACK_AND_RELEASE_WORKER } from './Worker2'
 
 
 export const PIPELINE_STEP_COMPLETE_CALLBACK = `pipelineStepComplete`
 
-export async function pipelineStepCompleteCallback (callbackContext, nodeInfo, worker) {
+export async function pipelineStepCompleteCallback (tx, callbackContext, nodeInfo, worker) {
   if (PIPELINES_VERBOSE) console.log(`==> Callback pipelineStepCompleteCallback() context=`, callbackContext, nodeInfo)
 
   // Get the transaction details
   const txId = callbackContext.txId
-  const tx = await TransactionCache.getTransactionState(txId)
   const txData = tx.txData()
-  // console.log(`txData=`, txData)
-
 
   const pipelineStep = tx.stepData(callbackContext.parentStepId)
   assert(pipelineStep)
-  // console.log(`pipelineStep=`, pipelineStep)
   const childStep = tx.stepData(callbackContext.childStepId)
   assert(childStep)
-  // console.log(`childStep=`, childStep)
 
   // Tell the transaction we're back from the child, back to this pipeline.
   await tx.delta(null, {
@@ -105,7 +99,7 @@ dbLogbook.bulkLogging(txId, pipelineStepId, [{
       const parentNodeGroup = pipelineStep.onComplete.nodeGroup
       const parentNodeId = pipelineStep.onComplete.nodeId ? pipelineStep.onComplete.nodeId : null
       const workerForShortcut = worker
-      const rv = await schedulerForThisNode.schedule_StepCompleted(parentNodeGroup, parentNodeId, tx, {
+      const rv = await schedulerForThisNode.schedule_StepCompleted(tx, parentNodeGroup, parentNodeId, {
       // const queueToParentOfPipeline = Scheduler2.nodeExpressQueueName(pipelineStep.onComplete.nodeGroup, pipelineStep.onComplete.nodeId)
       // const rv = await schedulerForThisNode.enqueue_StepCompletedZZ(queueToParentOfPipeline, {
         txId,
@@ -147,7 +141,7 @@ dbLogbook.bulkLogging(txId, pipelineStepId, [{
       const myNodeId = schedulerForThisNode.getNodeId()
       // const queueToChild = Scheduler2.nodeRegularQueueName(myNodeGroup, myNodeId)
 
-      const rv = await schedulerForThisNode.schedule_StepStart(myNodeGroup, myNodeId, worker, {
+      const rv = await schedulerForThisNode.schedule_StepStart(tx, myNodeGroup, myNodeId, worker, {
         txId,
         nodeGroup: nodeInfo.nodeGroup, // Child runs in same node as the pipeline step
         stepId: childStepId,
@@ -194,7 +188,7 @@ dbLogbook.bulkLogging(txId, pipelineStepId, [{
     const parentNodeGroup = pipelineStep.onComplete.nodeGroup
     const parentNodeId = pipelineStep.onComplete.nodeId ? pipelineStep.onComplete.nodeId : null
     const workerForShortcut = worker
-    const rv = await schedulerForThisNode.schedule_StepCompleted(parentNodeGroup, parentNodeId, tx, {
+    const rv = await schedulerForThisNode.schedule_StepCompleted(tx, parentNodeGroup, parentNodeId, {
     // const queueToParentOfPipeline = Scheduler2.groupQueueName(pipelineStep.onComplete.nodeGroup)
     // const rv = await schedulerForThisNode.enqueue_StepCompletedZZZ(queueToParentOfPipeline, {
       txId,

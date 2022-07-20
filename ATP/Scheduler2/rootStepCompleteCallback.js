@@ -7,27 +7,21 @@
 import { schedulerForThisNode } from "../.."
 import { PIPELINES_VERBOSE } from "../hardcoded-steps/PipelineStep"
 import Scheduler2 from "./Scheduler2"
-import TransactionCache from "./TransactionCache"
+import TransactionCache from "./txState-level-1"
 import { GO_BACK_AND_RELEASE_WORKER } from "./Worker2"
 import assert from "assert"
 
 
 export const ROOT_STEP_COMPLETE_CALLBACK = `rootStepComplete`
 
-export async function rootStepCompleteCallback (callbackContext, nodeInfo, worker) {
+export async function rootStepCompleteCallback (tx, callbackContext, nodeInfo, worker) {
   if (PIPELINES_VERBOSE) console.log(`==> Callback rootStepCompleteCallback()`, callbackContext, nodeInfo)
 
   // Get the details of the root step
-  const tx = await TransactionCache.getTransactionState(callbackContext.txId)
-  // console.log(`tx=`, tx)
-  // const obj = transaction.asObject()
-
   const txData = tx.txData()
-  // console.log(`txData=`, txData)
 
   // Get the step output and status
   const stepData = tx.stepData(callbackContext.stepId)
-  // console.log(`stepData=`, stepData)
   const stepOutput = stepData.stepOutput
   const stepNote = stepData.note ? stepData.note : null
   const stepStatus = stepData.status
@@ -65,7 +59,7 @@ export async function rootStepCompleteCallback (callbackContext, nodeInfo, worke
   // const queueName = Scheduler2.nodeRegularQueueName(txData.nodeGroup, txData.nodeId)
   // const queueName = Scheduler2.groupQueueName(txData.nodeGroup)
 
-  const rv = await schedulerForThisNode.schedule_TransactionCompleted(txInitNodeGroup, txInitNodeId, worker, {
+  const rv = await schedulerForThisNode.schedule_TransactionCompleted(tx, txInitNodeGroup, txInitNodeId, worker, {
     txId: callbackContext.txId,
   })
   assert(rv === GO_BACK_AND_RELEASE_WORKER)

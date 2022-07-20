@@ -50,7 +50,7 @@ async function restifyMasterServer(options) {
 }
 
 export async function goLive(server) {
-  const nodeGroup = await juice.string('datp.nodeGroup', "master")
+  const nodeGroup = await juice.string('datp.nodeGroup', juice.MANDATORY)
   if (!nodeGroup) {
     console.log(`FATAL ERROR: Config does not specify datp.nodeGroup. Shutting down.`)
     process.exit(1)

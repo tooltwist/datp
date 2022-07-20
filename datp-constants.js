@@ -5,6 +5,7 @@
  * the author or owner be liable for any claim or damages.
  */
 
+import juice from '@tooltwist/juice-client'
 // How long REDIS should store the key while checking for an externalId. This
 // just needs to be long enough that we can be certain the database will have been
 // written to all/any distributed copies of the database.
@@ -36,8 +37,54 @@ export const CHECK_FOR_BLOCKING_WORKERS_TIMEOUT = DEEP_SLEEP_SECONDS + 60
 // If an event jumps to a new node, pass the state in the event.
 export const INCLUDE_STATE_IN_NODE_HOPPING_EVENTS = true
 
-// Should we save transacrion states (or just rely on the deltas?)
-export const PERSIST_FINAL_TRANSACTION_STATE = false
-
 // How often should we check the number of workers (ms)
-export const WORKER_CHECK_INTERVAL = 30 * 1000
+export const WORKER_CHECK_INTERVAL = 15 * 1000
+
+export const TEST_TENANT = 'acme'
+
+
+/*
+ *  Load config values using juice.
+ */
+let _loaded = false
+let _development = false
+let _logDestination = false
+
+async function checkConfigLoaded() {
+  if (_loaded) {
+    return
+  }
+  _development = await juice.boolean('datp.development', false)
+
+  const dest = await juice.string('datp.logDestination', 'db')
+  switch (dest) {
+    case 'pico':
+    case 'db':
+      _logDestination = dest
+      break
+
+    case 'none':
+      console.log(`WARNING!!!!!`)
+      console.log(`Not saving log entries`)
+      _logDestination = dest
+      break
+      
+    default:
+      console.log(`Error: unknown datp.logDestination [${dest}]`)
+      console.log(`Should be pico | db | none`)
+      console.log(`Will proceed with 'db'.`)
+      _logDestination = 'db'
+  }//-
+  _loaded = true
+}
+
+export async function isDevelopmentMode() {
+  await checkConfigLoaded()
+  return _development;
+}
+
+export async function logDestination() {
+  await checkConfigLoaded()
+  return _logDestination;
+}
+

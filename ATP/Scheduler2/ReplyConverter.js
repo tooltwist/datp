@@ -7,7 +7,7 @@
 
 import { assert } from "joi"
 
-const VERBOSE = 1
+const VERBOSE = 0
 
 let replyConverter = null
 

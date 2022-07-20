@@ -42,7 +42,7 @@ export async function saveNodeGroup(group) {
     debugDb: 'debug_db',
   }
 
-  let sql = 'update atp_node_group SET'
+  let sql = 'UPDATE atp_node_group SET'
   let params = [ ]
   let sep = ' '
   for (let property in group) {

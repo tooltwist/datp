@@ -47,7 +47,7 @@ export const RETURN_TX_STATUS_CALLBACK = `returnTxStatus`
  * @param {Worker2} worker Ignored
  * @returns GO_BACK_AND_RELEASE_WORKER
  */
-export async function returnTxStatusCallback (callbackContext, data, worker) {
+export async function returnTxStatusCallback (tx, callbackContext, data, worker) {
   if (VERBOSE) console.log(`==> returnTxStatusCallback()`.magenta, callbackContext, data)
 
   // if (VERBOSE) {

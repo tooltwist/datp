@@ -8,14 +8,16 @@ import StepInstance from "../StepInstance"
 import XData from "../XData"
 import CallbackRegister from "./CallbackRegister"
 import Scheduler2 from "./Scheduler2"
-import TransactionCache from "./TransactionCache"
+import TransactionCache, { PERSIST_TRANSACTION_STATE } from "./txState-level-1"
 import assert from 'assert'
 import { STEP_ABORTED, STEP_FAILED, STEP_INTERNAL_ERROR, STEP_QUEUED, STEP_RUNNING, STEP_SLEEPING, STEP_SUCCESS, STEP_TIMEOUT } from "../Step"
 import { schedulerForThisNode } from "../.."
-import { CHECK_FOR_BLOCKING_WORKERS_TIMEOUT, INCLUDE_STATE_IN_NODE_HOPPING_EVENTS, SHORTCUT_STEP_START, PERSIST_FINAL_TRANSACTION_STATE } from "../../datp-constants"
+import { CHECK_FOR_BLOCKING_WORKERS_TIMEOUT, INCLUDE_STATE_IN_NODE_HOPPING_EVENTS, SHORTCUT_STEP_START } from "../../datp-constants"
 import Transaction from "./Transaction"
+import { zalgo } from "colors"
 
 const VERBOSE = 0
+const TX_FROM_EVENT = true
 
 require('colors')
 
@@ -56,7 +58,15 @@ export default class Worker2 {
 
   async processEvent(event) {
     const typeStr = event.eventType ? ` (${event.eventType})` : ''
-    if (VERBOSE) console.log(`\n[worker ${this.#workerId} processing event${typeStr  }]`.bold)
+    if (VERBOSE) console.log(`\n[worker ${this.#workerId} processing event${typeStr}]`.bold)
+    // console.log(`event=`, event)
+
+  // console.log(`------ PROCESS EVENT ${event.eventType} ------`)
+  // console.log(`event.txState=`, event.txState)
+
+    // Check that the event includes the transaction state
+    assert(event.txState)
+    // console.log(`event.txState=`, event.txState)
     // console.log(`event=`, event)
 
     // Process this event
@@ -64,65 +74,6 @@ export default class Worker2 {
     // if (VERBOSE) console.log(`Worker ${this.#workerId} => INUSE`.bgRed.white)
 
     try {
-
-      // YARP248
-      // if (event.eventType === Scheduler2.STEP_COMPLETED_EVENT) {
-      //   // console.log(`\n  HERE WE GO WITH TRANSACTION_COMPLETED_EVENT`)
-      //   // console.log(`current nodeId=`, schedulerForThisNode.getNodeId())
-      //   // console.log(`from node ${event.fromNodeId}`)
-      //   // console.log(`event.txId=`, event.txId)
-      //   if (event.fromNodeId !== schedulerForThisNode.getNodeId()) {
-      //     console.log(`STEP_COMPLETED_EVENT from another node`)
-      //     console.log(`current nodeId=`, schedulerForThisNode.getNodeId())
-      //     console.log(`from node ${event.fromNodeId}`)
-      //     console.log(`event.txId=`, event.txId)
-      //   }
-      // }
-
-      // If this event came from a different node, then assume the transaction
-      // was modified over there, and so the transaction in our cache is dirty.
-      // This will ensure we reload the transaction state from the "global" REDIS
-      // cache or the database.
-      if (event.fromNodeId !== schedulerForThisNode.getNodeId()) {
-
-        if (event.txId) {
-          if (VERBOSE) console.log(`${event.eventType} - Remove TX ${event.txId} from the cache (event from different node)`)
-
-
-          // YARP248
-          // const yarpTx = await TransactionCache.getTransactionState(event.txId, false, false)
-          // if (yarpTx) {
-          //   console.log(`yarpTx - TRASACTION ALREADY EXISTS (${event.eventType})`)
-          // } else {
-          //   // console.log(`yarpTx - TRASACTION DOES NOT ALREADY EXISTS`)
-          // }
-
-          await TransactionCache.removeFromCache(event.txId)
-
-          // YARP248
-          // if (yarpTx) {
-          //   const yarpTx2 = await TransactionCache.getTransactionState(event.txId, false, false)
-          //   if (yarpTx2) {
-          //     console.log(`yarpTx2 - TRASACTION STILL EXISTS`)
-          //   } else {
-          //     console.log(`yarpTx2 - TRASACTION IS NOT IN CACHE`)
-          //   }
-          // }
-
-          await TransactionCache.assertNotInCache(event.txId)
-
-
-          if (INCLUDE_STATE_IN_NODE_HOPPING_EVENTS) {
-            assert(event.state)
-            assert(typeof(event.state) === 'string')
-
-            const tx = Transaction.transactionStateFromJSON(event.state)
-            // console.log(`Got state in event:`, tx.asObject())
-            await TransactionCache.addToCache(tx)
-          }
-        }
-      }
-
 
       // Decide how to handle this event.
       const eventType = event.eventType
@@ -206,17 +157,10 @@ export default class Worker2 {
 
       const txId = event.txId
       const stepId = event.stepId
+      const tx = await extractTransactionStateFromEvent(event)
 
-      // Sanity check - check the status, before doing anything.
-      const tx = await TransactionCache.getTransactionState(txId)
-      if (!tx) {
-        // This should be flagged as a serious system error.ZZZZZ
-        this.#reuseCounter--
-        const msg = `SERIOUS ERROR: stepStart event for unknown transaction ${txId}. Step ID is ${stepId}. Where did this come from?`
-        console.log(msg)
-        throw new Error(msg)
-      }
       const txData = tx.txData()
+
       const stepData = tx.stepData(stepId)
       if (stepData === null) {
         console.log(`-----------------------------------------`)
@@ -226,9 +170,9 @@ export default class Worker2 {
         console.log(`tx=`, tx)
         throw new Error(`ZZZZ: missing step`)
       }
-      if (!SHORTCUT_STEP_START) {
-        assert(stepData.status === STEP_QUEUED)
-      }
+      // if (!SHORTCUT_STEP_START) {
+      //   assert(stepData.status === STEP_QUEUED)
+      // }
       assert(stepData.fullSequence)
 
       const trace = (typeof(txData.metadata.traceLevel) === 'number') && txData.metadata.traceLevel > 0
@@ -253,11 +197,13 @@ export default class Worker2 {
             description
           }
         }, 'Worker2.processEvent_StepStart()')
+
+        await PERSIST_TRANSACTION_STATE(tx)
         
         const parentNodeGroup = stepData.onComplete.nodeGroup
         const parentNodeId = stepData.onComplete.nodeId ? stepData.onComplete.nodeId : null
         const workerForShortcut = this
-        const rv = await schedulerForThisNode.schedule_StepCompleted(parentNodeGroup, parentNodeId, tx, {
+        const rv = await schedulerForThisNode.schedule_StepCompleted(tx, parentNodeGroup, parentNodeId, {
           txId: event.txId,
           stepId: event.stepId,
           completionToken: stepData.onComplete.completionToken
@@ -284,6 +230,9 @@ export default class Worker2 {
         status: STEP_RUNNING
       }, 'Worker2.processEvent_StepStart()')
 
+
+      await PERSIST_TRANSACTION_STATE(tx)
+
       /*
        *  Start the step - we don't wait for it to complete
        */
@@ -309,7 +258,6 @@ export default class Worker2 {
               console.log(`Step timeout after ${CHECK_FOR_BLOCKING_WORKERS_TIMEOUT} seconds. stepType=${instance.getStepType()}, txId=${instance.getTxId()},  stepId=${instance.getStepId()}`)
             }, CHECK_FOR_BLOCKING_WORKERS_TIMEOUT * 1000)
           }
-
 
           if (VERBOSE) console.log(`[${this.#reuseCounter}: worker ${this.#workerId} STARTING STEP ${stepId} ]`.green)
           const rv = await stepObject.invoke(instance) // Provided by the step implementation
@@ -361,22 +309,14 @@ export default class Worker2 {
       const txId = event.txId
       const stepId = event.stepId
       const completionToken = event.completionToken
+      const tx = await extractTransactionStateFromEvent(event)
 
-      // See what we saved before calling the step
-      const tx = await TransactionCache.getTransactionState(txId)
-      if (!tx) {
-        // This should be flagged as a serious system error.ZZZZZ
-        const msg = `SERIOUS ERROR: stepCompleted event for unknown transaction ${txId}. Step ID is ${stepId}. Where did this come from?`
-        console.log(msg)
-        throw new Error(msg)
-      }
+
+
+      await PERSIST_TRANSACTION_STATE(tx)
+
       const stepData = tx.stepData(stepId)
       // console.log(`stepData for step ${stepId}`, stepData)
-// if (!stepData) {
-//   console.log(`--------------`)
-//   console.log(`YARP 6625: Could not get stepData of tx ${txId}, step ${stepId}`)
-//   console.log(`tx=`, tx)
-// }
       if (
         stepData.status === STEP_ABORTED
         || stepData.status === STEP_FAILED
@@ -397,11 +337,7 @@ export default class Worker2 {
         console.log(`tx=`, JSON.stringify(tx.asObject(), '', 2))
         console.log(`broken1.`, new Error().stack)
 
-
-        await TransactionCache.removeFromCache(txId)
-        const tx2 = await TransactionCache.getTransactionState(txId)
-        console.log(`tx2=`, JSON.stringify(tx2.asObject(), '', 2))
-
+        console.log(`tx=`, JSON.stringify(tx.asObject(), '', 2))
 
         process.exit(1)//ZZZZZ
       }
@@ -429,10 +365,11 @@ export default class Worker2 {
         nodeGroup: schedulerForThisNode.getNodeGroup(),
         nodeId: schedulerForThisNode.getNodeId()
       }
-      const rv = await CallbackRegister.call(stepData.onComplete.callback, stepData.onComplete.context, nodeInfo, worker)
+      const rv = await CallbackRegister.call(tx, stepData.onComplete.callback, stepData.onComplete.context, nodeInfo, worker)
       assert(rv === GO_BACK_AND_RELEASE_WORKER)
       return GO_BACK_AND_RELEASE_WORKER
     } catch (e) {
+      this.#reuseCounter--
       console.log(`DATP internal error`, e)
       throw e
     }
@@ -450,13 +387,7 @@ export default class Worker2 {
     try {
       const worker = this
       const txId = event.txId
-      const tx = await TransactionCache.getTransactionState(txId)
-      if (!tx) {
-        // This should be flagged as a serious system error.ZZZZZ
-        const msg = `SERIOUS ERROR: transactionChanged event for unknown transaction ${txId}. Step ID is ${stepId}. Where did this come from?`
-        console.log(msg)
-        throw new Error(msg)
-      }
+      const tx = await extractTransactionStateFromEvent(event)
       const txData = tx.txData()
 
       if (VERBOSE > 1) console.log(`processEvent_TransactionChanged txData=`, txData)
@@ -479,7 +410,7 @@ export default class Worker2 {
         transactionOutput,
         sequenceOfUpdate
       }
-      const rv = await CallbackRegister.call(txData.onChange.callback, txData.onChange.context, extraInfo, worker)
+      const rv = await CallbackRegister.call(tx,txData.onChange.callback, txData.onChange.context, extraInfo, worker)
       assert(rv == GO_BACK_AND_RELEASE_WORKER)
       return GO_BACK_AND_RELEASE_WORKER
     } catch (e) {
@@ -487,7 +418,7 @@ export default class Worker2 {
       console.log(`event=`, event)
       throw e
     }
-  }//- processEvent_TransactionCompleted
+  }//- processEvent_TransactionChanged
 
 
   /**
@@ -501,13 +432,7 @@ export default class Worker2 {
     try {
       const worker = this
       const txId = event.txId
-      const tx = await TransactionCache.getTransactionState(txId)
-      if (!tx) {
-        // This should be flagged as a serious system error.ZZZZZ
-        const msg = `SERIOUS ERROR: transactionCompleted event for unknown transaction ${txId}. Step ID is ${stepId}. Where did this come from?`
-        console.log(msg)
-        throw new Error(msg)
-      }
+      const tx = await extractTransactionStateFromEvent(event)
       const txData = tx.txData()
 
       if (VERBOSE > 1) console.log(`processEvent_TransactionCompleted txData=`, txData)
@@ -519,10 +444,7 @@ export default class Worker2 {
       // Once the transaction is complete (i.e. here) the Transation State is no longer required,
       // because there is no more processing. Any polling (long or short) or webhook reply can
       // work entirely using the transaction status. Also, the progress report is no longer needed.
-      if (PERSIST_FINAL_TRANSACTION_STATE) {
-        const shortTerm = true
-        await TransactionCache.moveToGlobalCache(txId, shortTerm)
-      }
+      await PERSIST_TRANSACTION_STATE(tx)
 
       // Call the callback for 'transaction complete'.
       const extraInfo = {
@@ -532,8 +454,7 @@ export default class Worker2 {
         note,
         transactionOutput
       }
-// console.log(`\n\n YARP transaction complete - calling ${txData.onComplete.callback}`)
-      const rv = await CallbackRegister.call(txData.onComplete.callback, txData.onComplete.context, extraInfo, worker)
+      const rv = await CallbackRegister.call(tx, txData.onComplete.callback, txData.onComplete.context, extraInfo, worker)
       assert(rv === GO_BACK_AND_RELEASE_WORKER)
       return GO_BACK_AND_RELEASE_WORKER
     } catch (e) {
@@ -543,4 +464,47 @@ export default class Worker2 {
     }
   }//- processEvent_TransactionCompleted
 
-}
+}//- class
+
+
+
+async function extractTransactionStateFromEvent(event) {
+  // console.log(`extractTransactionStateFromEvent(${typeof(event)})`)
+  if (TX_FROM_EVENT) {
+
+    // The transaction state is stored in the event
+    if (typeof(event.txState) === 'undefined') {
+      throw new Error(`SERIOUS INTERNAL ERROR: event.txState is undefined`)
+    }
+    if (typeof(event.txState) === null) {
+      throw new Error(`SERIOUS INTERNAL ERROR: event.txState is null`)
+    }
+    if (typeof(event.txState) === 'string') {
+
+      // String passed through the REDIS events
+      const transactionState = Transaction.transactionStateFromJSON(event.txState)
+      delete event.txState
+      return transactionState
+    }
+    if (event.txState instanceof Transaction) {
+      // Event object passed through local in-memory queue
+      const transactionState = event.txState
+      delete event.txState
+      return transactionState
+    }
+
+    throw new Error(`SERIOUS INTERNAL ERROR: event.txState of unknown type (${typeof(event.txState)}):`, event.txState)
+  } else {
+
+    // We need to get the transaction state from persistent storage
+    console.log(`- getting tx from cache`)
+    const tx = await TransactionCache.getTransactionState(txId)
+    if (!tx) {
+      // This should be flagged as a serious system error.ZZZZZ
+      const msg = `SERIOUS ERROR: event for unknown transaction ${txId}. Step ID is ${stepId}.`
+      console.error(msg)
+      throw new Error(msg)
+    }
+    return tx
+  }
+}//- extractTransactionStateFromEvent

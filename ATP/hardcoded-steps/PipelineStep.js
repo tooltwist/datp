@@ -10,12 +10,11 @@ import assert from 'assert'
 import StepInstance from '../StepInstance'
 import Scheduler2 from '../Scheduler2/Scheduler2'
 import GenerateHash from '../GenerateHash'
-import TransactionCache from '../Scheduler2/TransactionCache'
+import TransactionCache from '../Scheduler2/txState-level-1'
 import { PIPELINE_STEP_COMPLETE_CALLBACK } from '../Scheduler2/pipelineStepCompleteCallback'
 import { schedulerForThisNode } from '../..'
 import { GO_BACK_AND_RELEASE_WORKER } from '../Scheduler2/Worker2'
 
-// const STEP_COMPLETION_HANDLER = 'pipeline-step-completion-handler'
 export const PIPELINES_VERBOSE = 0
 
 class Pipeline extends Step {
@@ -27,27 +26,12 @@ class Pipeline extends Step {
     if (PIPELINES_VERBOSE) {
       console.log(`PipelineStepHandler.constructor(${definition.description})`)
     }
-    // this.#definition = definition
-    // this.sequencePrefix = parent ? parent.
     this.#stepIndex = definition.steps // { 0:{ id: 0, definition: {...} }, 1:... }
-    // console.log(`this.#stepIndex=`, this.#stepIndex)
-
     this.#steps = Object.values(this.#stepIndex).sort((a,b) => {
       if (a.id < b.id) return -1
       if (a.id > b.id) return +1
       return 0
     })
-    // this.initialized = false
-    // console.log(`this.#steps=`, this.#steps)
-
-    // Check the step types are valid before we start
-    //ZZZZ
-    // for (const stepDef of this.definition.steps) {
-    //   console.log(`->`, stepDef)
-    //   // const step =
-    //   //ZZZZ
-    // }
-
   }//- constructor
 
 
@@ -67,17 +51,13 @@ class Pipeline extends Step {
     const childStepDefinition = this.#steps[0].definition
 
     const txId = pipelineInstance.getTransactionId()//ZZZZ rename
-    // console.log(`txId=`, txId)
     const stepInput = await pipelineInstance.getTxData().getData()
-    // console.log(`stepInput=`, stepInput)
     const metadata = await pipelineInstance.getMetadata()
 
-    // Let the transaction know we are here
-    const tx = await TransactionCache.getTransactionState(txId)
-    // const txData = tx.txData()
-    // console.log(`In invoke() tx=`, tx.asObject())
+    // This function gets the transaction status object. We want to keep this unpublished
+    // and hard to notice - we don't want developers mucking with the internals of DATP.
+    const tx = pipelineInstance._7agghtstrajj_37(txId)
     const pipelineStepId = pipelineInstance.getStepId()
-    // console.log(`pipelineStepId=`, pipelineStepId)
     const childStepIds = [ ]
     for (let i = 0; i < this.#steps.length; i++) {
       const childStepId = GenerateHash('s')
@@ -87,77 +67,25 @@ class Pipeline extends Step {
       pipelineSteps: this.#steps,
       indexOfCurrentChildStep,
       childStepIds,
-      // metadata,
-      // stepInput: txdata.getData()
     }, 'pipelineStep.invoke()')
     await tx.delta(null, {
       nextStepId: pipelineStepId,
     }, 'pipelineStep.invoke()')
 
-//     // console.log(`tx.asObject()=`.cyan, tx.asObject())
-
-
-//     // // We'll save the responses from the steps
-//     // pipelineInstance.privateData.responses = [ ]
-//     // pipelineInstance.privateData.numSteps = this.#steps.length
-//     // pipelineInstance.privateData.indexOfCurrentChildStep = 0
-
-//     //ZZZZ Should probably create a new TX object
-//     this.initiateChildStep(pipelineInstance, indexOfCurrentChildStep, childStepDefinition, txdata, metadata)
-
-//     // logbook.log(id, `DummyStep.invoke()`, {
-//     //   level: dbLogbook.LOG_LEVEL_DEBUG,
-//     //   data
-//     // })
-//   }//- invoke
-
-// //ZZZZZ Join these together ^^^^^ vvvvv
-
-//   async initiateChildStep(pipelineInstance, indexOfCurrentChildStep, childStepDefinition, txdata, metadata) {
-//     assert(pipelineInstance instanceof StepInstance)
-    // assert(txdata instanceof XData)
-    // pipelineInstance.log(``)
-    // const stepNo = pipelineInstance.privateData.indexOfCurrentChildStep
     if (PIPELINES_VERBOSE) {
       console.log(`PipelineStep.initiateChildStep()`)
       console.log(`********************************`)
       console.log(`Pipeline.initiateChildStep(${indexOfCurrentChildStep})`)
     }
 
-    // pipelineInstance.trace(`Pipeline initiating child step #${indexOfCurrentChildStep}:`)
-    // // console.log(`tx=`, tx)
-    // // console.log(`pipelineInstance=`, pipelineInstance)
-    // const stepDef =  this.#steps[stepNo]
-
-    //     // Find the
-    // const contextForCompletionHandler = {
-    //   // context,
-    //   pipelineId: pipelineInstance.getStepId(),
-    //   stepNo: stepNo
-    // }
-    // const definition = stepDef.definition
     if (PIPELINES_VERBOSE) console.log(`childStepDefinition`, childStepDefinition)
-    // const sequence = `${stepNo}`
-    // const logbook = pipelineInstance.getLogbook()
 
-    // await Scheduler2.invokeStep(pipelineInstance.getTransactionId(), pipelineInstance, sequence, definition, txdata, logbook, STEP_COMPLETION_HANDLER, contextForCompletionHandler)
-
-    // Generate a new ID for this step
-    // const txId = pipelineInstance.getTransactionId()//ZZZZ rename
     const parentStepId = pipelineInstance.getStepId()
-    // console.log(`parentStepId=`, parentStepId)
     const myNodeGroup = schedulerForThisNode.getNodeGroup()
     const myNodeId = schedulerForThisNode.getNodeId()
     const parentNodeGroup = pipelineInstance.getNodeGroup()// Shouldn't this just be the current node group?
-    // console.log(`parentNodeGroup=`, parentNodeGroup)
-    // const childStepId = GenerateHash('s')
     const childStepId = childStepIds[0]
     const childNodeGroup = myNodeGroup // Step runs in same node as it's pipeline
-
-    // console.log(`Pipline invoking step with ${queueToStep}`)
-    // const queueToPipelineNode = Scheduler2.groupQueueName(parentNodeGroup)
-    // console.log(`parentNodeGroup=`, parentNodeGroup)
-    // console.log(`queueToPipelineNode=`, queueToPipelineNode)
 
     const childFullSequence = `${pipelineInstance.getFullSequence()}.1` // Start sequence at 1
 
@@ -169,7 +97,7 @@ class Pipeline extends Step {
     // the same cached transaction state. We only jump to another node when we are
     // calling a pipline that runs on another node.
     const workerForShortcut = pipelineInstance.getWorker()
-    const rv = await schedulerForThisNode.schedule_StepStart(myNodeGroup, myNodeId, workerForShortcut, {
+    const rv = await schedulerForThisNode.schedule_StepStart(tx, myNodeGroup, myNodeId, workerForShortcut, {
       txId,
       nodeGroup: childNodeGroup,
       // nodeId: childNodeGroup,
@@ -205,12 +133,7 @@ class Pipeline extends Step {
 
 async function register() {
   // Note that our matching callback is a built-in, so doesn't need to be registered.
-
-
-
   await StepTypes.register(PipelineDef, 'hidden/pipeline', 'Pipeline')
-  // await ResultReceiverRegister.register(STEP_COMPLETION_HANDLER, new PipelineChildStepCompletionHandler())
-
 }
 
 async function defaultDefinition() {

@@ -4,7 +4,6 @@
  * rights reserved. No warranty, explicit or implicit, provided. In no event shall
  * the author or owner be liable for any claim or damages.
  */
-import { QueueManager } from './QueueManager';
 import juice from '@tooltwist/juice-client'
 import assert from 'assert'
 import Transaction from '../Transaction'
@@ -14,6 +13,7 @@ import Scheduler2 from '../Scheduler2';
 import { schedulerForThisNode } from '../../..';
 import pause from '../../../lib/pause';
 import dbupdate from '../../../database/dbupdate';
+import { saveTransactionState_level2 } from '../txState-level-2';
 const Redis = require('ioredis');
 
 // This adds colors to the String class
@@ -46,30 +46,37 @@ export const TIME_TILL_GLOBAL_CACHE_ENTRY_IS_PERSISTED_TO_DB = 1000 * 60 * 1 // 
 let allocatedQueues = 0
 let enqueueCounter = 0
 
-export class RedisQueue extends QueueManager {
+// Connections to REDIS
+let connection_dequeue = null // mostly blocking, waiting on queue
+let connection_enqueue = null
+let connection_admin = null
+
+
+
+export class RedisQueue {
 
   // Connections to REDIS
-  #dequeueRedis // mostly blocking, waiting on queue
-  #queueRedis
-  #adminRedis
+  // #dequeueRedis // mostly blocking, waiting on queue
+  // #queueRedis
+  // #adminRedis
 
 
-  constructor () {
-    super()
-    this.#dequeueRedis = null
-    this.#queueRedis = null
-    this.#adminRedis = null
+  // constructor () {
+  //   super()
+  //   this.#dequeueRedis = null
+  //   this.#queueRedis = null
+  //   this.#adminRedis = null
 
-    console.log(`*********************************************************`)
-    console.log(`           Allocating REDIS connection ${++allocatedQueues}`)
-    console.log(`*********************************************************`)
-  }
+  //   console.log(`*********************************************************`)
+  //   console.log(`           Allocating REDIS connection ${++allocatedQueues}`)
+  //   console.log(`*********************************************************`)
+  // }
 
-  async _checkLoaded() {
+  static async _checkLoaded() {
     // console.log(`_checkLoaded`)
 
     // Is this connection already active?
-    if (this.#queueRedis) {
+    if (connection_enqueue) {
       (VERBOSE>1) && console.log(`{already connected to REDIS}`.gray)
       return
     }
@@ -143,9 +150,9 @@ export class RedisQueue extends QueueManager {
     await newRedis2.connect()
     await newRedis3.connect()
 
-    this.#dequeueRedis = newRedis
-    this.#queueRedis = newRedis2
-    this.#adminRedis = newRedis3
+    connection_dequeue = newRedis
+    connection_enqueue = newRedis2
+    connection_admin = newRedis3
   }
 
   /**
@@ -153,7 +160,7 @@ export class RedisQueue extends QueueManager {
    * @param {Object} event An object that extends QueueItem
    * @returns The event added to the queue
    */
-  async enqueue(queueName, event) {
+  static async enqueue(queueName, event) {
     if (VERBOSE) console.log(`RedisCache.enqueue(${queueName}, ${event.eventType}) - ${enqueueCounter++}`.brightBlue)
     // assert(event.fromNodeId) // Must say which node it came from
     // console.log(`event=`, event)
@@ -161,7 +168,7 @@ export class RedisQueue extends QueueManager {
     if (!queueName) {
       throw new Error('RedisQueue.enqueue: queueName must be specified')
     }
-    await this._checkLoaded()
+    await RedisQueue._checkLoaded()
 
     // Prepare what we need to save
     event.fromNodeId = schedulerForThisNode.getNodeId()
@@ -175,17 +182,18 @@ export class RedisQueue extends QueueManager {
     // Add it to the queue
     const key = listName(queueName)
     VERBOSE && console.log(`{enqueue ${event.eventType} to ${key}}`.gray)
-    await this.#queueRedis.rpush(key, value)
+    await connection_enqueue.rpush(key, value)
   }
 
   /**
    *
    */
-  async dequeue(queues, numEvents, blocking=true) {
+  static async dequeue(queues, numEvents, blocking=true) {
     if (VERBOSE) console.log(`RedisCache.dequeue(${queues}, num=${numEvents}, blocking=${blocking})`.brightBlue)
+    assert(numEvents > 0)
 
     // Check we are connected to REDIS
-    await this._checkLoaded()
+    await RedisQueue._checkLoaded()
 
     // We read from multiple lists
     const keys = [ ]
@@ -198,14 +206,18 @@ export class RedisQueue extends QueueManager {
     if (blocking) {
       // Blocking read. We'll use this in idle mode to sleep until something happens.
       const list = keys[0] //ZZZZ temporary hack
-      arr = await this.#dequeueRedis.blpop(list, POP_TIMEOUT)
+      arr = await connection_dequeue.blpop(list, POP_TIMEOUT)
     } else {
 
       // Non-blocking read of numEvents elements from any of the specified queues
       let remaining = numEvents
       for (const key of keys) {
 
-        const result = await this.#dequeueRedis.lpop(key, remaining)
+        if (remaining <= 0) {
+          break
+        }
+
+        const result = await connection_dequeue.lpop(key, remaining)
         if (result) {
           if (VERBOSE && result.length > 0) {
             console.log(`{dequeued ${result.length} from ${key}}`.gray)
@@ -220,7 +232,7 @@ export class RedisQueue extends QueueManager {
       // // LMPOP numkeys key [key ...] LEFT|RIGHT [COUNT count]
       // // See https://redis.io/commands/lmpop
       // const params = [ keys.length, ...keys, 'LEFT', numEvents ]
-      // const reply = await this.#dequeueRedis.lmpop(...params)
+      // const reply = await connection_dequeue.lmpop(...params)
       // console.log(`reply=`, reply)
       // // Return value: Null, or a two-element array with the first element being the name of the
       // // key from which elements were popped, and the second element is an array of elements.
@@ -258,10 +270,10 @@ export class RedisQueue extends QueueManager {
    *
    * @returns
    */
-  async queueLengths() {
+  static async queueLengths() {
     // console.log(`getQueueLengths()`)
-    await this._checkLoaded()
-    const keys =  await this.#adminRedis.keys(`${KEYPREFIX_EVENT_QUEUE}*`)
+    await RedisQueue._checkLoaded()
+    const keys =  await connection_admin.keys(`${KEYPREFIX_EVENT_QUEUE}*`)
     // console.log(`keys=`, keys)
 
     const queues = [ ] // [ { nodeGroup, nodeId?, queueLength }]
@@ -271,7 +283,7 @@ export class RedisQueue extends QueueManager {
         // console.log(`key=>`, key)
 
         // Get the length
-        const length =  await this.#adminRedis.llen(key)
+        const length =  await connection_admin.llen(key)
 
         // Strip the prefix off the list name, to give the application's idea of the queue name.
         // group:GROUP or node:GROUP:NODEID or express:GROUP:NODEID
@@ -282,16 +294,16 @@ export class RedisQueue extends QueueManager {
     return queues
   }
 
-  async queueLength(queueName) {
+  static async queueLength(queueName) {
     // console.log(`queueLength(${queueName})`)
 
     if (!queueName) {
       throw new Error('RedisQueue.queueLength: queueName must be specified')
     }
     try {
-      await this._checkLoaded()
+      await RedisQueue._checkLoaded()
       const list = listName(queueName)
-      const len =  await this.#adminRedis.llen(list)
+      const len =  await connection_admin.llen(list)
       return len
     } catch (e) {
       console.log(`Error in RedisQueue.queueLength: `, e)
@@ -305,27 +317,27 @@ export class RedisQueue extends QueueManager {
    *
    * @param {string} queueName
    */
-  async drainQueue(queueName) {
+  static async drainQueue(queueName) {
     if (VERBOSE) console.log(`RedisQueue.drainQueue(${queueName})`.brightBlue)
     if (!queueName) {
       throw new Error('RedisQueue.queueLength: queueName must be specified')
     }
     // See https://redis.io/commands/ltrim
-    await this._checkLoaded()
+    await RedisQueue._checkLoaded()
     const list = listName(queueName)
-    const len =  await this.#queueRedis.llen(list)
-    if (VERBOSE) console.log(` - ${await this.#queueRedis.llen(list)} before`)
+    const len =  await connection_enqueue.llen(list)
+    if (VERBOSE) console.log(` - ${await connection_enqueue.llen(list)} before`)
     if (len > 0) {
       // See https://stackoverflow.com/questions/9828160/delete-all-entries-in-a-redis-list
-      // await this.#queueRedis.ltrim(list, 0, 0)
-      await this.#queueRedis.del(list)
+      // await connection_enqueue.ltrim(list, 0, 0)
+      await connection_enqueue.del(list)
       // console.log()
       // console.log(`   WARNING  WARNING  WARNING  WARNING  WARNING  WARNING  WARNING  WARNING  WARNING`)
       console.log(`   ${len} events in queue [${list}] have been drained, so will not be run.`.gray)
       // console.log(`   WARNING  WARNING  WARNING  WARNING  WARNING  WARNING  WARNING  WARNING  WARNING`)
       // console.log(``)
     }
-    if (VERBOSE) console.log(` - ${await this.#queueRedis.llen(list)} after`)
+    if (VERBOSE) console.log(` - ${await connection_enqueue.llen(list)} after`)
   }
 
   /**
@@ -338,14 +350,14 @@ export class RedisQueue extends QueueManager {
    * @param {string} toQueue
    * @returns Number of elements moved
    */
-  async moveElementsToAnotherQueue(fromQueueName, toQueueName) {
+  static async moveElementsToAnotherQueue(fromQueueName, toQueueName) {
     // console.log(`moveElementsToAnotherQueue(${fromQueueName}, ${toQueueName})`)
     const fromQueue = listName(fromQueueName)
     const toQueue = listName(toQueueName)
     // console.log(`fromQueue=`, fromQueue)
     // console.log(`toQueue=`, toQueue)
     for (let i = 0; ; i++) {
-      const value = await this.#adminRedis.lmove(fromQueue, toQueue, 'left', 'right')
+      const value = await connection_admin.lmove(fromQueue, toQueue, 'left', 'right')
       if (!value) {
         // None left
         console.log(`- moved ${i} events.`)
@@ -360,14 +372,14 @@ export class RedisQueue extends QueueManager {
    *  See https://redis.io/commands/incr
    *  See https://redis.io/commands/expire
    */
-  async repeatEventDetection(key, interval) {
+  static async repeatEventDetection(key, interval) {
     // console.log(`repeatEventDetection(${key}, ${interval})`)
-    await this._checkLoaded()
+    await RedisQueue._checkLoaded()
     key = `${KEYPREFIX_REPEAT_DETECTION}${key}`
-    const count = await this.#adminRedis.incr(key)
+    const count = await connection_admin.incr(key)
     // console.log(`count=`, count)
     // console.log(`count=`, typeof(count))
-    await this.#adminRedis.expire(key, interval)
+    await connection_admin.expire(key, interval)
     return (count > 1)
   }
 
@@ -386,8 +398,8 @@ export class RedisQueue extends QueueManager {
    * @param {string}} value
    * @param {num} duration Expiry time in seconds
    */
-  async setTemporaryValue(key, value, duration) {
-    await this._checkLoaded()
+  static async setTemporaryValue(key, value, duration) {
+    await RedisQueue._checkLoaded()
     key = `${KEYPREFIX_TEMPORARY_VALUE}${key}`
     if (typeof(value) === 'string') {
       value = `${STRING_PREFIX}${value}`
@@ -395,7 +407,7 @@ export class RedisQueue extends QueueManager {
       value = JSON.stringify(value)
     }
     // console.log(`SET value=`, value)
-    await this.#adminRedis.set(key, value, 'ex', duration)
+    await connection_admin.set(key, value, 'ex', duration)
   }
 
   /**
@@ -405,10 +417,10 @@ export class RedisQueue extends QueueManager {
    * @param {string} key
    * @returns The value saved using _setTemporaryValue_.
    */
-  async getTemporaryValue(key) {
-    await this._checkLoaded()
+  static async getTemporaryValue(key) {
+    await RedisQueue._checkLoaded()
     key = `${KEYPREFIX_TEMPORARY_VALUE}${key}`
-    let value = await this.#adminRedis.get(key)
+    let value = await connection_admin.get(key)
     if (value === null) {
       return null
     }
@@ -431,13 +443,13 @@ export class RedisQueue extends QueueManager {
    * @param {*} nodeId
    * @param {*} status
    */
-  async registerNodeInREDIS(nodeGroup, nodeId, status) {
-    // console.log(`registerNodeInREDIS(${nodeGroup}, ${nodeId})`)
-    await this._checkLoaded()
+  static async registerNodeInREDIS(nodeGroup, nodeId, status) {
+    // console.log(`registerNodeInREDIS(nodeGroup=${nodeGroup}, nodeId=${nodeId}) status=`, status)
+    await RedisQueue._checkLoaded()
     const key = `${KEYPREFIX_NODE_REGISTRATION}${nodeGroup}:${nodeId}`
     status.timestamp = Date.now()
     const json = JSON.stringify(status, '', 2)
-    await this.#adminRedis.set(key, json, 'ex', NODE_REGISTRATION_INTERVAL + 30)
+    await connection_admin.set(key, json, 'ex', NODE_REGISTRATION_INTERVAL + 30)
   }
 
   /**
@@ -468,9 +480,9 @@ export class RedisQueue extends QueueManager {
    * @param {boolean} withStepTypes Should the reply include step types
    * @returns
    */
-  async getDetailsOfActiveNodesfromREDIS(withStepTypes=false) {
-    // console.log(`getDetailsOfActiveNodesfromREDIS()`)
-    const keys = await this.#adminRedis.keys(`${KEYPREFIX_NODE_REGISTRATION}*`)
+  static async getDetailsOfActiveNodesfromREDIS(withStepTypes=false) {
+    console.log(`getDetailsOfActiveNodesfromREDIS(withStepTypes=${withStepTypes})`)
+    const keys = await connection_admin.keys(`${KEYPREFIX_NODE_REGISTRATION}*`)
     // console.log(`keys=`, keys)
 
     // Group by nodeGroup
@@ -481,6 +493,7 @@ export class RedisQueue extends QueueManager {
       const arr = key.split(':')
       if (arr.length === 5) {
         const nodeGroup = arr[3]
+        console.log(`nodeGroup=`, nodeGroup)
         const nodeId = arr[4]
         let group = groups[nodeGroup]
         if (!group) {
@@ -492,7 +505,10 @@ export class RedisQueue extends QueueManager {
 
         // Are we collecting stepTypes also?
         if (withStepTypes) {
-          const nodeJSON = await this.#adminRedis.get(key)
+          const nodeJSON = await connection_admin.get(key)
+          if (nodeGroup==='slave1') {
+            console.log(`nodeJSON for slave1=`, nodeJSON)
+          }
           try {
             const definition = JSON.parse(nodeJSON)
             // console.log(`definition=`, definition)
@@ -513,7 +529,7 @@ export class RedisQueue extends QueueManager {
     // Combine the stepType definitions for all the nodes in each group, to create the group's stepTypes.
     for (const nodeGroup in groups) {
       const group = groups[nodeGroup]
-      this._mergeStepTypesInGroup(group)
+      RedisQueue._mergeStepTypesInGroup(group)
     }
 
     // Convert the groups to a list
@@ -533,12 +549,11 @@ export class RedisQueue extends QueueManager {
       return 0
     })
 
-    // console.log(`YARP 96 list=`, list)
     // console.log(`RedisQueue-ioredis.getDetailsOfActiveNodesfromREDIS():`, JSON.stringify(list, '', 2))
     return list
   }
 
-  _mergeStepTypesInGroup(group) {
+  static _mergeStepTypesInGroup(group) {
     const types = { } // stepTypeName => stepTypeDefinition
 
     // We add a '_nodeCount' to the step definition and increment it for each node with the stepType
@@ -575,10 +590,10 @@ export class RedisQueue extends QueueManager {
    *
    * @returns { stepTypes }
    */
-  async getNodeDetailsFromREDIS(nodeGroup, nodeId) {
+  static async getNodeDetailsFromREDIS(nodeGroup, nodeId) {
     // console.log(`getNodeDetailsFromREDIS(${nodeGroup}, ${nodeId})`)
     const key = `${KEYPREFIX_NODE_REGISTRATION}${nodeGroup}:${nodeId}`
-    const json = await this.#adminRedis.get(key)
+    const json = await connection_admin.get(key)
     // console.log(`json=`, json)
     try {
       const status = JSON.parse(json)
@@ -594,14 +609,14 @@ export class RedisQueue extends QueueManager {
   /**
    *
    */
-  async close() {
-    if (this.#queueRedis) {
+  static async close() {
+    if (connection_enqueue) {
       VERBOSE && console.log(`{disconnecting from REDIS}`.gray)
       // See https://github.com/luin/ioredis/blob/master/API.md#clusterquitcallback--promise
-      await this.#queueRedis.quit()
-      await this.#adminRedis.quit()
-      this.#queueRedis = null
-      this.#adminRedis = null
+      await connection_enqueue.quit()
+      await connection_admin.quit()
+      connection_enqueue = null
+      connection_admin = null
     }
   }
 
@@ -612,29 +627,29 @@ export class RedisQueue extends QueueManager {
    * @param {Transaction} transaction
    * @param {persistAfter} duration Time before it is written to long term storage (seconds)
    */
-  async saveTransactionState(transactionState, persistAfter=60) {
+  static async saveTransactionState_level1(transactionState) {
     // console.log(`saveTransaction(${transactionState.getTxId()}, persistAfter=${persistAfter}) - ${transactionState.getDeltaCounter()}`)
     // console.log(`typeof(transactionState)=`, typeof(transactionState))
     // console.log(`transactionState=`, transactionState)
 
-    await this._checkLoaded()
+    await RedisQueue._checkLoaded()
 
     // Save the transactionState as JSON
     const txId = transactionState.getTxId()
     const json = transactionState.stringify()
-    // await this.#adminRedis.set(key, value, 'ex', duration)
+    // await connection_admin.set(key, value, 'ex', duration)
 
     // console.log(`SAVING TO REDIS: json=`, JSON.stringify(JSON.parse(json), '', 2))
     // console.log(`SAVINF ${json.length} TO REDIS WITH KEY ${key}`)
     const key = `${KEYPREFIX_TRANSACTION_STATE}${txId}`
-    // await this.#adminRedis.set(key, json, 'ex', A_VERY_LONG_TIME)
-    await this.#adminRedis.pipeline().set(key, json, 'ex', A_VERY_LONG_TIME).exec()
+    // await connection_admin.set(key, json, 'ex', A_VERY_LONG_TIME)
+    await connection_admin.pipeline().set(key, json, 'ex', A_VERY_LONG_TIME).exec()
 
 
     // Add it to a queue to be persisted to the database later (by a separate server)
     // See https://developpaper.com/redis-delay-queue-ive-completely-straightened-it-out-this-time/
     const persistTimeMs = Date.now() + TIME_TILL_GLOBAL_CACHE_ENTRY_IS_PERSISTED_TO_DB
-    await this.#adminRedis.zadd(KEYPREFIX_STATES_TO_PERSIST, persistTimeMs, txId)
+    await connection_admin.zadd(KEYPREFIX_STATES_TO_PERSIST, persistTimeMs, txId)
   }
 
   /**
@@ -642,82 +657,84 @@ export class RedisQueue extends QueueManager {
    * periodically to find transaction states that need to be shifted from the
    * global (REDIS) cache, up to long term storage in the database.
    */
-  async persistTransactionStatesToLongTermStorage() {
+  static async persistTransactionStatesToLongTermStorage() {
     // console.log(`RedisQueue-ioredis::persistTransactionStatesToLongTermStorage()`)
 
-    await this._checkLoaded()
+    await RedisQueue._checkLoaded()
 
     // // Save the transactionState as JSON
     // const txId = transactionState.getTxId()
     // const json = transactionState.stringify()
-    // // await this.#adminRedis.set(key, value, 'ex', duration)
+    // // await connection_admin.set(key, value, 'ex', duration)
 
     // // console.log(`SAVING TO REDIS: json=`, JSON.stringify(JSON.parse(json), '', 2))
     // // console.log(`SAVINF ${json.length} TO REDIS WITH KEY ${key}`)
     // const key = `${KEYPREFIX_TRANSACTION_STATE}${txId}`
-    // await this.#adminRedis.set(key, json, 'ex', A_VERY_LONG_TIME)
+    // await connection_admin.set(key, json, 'ex', A_VERY_LONG_TIME)
 
     // Add it to a queue to be persisted to the database later (by a separate server)
     // See https://developpaper.com/redis-delay-queue-ive-completely-straightened-it-out-this-time/
     const min = '-inf'
     const max = Date.now()
-    const result = await this.#adminRedis.zrange(KEYPREFIX_STATES_TO_PERSIST, min, max, 'BYSCORE')
+    const result = await connection_admin.zrange(KEYPREFIX_STATES_TO_PERSIST, min, max, 'BYSCORE')
     // console.log(`result=`, result)
 
     for (const txId of result) {
       if (VERBOSE) console.log(`Persisting state of ${txId} to long term storage`)
       const key = `${KEYPREFIX_TRANSACTION_STATE}${txId}`
-      let json = await this.#adminRedis.get(key)
+      let json = await connection_admin.get(key)
       if (json === null) {
         // Transaction state not in the REDIS cache
         // May have been deleted by another server also doing the persisting.
-        await this.#adminRedis.zrem(KEYPREFIX_STATES_TO_PERSIST, txId)
+        await connection_admin.zrem(KEYPREFIX_STATES_TO_PERSIST, txId)
         continue
       }
 
       // console.log(`json=`, json)
 
-      try {
-        /*
-         *  Insert transaction satte into the database.
-         */
-        let sql = `INSERT INTO atp_transaction_state (transaction_id, json) VALUES (?, ?)`
-        let params = [ txId, json ]
-        let result2 = await dbupdate(sql, params)
-        // console.log(`result2=`, result2)
-        if (result2.affectedRows !== 1) {
-          //ZZZZZZ Notify the admin
-          console.log(`SERIOUS ERROR: persistTransactionStatesToLongTermStorage: could not insert into DB [${txId}]`, e)
-          continue
-        }
+      await saveTransactionState_level2(txId, json)
 
-      } catch (e) {
-        if (e.code !== 'ER_DUP_ENTRY') {
-          //ZZZZZZ Notify the admin
-          console.log(`SERIOUS ERROR: persistTransactionStatesToLongTermStorage: could not insert into DB [${txId}]`, e)
-          continue
-        }
+      // try {
+      //   /*
+      //    *  Insert transaction state into the database.
+      //    */
+      //   let sql = `INSERT INTO atp_transaction_state (transaction_id, json) VALUES (?, ?)`
+      //   let params = [ txId, json ]
+      //   let result2 = await dbupdate(sql, params)
+      //   // console.log(`result2=`, result2)
+      //   if (result2.affectedRows !== 1) {
+      //     //ZZZZZZ Notify the admin
+      //     console.log(`SERIOUS ERROR: persistTransactionStatesToLongTermStorage: could not insert into DB [${txId}]`, e)
+      //     continue
+      //   }
 
-        /*
-         *  Already in DB - need to update
-         */
-        // console.log(`Need to update`)
-        const sql = `UPDATE atp_transaction_state SET json=? WHERE transaction_id=?`
-        const params = [ json, txId ]
-        const result2 = await dbupdate(sql, params)
-        // console.log(`result2=`, result2)
-        if (result2.affectedRows !== 1) {
-          //ZZZZZZ Notify the admin
-          console.log(`SERIOUS ERROR: persistTransactionStatesToLongTermStorage: could not update DB [${txId}]`, e)
-          continue
-        }
-      }
+      // } catch (e) {
+      //   if (e.code !== 'ER_DUP_ENTRY') {
+      //     //ZZZZZZ Notify the admin
+      //     console.log(`SERIOUS ERROR: persistTransactionStatesToLongTermStorage: could not insert into DB [${txId}]`, e)
+      //     continue
+      //   }
+
+      //   /*
+      //    *  Already in DB - need to update
+      //    */
+      //   // console.log(`Need to update`)
+      //   const sql = `UPDATE atp_transaction_state SET json=? WHERE transaction_id=?`
+      //   const params = [ json, txId ]
+      //   const result2 = await dbupdate(sql, params)
+      //   // console.log(`result2=`, result2)
+      //   if (result2.affectedRows !== 1) {
+      //     //ZZZZZZ Notify the admin
+      //     console.log(`SERIOUS ERROR: persistTransactionStatesToLongTermStorage: could not update DB [${txId}]`, e)
+      //     continue
+      //   }
+      // }
 
       // We've either inserted or updated the database.
       // We can now remove from REDIS.
       if (VERBOSE) console.log(`Removing transaction state from REDIS [${txId}]`)
-      await this.#adminRedis.zrem(KEYPREFIX_STATES_TO_PERSIST, txId)
-      await this.#adminRedis.del(key)
+      await connection_admin.zrem(KEYPREFIX_STATES_TO_PERSIST, txId)
+      await connection_admin.del(key)
     }
   }
 
@@ -728,10 +745,10 @@ export class RedisQueue extends QueueManager {
    * @param {string} key
    * @returns The value saved using _setTemporaryValue_.
    */
-  async getTransactionState(txId) {
-    await this._checkLoaded()
+  static async getTransactionState(txId) {
+    await RedisQueue._checkLoaded()
     const key = `${KEYPREFIX_TRANSACTION_STATE}${txId}`
-    let json = await this.#adminRedis.get(key)
+    let json = await connection_admin.get(key)
     if (json === null) {
       // Transaction state not in the REDIS cache
       return null
@@ -740,14 +757,14 @@ export class RedisQueue extends QueueManager {
     }
   }//- getTransactionState
 
-  async queueStats() {
+  static async queueStats() {
 
     /*
      *  Get details of transaction states.
      */
-    let states = await this.#adminRedis.keys(`${KEYPREFIX_TRANSACTION_STATE}*`)
+    let states = await connection_admin.keys(`${KEYPREFIX_TRANSACTION_STATE}*`)
     const transactionStates = states.length
-    const transactionStatesPending = await this.#adminRedis.zcount(KEYPREFIX_STATES_TO_PERSIST, '-inf', '+inf')
+    const transactionStatesPending = await connection_admin.zcount(KEYPREFIX_STATES_TO_PERSIST, '-inf', '+inf')
 
     /*
      *    Get details of node groups and nodes.
@@ -771,7 +788,7 @@ export class RedisQueue extends QueueManager {
     }
 
     // Get details from the node keep-alives in REDIS
-    let nodes = await this.#adminRedis.keys(`${KEYPREFIX_NODE_REGISTRATION}*`)
+    let nodes = await connection_admin.keys(`${KEYPREFIX_NODE_REGISTRATION}*`)
     // console.log(`nodes=`, nodes)
     for (const key of nodes) {
       const arr = key.split(':')
@@ -782,7 +799,7 @@ export class RedisQueue extends QueueManager {
       // console.log(`nodeId=`, nodeId)
       const node = findNode(group, nodeId)
 
-      const value = await this.#adminRedis.get(key)
+      const value = await connection_admin.get(key)
       try {
         const keepalive = JSON.parse(value)
         // console.log(`keepalive=`, keepalive)
@@ -813,15 +830,15 @@ export class RedisQueue extends QueueManager {
 
       // Check the group queue size
       const queueKey = listName(Scheduler2.groupQueueName(group.nodeGroup))
-      group.queueLen = await this.#adminRedis.llen(queueKey)
+      group.queueLen = await connection_admin.llen(queueKey)
 
       // Get the queue sizes for the individual nodes
       for (const node of group.nodes) {
         // Check the group queue size
         const queueKey = listName(Scheduler2.nodeRegularQueueName(group.nodeGroup, node.nodeId))
-        node.queueLen = await this.#adminRedis.llen(queueKey)
+        node.queueLen = await connection_admin.llen(queueKey)
         const expessQueueKey = listName(Scheduler2.nodeExpressQueueName(group.nodeGroup, node.nodeId))
-        node.expressQueueLen = await this.#adminRedis.llen(expessQueueKey)
+        node.expressQueueLen = await connection_admin.llen(expessQueueKey)
       }
 
       // Sort the nodes
@@ -832,8 +849,8 @@ export class RedisQueue extends QueueManager {
       })
     }
 
-    // let queues = await this.#adminRedis.keys(`${KEYPREFIX_EVENT_QUEUE}*`)
-    let queues = await this.#adminRedis.keys(`*`)
+    // let queues = await connection_admin.keys(`${KEYPREFIX_EVENT_QUEUE}*`)
+    let queues = await connection_admin.keys(`*`)
     // console.log(`queues=`, queues)
 
     const stats = {

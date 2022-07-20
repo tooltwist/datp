@@ -85,6 +85,8 @@ export class RouterStep extends Step {
     }
 
     const txId = instance.getTransactionId()//ZZZZ rename
+    const tx = instance._7agghtstrajj_37(txId) // This is a magical internal function that we don't want people to use.
+
 
     // assert(data)
     if (!data) {
@@ -135,7 +137,7 @@ export class RouterStep extends Step {
     instance.syncLogs()
 
     const workerForShortcut = instance.getWorker()
-    await schedulerForThisNode.schedule_StepStart(childNodeGroup, null, workerForShortcut, {
+    await schedulerForThisNode.schedule_StepStart(tx, childNodeGroup, null, workerForShortcut, {
       txId,
       nodeGroup: childNodeGroup,
       // nodeId: childNodeGroup,

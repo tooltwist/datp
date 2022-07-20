@@ -12,6 +12,8 @@ import TransactionPersistance from './TransactionPersistance'
 import assert from 'assert'
 import { schedulerForThisNode } from '../..'
 import pause from '../../lib/pause'
+import { isDevelopmentMode } from '../../datp-constants'
+import { saveTransactionState_level2 } from './txState-level-2'
 // import { objectsAreTheSame } from '../../lib/objectDiff'
 
 const PERSIST_FAST_DURATION = 10 // Almost immediately
@@ -20,11 +22,9 @@ const PERSIST_REGULAR_DURATION = 120 // Two minutes
 const VERBOSE = 0
 
 class TransactionCache {
-  #cache
   #cacheId // To check we only have one cache!
 
   constructor() {
-    this.#cache = new Map() // txId => Transaction2
     this.#cacheId = GenerateHash('cache')
   }
 
@@ -42,19 +42,13 @@ class TransactionCache {
     // Create the initial transaction
     const txId = GenerateHash('tx')
     const tx = new Transaction(txId, owner, externalId, transactionType)
-    this.#cache.set(txId, tx)
+    // this.#cache.set(txId, tx)
 
     // Persist this transaction
     await TransactionPersistance.saveNewTransaction(tx)
     return tx
   }
 
-  assertNotInCache(txId) {
-    if (this.#cache.has(txId)) {
-      console.trace(`Transaction state for ${txId} should not be in the local transaction cache [${this.#cacheId}]`)
-      system.exit(1)
-    }
-  }
 
   /**
    *
@@ -69,17 +63,17 @@ class TransactionCache {
     assert(typeof(loadIfNecessary) === 'boolean')
     assert(typeof(saveInLocalMemoryCache) === 'boolean')
 
-    let tx = this.#cache.get(txId)
-    if (tx) {
+    // let tx = this.#cache.get(txId)
+    // if (tx) {
 
-      // Already in our in-memory cache
-      if (VERBOSE) console.log(`TransactionCache.getTransactionState(${txId}): found in local memory cache`)
-      return tx
-    }
+    //   // Already in our in-memory cache
+    //   if (VERBOSE) console.log(`TransactionCache.getTransactionState(${txId}): found in local memory cache`)
+    //   return tx
+    // }
 
-    if (!loadIfNecessary) {
-      return null
-    }
+    // if (!loadIfNecessary) {
+    //   return null
+    // }
 
     // Not in our in-memory cache
     // Try loading the transaction from our global (REDIS) cache
@@ -97,9 +91,9 @@ class TransactionCache {
 
     if (tx1) {
       // Found in the REDIS cache
-      if (saveInLocalMemoryCache) {
-        this.#cache.set(txId, tx1)
-      }
+      // if (saveInLocalMemoryCache) {
+      //   this.#cache.set(txId, tx1)
+      // }
       // YARP248
       // console.log(`${schedulerForThisNode.getNodeId()}: yarp loaded ${txId} from REDIS (${tx1.getDeltaCounter()})`)
       return tx1
@@ -120,9 +114,9 @@ class TransactionCache {
       const json = rows[0].json
       try {
         const tx2 = Transaction.transactionStateFromJSON(json)
-        if (saveInLocalMemoryCache) {
-          this.#cache.set(txId, tx2)
-        }
+        // if (saveInLocalMemoryCache) {
+        //   this.#cache.set(txId, tx2)
+        // }
         return tx2
       } catch (e) {
         // Serious error - notify the administrator
@@ -136,10 +130,14 @@ class TransactionCache {
     // console.log(`tx3=`, tx3)
     if (tx3) {
       //ZZZZZ This should be raised as an administrator's notification.
-      console.log(`WARNING: Transaction ${txId} had to be resurrected from deltas. Why was this required?`)
-      if (saveInLocalMemoryCache) {
-        this.#cache.set(txId, tx3)
-      }
+      console.log(`WARNING: Transaction ${txId} had to be resurrected from deltas. Did the server die?`)
+      // if (saveInLocalMemoryCache) {
+      //   this.#cache.set(txId, tx3)
+      // }
+
+      // Save the transaction state in REDIS, and schedule it to be
+      // saved to long term storage (and removal from REDIS).
+      await schedulerForThisNode.saveTransactionState_level1(tx3)
       return tx3
     }
 
@@ -172,108 +170,25 @@ class TransactionCache {
 
     return this.getTransactionState(rows[0].transaction_id, loadIfNecessary)
   }
-
-  /**
-   * Remove the TransactionState from local memory.
-   * 
-   * @param {TransactionState} txId 
-   */
-  async removeFromCache(txId) {
-    if (VERBOSE) console.log(`TransactionCache.removeFromCache(${txId})`)
-
-    // let tx = this.#cache.get(txId)
-    // if (tx) {
-      const have1 = this.#cache.has(txId)
-      const rv = this.#cache.delete(txId)
-      const have2 = this.#cache.has(txId)
-      if (have1 && have2) {
-        console.log(`YARP TX CACHE DELETE IS NOT WORKING`)
-      }
-      return rv
-    // } else {
-    //   // Not in the cache
-    // }
-  }
-
-  /**
-   * Move a transaction state from the local in-memory up to the "global"
-   * cache in REDIS, which can be accessed by all nodes.
-   * 
-   * @param {string} txId Transaction ID
-   * @param {boolean} shortTerm Move to database very soon
-   */
-  async moveToGlobalCache(txId, shortTerm=false) {
-    if (VERBOSE) console.log(`TransactionCache.moveToGlobalCache(${txId}): shortTerm=${shortTerm}`)
-
-    let tx = this.#cache.get(txId)
-    if (tx) {
-
-      // Save the transaction state in REDIS, and schedule it to be
-      // saved to long term storage (and removal from REDIS).
-      const timeTillPersist = shortTerm ? PERSIST_FAST_DURATION : PERSIST_REGULAR_DURATION
-      await schedulerForThisNode.saveTransactionStateToREDIS(tx, timeTillPersist)
-
-      // Delete from our memory cache here.
-      // await this.removeFromCache(txId)
-      this.#cache.delete(txId)
-
-    } else {
-      // Not found in the cache
-    }
-  }
-
-  /**
-   * Add a transaction state to the cache.
-   * This is used when the transaction state is passed between nodes within an event.
-   * @param {Transaction} tx 
-   */
-  async addToCache(tx) {
-    if (VERBOSE) console.log(`TransactionCache.addToCache():`, tx)
-
-    const txId = tx.getTxId()
-    assert(txId)
-    this.#cache.set(txId, tx)
-  }
-
-  // /**
-  //  *
-  //  * @param {string} txId
-  //  * @param {boolean} removeFromCache
-  //  */
-  // async persist(txId, removeFromCache = true) {
-  //   // console.log(`TransactionCache.persist(${txId})`)
-
-  //   const tx = this.#cache.get(txId)
-  //   if (tx) {
-  //     // console.log(`tx=`, tx)
-  //     //ZZZZ Handle errors carefully here YARP2
-  //     // console.log(`persist the transaction`)
-  //     await TransactionPersistance.persistDeltas(tx)
-
-  //     if (removeFromCache) {
-  //       // console.log(`removing the transaction from the cache`)
-  //       this.#cache.delete(txId)
-  //     }
-  //   }
-  // }
-
-  async size() {
-    return this.#cache.size // Yep, not a function.
-  }
-
-  /**
-   *
-   */
-  async dump() {
-    console.log(`Transaction cache:`)
-    this.#cache.forEach((txId, tx) => {
-      console.log(`  ${txId}, ${tx.toString()}`)
-    })
-    // for (let txId in this.#cache) {
-    //   const tx = this.#cache[txId]
-    //   console.log(`  ${txId}, ${tx.toString()}`)
-    // }
-  }
 }
 
 export default TransactionCache = new TransactionCache()
+
+
+
+export async function PERSIST_TRANSACTION_STATE(tx) {
+  if (VERBOSE) console.log(`TransactionCache.PERSIST_TRANSACTION_STATE(${tx.txId})`)
+
+  if (await isDevelopmentMode()) {
+
+    // In development mode, we'll write to the database immediately.
+    const txId = tx.getTxId()
+    const json = tx.stringify()
+    saveTransactionState_level2(txId, json)
+  } else {
+
+    // Save the transaction state in REDIS, and schedule it to be
+    // saved to long term storage (and removal from REDIS).
+    await schedulerForThisNode.saveTransactionState_level1(tx)
+  }
+}

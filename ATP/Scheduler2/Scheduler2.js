@@ -8,9 +8,8 @@ import GenerateHash from '../GenerateHash'
 import TransactionIndexEntry from '../TransactionIndexEntry'
 import XData, { dataFromXDataOrObject } from '../XData'
 import CallbackRegister from './CallbackRegister'
-import { getQueueConnection } from './queuing/Queue2'
 import { ROOT_STEP_COMPLETE_CALLBACK } from './rootStepCompleteCallback'
-import TransactionCache from './TransactionCache'
+import TransactionCache, { PERSIST_TRANSACTION_STATE } from './txState-level-1'
 import Worker2, { GO_BACK_AND_RELEASE_WORKER } from './Worker2'
 import assert from 'assert'
 import { STEP_QUEUED, STEP_RUNNING, STEP_SUCCESS } from '../Step'
@@ -25,15 +24,17 @@ import { SHORTCUT_STEP_START, SHORTCUT_STEP_COMPLETE, SHORTCUT_TX_COMPLETION, WO
 import { DUP_EXTERNAL_ID_DELAY, INCLUDE_STATE_IN_NODE_HOPPING_EVENTS } from '../../datp-constants'
 import { getPipelineVersionInUse } from '../../database/dbPipelines'
 import juice from '@tooltwist/juice-client'
-// import { A_VERY_LONG_TIME } from './queuing/RedisQueue-ioredis'
 import Transaction from './Transaction'
 import dbLogbook from '../../database/dbLogbook'
-import { getSystemErrorMap } from 'util'
 import LongPoll from './LongPoll'
+import { MemoryEventQueue } from './MemoryEventQueue'
+import { RedisQueue } from './queuing/RedisQueue-ioredis'
 
 // Debug related
 const VERBOSE = 0
+const Q_VERBOSE = 0
 require('colors')
+
 
 let txStartCounter = 0
 
@@ -48,11 +49,14 @@ export default class Scheduler2 {
   #name
   #description
 
-  // Queueing
-  #queueObject
-  #groupQueue // Name of the queue
+  // Queue names
+  #groupQueue
   #nodeRegularQueue
   #nodeExpressQueue
+
+  // In-memory queues
+  #regularMemoryQueue
+  #expressMemoryQueue
 
   // Worker threads
   #requiredWorkers // int
@@ -129,7 +133,9 @@ export default class Scheduler2 {
     this.#groupQueue = Scheduler2.groupQueueName(groupName)
     this.#nodeRegularQueue = Scheduler2.nodeRegularQueueName(groupName, this.#nodeId)
     this.#nodeExpressQueue = Scheduler2.nodeExpressQueueName(groupName, this.#nodeId)
-    this.#queueObject = null
+
+    this.#regularMemoryQueue = new MemoryEventQueue()
+    this.#expressMemoryQueue = new MemoryEventQueue()
 
     // Allocate some StepWorkers
     this.#workers = [ ]
@@ -179,18 +185,8 @@ export default class Scheduler2 {
     return this.#nodeId
   }
 
-  async _checkConnectedToQueue() {
-    // console.log(`_checkConnectedToQueue`)
-    if (!this.#queueObject) {
-      // Get a connection to my queue
-      if (VERBOSE) console.log(`Getting a new connection`)
-      this.#queueObject = await getQueueConnection()
-    }
-  }
-
   async start() {
     if (VERBOSE) console.log(`Scheduler2.start(${this.#groupQueue})`)
-    await this._checkConnectedToQueue()
 
     if (this.#state === Scheduler2.RUNNING) {
       if (VERBOSE) console.log(`  - already running`)
@@ -226,14 +222,6 @@ export default class Scheduler2 {
         }
         lastCheck = now
       }
-
-      // // Create new workers if required
-      // if (VERBOSE) console.log(`Creating ${this.#requiredWorkers} workers`)
-      // while (this.#workers.length < this.#requiredWorkers) {
-      //   const id = this.#workers.length
-      //   const worker = new Worker2(id)
-      //   this.#workers.push(worker)
-      // }
   
       // Create a list of all the workers waiting for an event
       const workersWaiting = [ ]
@@ -246,56 +234,31 @@ export default class Scheduler2 {
 
       // If no workers are available, wait a bit and try again
       const numBusy = this.#workers.length - workersWaiting.length
-      let numEvents = this.#requiredWorkers - numBusy
-      if (numEvents === 0) {
+      let numberOfAvailableWorkers = this.#requiredWorkers - numBusy
+      if (numberOfAvailableWorkers === 0) {
         if (VERBOSE) console.log(`No workers available - event loop sleeping for a while...`)
         setTimeout(eventLoop, this.#eventloopPauseBusy)
         return
       }
-      // if (VERBOSE) console.log(`Need ${numEvents} events (${this.#workers.length} workers, require ${this.#requiredWorkers}, ${numBusy} busy)`)
+      // if (VERBOSE) console.log(`Need ${numberOfAvailableWorkers} events (${this.#workers.length} workers, require ${this.#requiredWorkers}, ${numBusy} busy)`)
 
       // Get events for these workers
-      // We read from three queues, in the following priority:
-      //  1. Express queue for node (replies)
-      //  2. Normal queue for node (steps)
-      //  3. Queue for group (incoming transactions)
-      // const numEvents = workersWaiting.length
-      const block = false
-      const queues = [
-        this.#nodeExpressQueue,
-        this.#nodeRegularQueue,
-        this.#groupQueue
-      ]
+      // We read from five queues, in the following priority:
+      //  1. Local memory queue - regular events
+      //  2. Local memory queue - express events
+      //  3. Express REDIS queue for node (replies)
+      //  4. Normal REDIS queue for node (steps)
+      //  5. REDIS Queue for group (incoming transactions)
 
-      // const l0 = await this.#queueObject.queueLength(queues[0])
-      // const l1 = await this.#queueObject.queueLength(queues[1])
-      // const l2 = await this.#queueObject.queueLength(queues[2])
-      // if (l0 || l1 || l2) {
-      //   console.log(`exp/node/grp= ${l0} ${l1} ${l2}`)
-      // }
-
-      const events = await this.#queueObject.dequeue(queues, numEvents, block)
-      // console.log(`events=`, events)
-      if (events.length === 0) {
-        // if (VERBOSE) console.log(`Event queue is empty - Event loop sleeping a bit (${this.#eventloopPauseIdle})`)
-        setTimeout(eventLoop, this.#eventloopPauseIdle)
-        return
-      }
-
-      // Update our statistics
-      this.#dequeuePastMinute.add(events.length)
-      this.#dequeuePastHour.add(events.length)
-
-      // const tick = (events.length === workersWaiting.length) ? ' <==' : ''
-      // console.log(`${events.length} events <==> ${workersWaiting.length} available workers${tick}`)
-
-      // Pair up the workers and the events
-      for (let i = 0; i < workersWaiting.length && i < events.length; i++) {
-
+      // Read from the express local memory queue first
+      let eventsStarted = 0
+      let countWorker = 0
+      for ( ; countWorker < numberOfAvailableWorkers && this.#expressMemoryQueue.len() > 0; countWorker++) {
+        if (Q_VERBOSE) console.log(`YARP - got event from express memory queue`)
         // Process the event
         // Do NOT wait for it to complete. It will set it's state back to 'waiting' when it's ready.
-        const worker = workersWaiting[i]
-        const event = events[i]
+        const event = this.#expressMemoryQueue.next()
+        const worker = workersWaiting[countWorker]
         // console.log(`Scheduler2.start: have ${event.eventType} event`)
         worker.setInUse()
         setImmediate(() => {
@@ -303,15 +266,86 @@ export default class Scheduler2 {
           // then back to WAITING again once it is finished.
           worker.processEvent(event)
         })
+        eventsStarted++
       }
 
-      // Let's start all over again, because some workers may be available by now.
-      // We use the timeout, so the stack can reset itself.
-      // A tiny delay is required, to ensure processEvent has time to set the
-      // state away from WAITING.
-      setTimeout(eventLoop, this.#eventloopPause)
+      // Now try the regular memory queue
+      for ( ; countWorker < numberOfAvailableWorkers && this.#regularMemoryQueue.len() > 0; countWorker++) {
+        if (Q_VERBOSE) console.log(`YARP - got event from regular memory queue`)
+        // Process the event
+        // Do NOT wait for it to complete. It will set it's state back to 'waiting' when it's ready.
+        const event = this.#regularMemoryQueue.next()
+        const worker = workersWaiting[countWorker]
+        // console.log(`Scheduler2.start: have ${event.eventType} event`)
+        worker.setInUse()
+        setImmediate(() => {
+          // Do not wait. The worker will set itself to INUSE and
+          // then back to WAITING again once it is finished.
+          worker.processEvent(event)
+        })
+        eventsStarted++
+      }
 
-    }
+      // Now we read from the REDIS queues. These can be read from multiple queues in one call.
+      const requiredEvents = numberOfAvailableWorkers - countWorker
+      if (requiredEvents > 0) {
+
+        /*
+         *  We've emptied the memory queues. Now look at external queues.
+         */
+        const queues = [
+          this.#nodeExpressQueue,
+          this.#nodeRegularQueue,
+          this.#groupQueue
+        ]
+        const block = false
+        // console.log(`${requiredEvents} = ${numberOfAvailableWorkers} - ${countWorker}`)
+
+        const events = await RedisQueue.dequeue(queues, requiredEvents, block)
+        // console.log(`events=`, events)
+        eventsStarted += events.length
+
+        // const tick = (events.length === workersWaiting.length) ? ' <==' : ''
+        // console.log(`${events.length} events <==> ${workersWaiting.length} available workers${tick}`)
+
+        // Pair up the workers and the events
+        for (let i = 0; countWorker < numberOfAvailableWorkers && i < events.length; i++, countWorker++) {
+
+          // Process the event
+          // Do NOT wait for it to complete. It will set it's state back to 'waiting' when it's ready.
+          if (Q_VERBOSE) console.log(`YARP - got event from REDIS queue`)
+
+          const worker = workersWaiting[countWorker]
+          const event = events[i]
+          // console.log(`Scheduler2.start: have ${event.eventType} event`)
+          worker.setInUse()
+          setImmediate(() => {
+            // Do not wait. The worker will set itself to INUSE and
+            // then back to WAITING again once it is finished.
+            worker.processEvent(event)
+          })
+        }
+      }
+
+      // Update our statistics
+      this.#dequeuePastMinute.add(eventsStarted)
+      this.#dequeuePastHour.add(eventsStarted)
+
+      // Restart our event loop.
+      // We use the timeout, so the stack can reset itself.
+      if (eventsStarted === 0) {
+
+        // Nothing was started.
+        // We'll delay a bit longer than normal, so we don't go into a CPU intensive loop.
+        setTimeout(eventLoop, this.#eventloopPauseIdle)
+      } else {
+
+        // Let's start all over again, because some workers may be available by now.
+        // A tiny delay is required, to ensure processEvent has time to set the state away from WAITING.
+        setTimeout(eventLoop, this.#eventloopPause)
+      }
+
+    }//- eventLoop()
 
     // Let's start the event loop in the background
     setTimeout(eventLoop, 0)
@@ -322,111 +356,17 @@ export default class Scheduler2 {
    * to keep itself registered within REDIS.
    */
   async keepAlive () {
-    // console.log(`\n\n\n\n\n`)
-    // console.log(`keepAlive() ${this.#requiredWorkers}`, this)
-
-    // if (VERBOSE) console.log(`Scheduler2.keepAlive()`)
-    await this._checkConnectedToQueue()
-
-    // const info = this.getCurrentNodeDetails({ withStats: true, withStepTypes: false })
+    // console.log(`keepAlive()`)
     const info = await this.getCurrentNodeDetails({ withStats: true, withStepTypes: true })
-
-    // this.#transactionsInPastMinute.display('tx/sec')
-    // this.#stepsPastMinute.display('steps/sec')
-
-    // const waiting = await this.#queueObject.queueLength(this.#groupQueue)
-    // 
-    // const info = {
-    //   appVersion,
-    //   datpVersion,
-    //   buildTime,
-    //   stepTypes: await StepTypeRegister.myStepTypes(),
-    //   events: {
-    //     waiting,
-    //     processing: 0
-    //   },
-    //   workers: {
-    //     total: this.#workers.length,
-    //     running: 0,
-    //     waiting: 0,
-    //     shuttingDown: 0,
-    //     standby: 0,
-    //     required: this.#requiredWorkers,
-    //   },
-    //   throughput: {
-    //     // Filled in below
-    //   },
-    //   stats: {
-    //     transactionsInPastMinute: this.#transactionsInPastMinute.getStats().values,
-    //     transactionsInPastHour: this.#transactionsInPastHour.getStats().values,
-    //     transactionsOutPastMinute: this.#transactionsOutPastMinute.getStats().values,
-    //     transactionsOutPastHour: this.#transactionsOutPastHour.getStats().values,
-    //     stepsPastMinute: this.#stepsPastMinute.getStats().values,
-    //     stepsPastHour: this.#stepsPastHour.getStats().values,
-    //     enqueuePastMinute: this.#enqueuePastMinute.getStats().values,
-    //     enqueuePastHour: this.#enqueuePastHour.getStats().values,
-    //     dequeuePastMinute: this.#dequeuePastMinute.getStats().values,
-    //     dequeuePastHour: this.#dequeuePastHour.getStats().values,
-    //   }
-      
-    // }
-
-    // // transactions in per second
-    // {
-    //   const arr = this.#transactionsInPastMinute.getStats().values
-    //   const l = arr.length
-    //   const total = arr[l-1] + arr[l-2] + arr[l-3] + arr[l-4] + arr[l-5]
-    //   info.throughput.txInSec = Math.round(total / 5)
-    // }
-
-    // // transactions out per second
-    // {
-    //   const arr = this.#transactionsOutPastMinute.getStats().values
-    //   const l = arr.length
-    //   const total = arr[l-1] + arr[l-2] + arr[l-3] + arr[l-4] + arr[l-5]
-    //   info.throughput.txOutSec = Math.round(total / 5)
-    // }
-
-    // // steps per second
-    // {
-    //   const arr = this.#stepsPastMinute.getStats().values
-    //   const l = arr.length
-    //   const total = arr[l-1] + arr[l-2] + arr[l-3] + arr[l-4] + arr[l-5]
-    //   info.throughput.stepsSec = Math.round(total / 5)
-    // }
-
-    // // Check the status of the workers
-    // for (const worker of this.#workers) {
-    //   switch (await worker.getState()) {
-    //     case Worker2.INUSE:
-    //       info.workers.running++
-    //       info.events.processing++
-    //       break
-
-    //     case Worker2.WAITING:
-    //       info.workers.waiting++
-    //       break
-
-    //     case Worker2.SHUTDOWN:
-    //       info.workers.shuttingDown++
-    //       break
-
-    //     case Worker2.STANDBY:
-    //       info.workers.standby++
-    //       break
-    //   }
-    // }
-
-    // console.log(`info=`, info)
-    // console.log(`YARP 8: Saving node details to REDIS`)
-    await this.#queueObject.registerNodeInREDIS(this.#nodeGroup, this.#nodeId, info)
+    await RedisQueue.registerNodeInREDIS(this.#nodeGroup, this.#nodeId, info)
   }// - keepAlive
 
   async loadNodeGroupParameters() {
+    if (VERBOSE) console.log(`loadNodeGroupParameters()`)
+
     const group = await getNodeGroup(this.#nodeGroup)
     // console.log(`this.#nodeGroup=`, this.#nodeGroup)
     // console.log(`group=`, group)
-
     if (!group) {
       // Node group is not in the database
       console.log(`Fatal error: node group '${this.#nodeGroup}' is not defined in the database.`)
@@ -521,8 +461,9 @@ export default class Scheduler2 {
           status: STEP_SUCCESS,
           transactionOutput: { foo: 'bar', description }
         }
+        const tx = await TransactionCache.newTransaction(metadata.owner, metadata.externalId, metadata.transactionType)
         const worker = null
-        await CallbackRegister.call(metadata.onComplete.callback, metadata.onComplete.context, fakeTransactionOutput, worker)
+        await CallbackRegister.call(tx, metadata.onComplete.callback, metadata.onComplete.context, fakeTransactionOutput, worker)
         return
       }
 
@@ -547,12 +488,15 @@ export default class Scheduler2 {
           status: STEP_SUCCESS,
           transactionOutput: { whoopee: 'doo', description }
         }, 'startTransaction()')
+
+        await PERSIST_TRANSACTION_STATE(tx)
+
         // console.log(`tx=`, (await tx).toString())
         const txInitNodeGroup = txData.nodeGroup
         const txInitNodeId = txData.nodeId
         // const queueName = Scheduler2.groupQueueName(input.metadata.nodeGroup)
         const workerForShortcut = null
-        await schedulerForThisNode.schedule_TransactionCompleted(txInitNodeGroup, txInitNodeId, workerForShortcut, {
+        await schedulerForThisNode.schedule_TransactionCompleted(tx, txInitNodeGroup, txInitNodeId, workerForShortcut, {
           txId,
         })
         return
@@ -588,9 +532,8 @@ export default class Scheduler2 {
       // return 2, etc. This will continue until the key is removed after 30 seconds. By that
       // time the externalId should certainly be stored in the darabase.
       if (metadata.externalId) {
-        await this._checkConnectedToQueue()
         const key = `externalId-${metadata.externalId}-${metadata.owner}`
-        if (await this.#queueObject.repeatEventDetection(key, DUP_EXTERNAL_ID_DELAY)) {
+        if (await RedisQueue.repeatEventDetection(key, DUP_EXTERNAL_ID_DELAY)) {
           // A transaction already exists with this externalId
           console.log(`Scheduler2.startTransaction: detected duplicate externalId via REDIS`)
           throw new DuplicateExternalIdError()
@@ -628,37 +571,12 @@ export default class Scheduler2 {
       }
       await tx.delta(null, def, 'Scheduler2.startTransaction()')
 
+      await PERSIST_TRANSACTION_STATE(tx)
+
+
       // Generate a new ID for this step
       const txId = tx.getTxId()
       const stepId = GenerateHash('s')
-
-      // Get the name of the queue to the node where this pipeline will run
-      // const nodeGroupWherePipelineRuns = metadata.nodeGroup // Should come from the pipeline definition
-      // const queueToPipelineNode = Scheduler2.groupQueueName(nodeGroupWherePipelineRuns)
-
-      // If this pipeline runs in a different node group, we'll start it via the group
-      // queue for that nodeGroup. If the pipeline runs in the current node group, we'll
-      // run it in this current node, so it'll have access to the cached transaction.
-
-
-
-
-      // let queueToPipelineNode
-      // if (nodeGroupWherePipelineRuns === myNodeGroup) {
-      //   // Run the new pipeline in this node - put the event in this node's pipeline.
-      //   queueToPipelineNode = Scheduler2.nodeRegularQueueName(myNodeGroup, myNodeId)
-      // } else {
-      //   // The new pipeline will run in a different nodeGroup. Put the event in the group queue.
-      //   await this.saveTransactionStateToREDIS(tx, A_VERY_LONG_TIME)
-      //   queueToPipelineNode = Scheduler2.groupQueueName(nodeGroupWherePipelineRuns)
-      // }
-
-      // console.log(`metadataCopy=`, metadataCopy)
-      // console.log(`data=`, data)
-      // if (VERBOSE||trace)
-
-// console.log(`Scheduler2.startTransaction() - adding to queue for group '${nodeGroupWherePipelineRuns}'.`)
-// console.log(`txStartCounter=`, txStartCounter++)
 
       // Update our statistics
       this.#transactionsInPastMinute.add(1)
@@ -669,7 +587,7 @@ export default class Scheduler2 {
       // console.log(`txId=`, txId)
       const fullSequence = txId.substring(3, 9)
       const workerForShortcut = null
-      await this.schedule_StepStart(pipelineNodeGroup, null, workerForShortcut, {
+      await this.schedule_StepStart(tx, pipelineNodeGroup, null, workerForShortcut, {
         txId,
         stepId,
         parentNodeGroup: myNodeGroup,
@@ -728,7 +646,7 @@ export default class Scheduler2 {
    * @param {string} eventType
    * @param {object} data
    */
-  async schedule_StepStart(nodeGroupWhereStepRuns, nodeIdWhereStepRuns, workerForShortcut, data) {
+  async schedule_StepStart(tx, nodeGroupWhereStepRuns, nodeIdWhereStepRuns, workerForShortcut, data) {
     if (VERBOSE) console.log(`\n<<< schedule_StepStart(${nodeGroupWhereStepRuns}, ${nodeIdWhereStepRuns})`.green)
     //   if (VERBOSE > 1) console.log(`data=`, data)
     assert(typeof(nodeGroupWhereStepRuns) === 'string')
@@ -738,72 +656,7 @@ export default class Scheduler2 {
 
     const myNodeGroup = schedulerForThisNode.getNodeGroup()
     const myNodeId = schedulerForThisNode.getNodeId()
-    let bypassQueue = false
-    let hoppingToDifferentNode = false
-    let queueName
 
-    // Can we shortcut the reply, bypassing the queue?
-    if (nodeGroupWhereStepRuns === myNodeGroup && nodeIdWhereStepRuns === myNodeId) {
-
-      /*
-       *  The step will runs on this node.
-       */
-      if (SHORTCUT_STEP_START && workerForShortcut !== null) {
-
-        // We won't use a queue - we'll continue to use the current worker.
-        bypassQueue = true
-      } else {
-
-        // Place the event in this node's dedicated express queue.
-        queueName = Scheduler2.nodeRegularQueueName(myNodeGroup, myNodeId)
-      }
-    } else {
-
-      /*
-       *  The step runs in a different group or a different node in this group.
-       */
-      if (nodeGroupWhereStepRuns === myNodeGroup && nodeIdWhereStepRuns !== null) {
-
-        // Put the event in a specific node's normal queue.
-        hoppingToDifferentNode = true
-        queueName = Scheduler2.nodeRegularQueueName(nodeGroupWhereStepRuns, nodeIdWhereStepRuns)
-      } else {
-
-        // Put the event in the node group's queue
-        hoppingToDifferentNode = true
-        queueName = Scheduler2.groupQueueName(nodeGroupWhereStepRuns)
-      }
-    }
-
-
-
-    // if (nodeGroupWhereStepRuns !== myNodeGroup || placeOnGroupQueue) {
-
-    //   // The new pipeline will run in a different nodeGroup. Save the transaction
-    //   // state to REDIS and put the event in the group's queue.
-    //   workerForShortcut = null
-    //   hoppingToDifferentNode = true
-    //   queueName = Scheduler2.groupQueueName(nodeGroupWhereStepRuns)
-
-    // } else {
-
-    //   // This step needs to run in the current node group, so we'll run it in this node.
-    //   queueName = Scheduler2.nodeRegularQueueName(myNodeGroup, myNodeId)
-    // }
-
-    // console.log(`queueName=`, queueName)
-    // return await this.enqueue_StepStart(queueName, data, workerForShortcut)
-  // }
-
-  // async enqueue_StepStart(queueName, data, workerForShortcut=null) {
-  //   if (VERBOSE) console.log(`\n<<< enqueue_StepStart EVENT(${queueName})`.green)
-  //   if (VERBOSE > 1) console.log(`data=`, data)
-    // if (queueName.startsWith(Scheduler2.GROUP_QUEUE_PREFIX)) {
-    //   console.log(`////////////////////////////////////////////`.magenta)
-    //   console.log(`enqueue_StepStart with group queue ${queueName}`.magenta)
-    //   console.log(new Error('for debug').stack.magenta)
-    //   console.log(`////////////////////////////////////////////`.magenta)
-    // }
 
     const obj = dataFromXDataOrObject(data, 'schedule_StepStart() - data parameter must be XData or object')
     validateEvent_StepStart(obj)
@@ -812,7 +665,7 @@ export default class Scheduler2 {
     obj.onComplete.completionToken = GenerateHash('ctok')
 
     // Remember the callback details, and do not pass to the step
-    const tx = await TransactionCache.getTransactionState(obj.txId)
+    // const tx = await TransactionCache.getTransactionStateZ(obj.txId)
     // console.log(`tx=`, tx)
     await tx.delta(null, {
       nextStepId: obj.stepId, //ZZZZZ Choose a better field name
@@ -833,12 +686,15 @@ export default class Scheduler2 {
       stepDefinition: obj.stepDefinition,
       stepInput: obj.data,
       level: obj.level,
-      status: bypassQueue ? STEP_RUNNING : STEP_QUEUED
+      status: STEP_QUEUED
     }, 'Scheduler2.schedule_StepStart()')
     // delete obj.onComplete.callback
     // delete obj.onComplete.context
     // delete obj.metadata
     // delete obj.data
+
+    await PERSIST_TRANSACTION_STATE(tx)
+
 
     // Add to an event queue
     // const queue = await getQueueConnection()
@@ -852,6 +708,7 @@ export default class Scheduler2 {
       // onComplete: obj.onComplete,
       // completionToken: obj.onComplete.completionToken
       // fromNodeId: this.#nodeId
+
     }
 
     // Update our statistics
@@ -860,40 +717,48 @@ export default class Scheduler2 {
     this.#enqueuePastMinute.add(1)
     this.#enqueuePastHour.add(1)
     
-    // console.log(`QUEing event to start step`)
-    if (bypassQueue) {
 
-      // Start the step without queueing, in the current worker thread.
-      // console.log(`Shortcutting StepStart !!!!!`)
-      const rv = await workerForShortcut.processEvent_StepStart(event)
-      assert(rv === GO_BACK_AND_RELEASE_WORKER)
+    if (nodeGroupWhereStepRuns === myNodeGroup && nodeIdWhereStepRuns === myNodeId) {
+
+      /*
+       *  The step will runs on this node.
+       */
+      if (SHORTCUT_STEP_START && workerForShortcut !== null) {
+
+        // We won't use a queue - we'll continue to use the current worker.
+        if (Q_VERBOSE) console.log(`YARP stepStart - bypass queueing`)
+        event.txState = tx
+        const rv = await workerForShortcut.processEvent_StepStart(event)
+        assert(rv === GO_BACK_AND_RELEASE_WORKER)
+      } else {
+
+        // Place the event in this node's dedicated express memory queue.
+        if (Q_VERBOSE) console.log(`YARP stepStart - adding to local regular memory queue`)
+        event.txState = tx
+        this.#regularMemoryQueue.add(event)
+      }
     } else {
 
-      // Queue this for execution
-      if (hoppingToDifferentNode) {
-        // await TransactionCache.moveToGlobalCache(obj.txId)
+      /*
+       *  The step runs in a different group or a different node in this group.
+       */
+      if (nodeGroupWhereStepRuns === myNodeGroup && nodeIdWhereStepRuns !== null) {
 
-        // // Check the transaction state is no longer in memory
-        // const yarpTx = await TransactionCache.getTransactionState(obj.txId, false, false)
-        // // if (yarpTx) {
-        // //   console.trace(`\n\n\n\n\n STILL IN MEMORY CACHE AFTER BEING MOVED!!!!!!`)
-        // //   console.log(`After jumping server, ${obj.txId}:`, yarpTx ? yarpTx.asObject() : 'NULL')
-        // //   await TransactionCache.removeFromCache(obj.txId)
-        // //   const yarpTx2 = await TransactionCache.getTransactionState(obj.txId, false, false)
-        // //   console.log(`After remove, ${obj.txId}:`, yarpTx2 ? yarpTx2.asObject() : 'NULL')
-        // //   system.exit(1)
-        // // }
-        // TransactionCache.removeFromCache(obj.txId)
-        // TransactionCache.assertNotInCache(obj.txId)
+        // Put the event in a specific node's normal queue.
+        const queueName = Scheduler2.nodeRegularQueueName(nodeGroupWhereStepRuns, nodeIdWhereStepRuns)
+        if (Q_VERBOSE) console.log(`YARP stepStart - adding to queue ${queueName}`)
+        event.txState = await tx.stringify()
+        await RedisQueue.enqueue(queueName, event)
+      } else {
 
-        // Need to include the transaction state in the event
-        if (INCLUDE_STATE_IN_NODE_HOPPING_EVENTS) {
-          event.state = tx.asJSON()
-        }
+        // Put the event in the node group's queue
+        const queueName = Scheduler2.groupQueueName(nodeGroupWhereStepRuns)
+        if (Q_VERBOSE) console.log(`YARP stepStart - adding to queue ${queueName}`)
+        event.txState = await tx.stringify()
+        await RedisQueue.enqueue(queueName, event)
       }
-      await this._checkConnectedToQueue()
-      await this.#queueObject.enqueue(queueName, event)
     }
+
     return GO_BACK_AND_RELEASE_WORKER
   }//- enqueue_StepStart
 
@@ -903,10 +768,9 @@ export default class Scheduler2 {
    * @param {string} txId 
    * @param {string} stepId 
    */
-  async enqueue_StepRestart(nodeGroup, txId, stepId) {
-    if (VERBOSE) {
-      console.log(`\n<<< enqueue_StepRestart EVENT(${nodeGroup})`.green)
-    }
+  async enqueue_StepRestart(tx, nodeGroup, txId, stepId) {
+    // if (VERBOSE)
+    console.log(`\n<<< enqueue_StepRestart EVENT(${nodeGroup})`.green)
     assert(typeof(nodeGroup) === 'string')
     assert(typeof(txId) === 'string')
     assert(typeof(stepId) === 'string')
@@ -914,7 +778,7 @@ export default class Scheduler2 {
     const queueName = Scheduler2.groupQueueName(this.#nodeGroup)
 
     // Change the step status
-    const tx = await TransactionCache.getTransactionState(txId)
+    // const tx = await TransactionCache.getTransactionStateZ(txId)
     if (!tx) {
       throw new Error(`Unknown transaction ${txId}`)
     }
@@ -925,16 +789,19 @@ export default class Scheduler2 {
       status: STEP_QUEUED
     }, 'Scheduler2.enqueue_StepRestart()')
 
+    await PERSIST_TRANSACTION_STATE(tx)
+
+
     // Add to the event queue
     // const queue = await getQueueConnection()
+    const hoppingToDifferentNode = true
     const event = {
       eventType: Scheduler2.STEP_START_EVENT,
       txId,
       stepId,
-      // fromNodeId: this.#nodeId
     }
-    await this._checkConnectedToQueue()
-    await this.#queueObject.enqueue(queueName, event)
+    event.txState = tx.stringify()
+    await RedisQueue.enqueue(queueName, event)
 
     // Update our statistics
     this.#stepsPastHour.add(1)
@@ -956,7 +823,7 @@ export default class Scheduler2 {
    * @param {string} queueName
    * @param {object} event
    */
-   async schedule_StepCompleted(nodeGroupOfParent, nodeIdOfParent, tx, event, workerForShortcut=null) {
+   async schedule_StepCompleted(tx, nodeGroupOfParent, nodeIdOfParent, event, workerForShortcut=null) {
     if (VERBOSE) console.log(`\n<<< schedule_StepStart(${nodeGroupOfParent})`.green)
 
     // Validate the event data
@@ -967,9 +834,11 @@ export default class Scheduler2 {
 
     const myNodeGroup = schedulerForThisNode.getNodeGroup()
     const myNodeId = schedulerForThisNode.getNodeId()
-    let bypassQueue = false
-    let hoppingToDifferentNode = false
-    let queueName
+
+    // Add the event to the queue
+    event.eventType = Scheduler2.STEP_COMPLETED_EVENT
+    event.fromNodeId = this.#nodeId
+
 
     // Can we shortcut the reply, bypassing the queue?
     if (nodeGroupOfParent === myNodeGroup && nodeIdOfParent === myNodeId) {
@@ -979,13 +848,18 @@ export default class Scheduler2 {
        */
       if (SHORTCUT_STEP_COMPLETE && workerForShortcut !== null) {
 
-        // We won't use a queue - we'll continue to use the current worker.
-        bypassQueue = true
-        // dbLogbook.bulkLogging(event.txId, pipelineStepId, [{ message: `step complete shortcut`,  level: dbLogbook.LOG_LEVEL_TRACE, source: dbLogbook.LOG_SOURCE_SYSTEM }])
+        // Complete the step without queueing, in the current worker thread
+        if (Q_VERBOSE) console.log(`YARP stepCompleted - bypasing queues`)
+        event.txState = tx
+        const rv = await workerForShortcut.processEvent_StepCompleted(event)
+        assert(rv === GO_BACK_AND_RELEASE_WORKER)
       } else {
 
         // Reply goes in this node's dedicated express queue.
-        queueName = Scheduler2.nodeExpressQueueName(myNodeGroup, myNodeId)
+        // queueName = Scheduler2.nodeExpressQueueName(myNodeGroup, myNodeId)
+        if (Q_VERBOSE) console.log(`YARP stepCompleted - adding to local express memory queue`)
+        event.txState = tx
+        this.#expressMemoryQueue.add(event)
         // dbLogbook.bulkLogging(event.txId, pipelineStepId, [{ message: `step complete -> express ${queueName}`,  level: dbLogbook.LOG_LEVEL_TRACE, source: dbLogbook.LOG_SOURCE_SYSTEM }])
       }
     } else {
@@ -996,77 +870,20 @@ export default class Scheduler2 {
       if (nodeGroupOfParent === myNodeGroup && nodeIdOfParent !== null) {
 
         // Send the reply to the specific node's express queue.
-        hoppingToDifferentNode = true
-        queueName = Scheduler2.nodeExpressQueueName(nodeGroupOfParent, nodeIdOfParent)
+        const queueName = Scheduler2.nodeExpressQueueName(nodeGroupOfParent, nodeIdOfParent)
+        if (Q_VERBOSE) console.log(`YARP stepCompleted - adding to queue ${queueName}`)
+        event.txState = tx.stringify()
+        await RedisQueue.enqueue(queueName, event)
         // dbLogbook.bulkLogging(event.txId, pipelineStepId, [{ message: `step complete -> express ${queueName}`,  level: dbLogbook.LOG_LEVEL_TRACE, source: dbLogbook.LOG_SOURCE_SYSTEM }])
       } else {
 
         // Put the event in the node group's queue
-        hoppingToDifferentNode = true
-        queueName = Scheduler2.groupQueueName(nodeGroupOfParent)
+        const queueName = Scheduler2.groupQueueName(nodeGroupOfParent)
+        if (Q_VERBOSE) console.log(`YARP stepCompleted - adding to queue ${queueName}`)
+        event.txState = tx.stringify()
+        await RedisQueue.enqueue(queueName, event)
         // dbLogbook.bulkLogging(event.txId, pipelineStepId, [{ message: `step complete -> group ${queueName}`,  level: dbLogbook.LOG_LEVEL_TRACE, source: dbLogbook.LOG_SOURCE_SYSTEM }])
       }
-    }
-
-
-
-    // if (nodeGroupOfParent === myNodeGroup) {
-    //   // Run the new pipeline in this node - put the event in this node's pipeline.
-    //   // This might be run in this current worker thread
-    //   queueName = Scheduler2.nodeRegularQueueName(myNodeGroup, myNodeId)
-    // } else {
-
-    //   // The completion handler runs in a different nodeGroup.
-    //   // Save the trasaction state and put the event in the group queue.
-    //   workerForShortcut = null
-    //   await TransactionCache.moveToGlobalCache(tx.txId)
-    //   queueName = Scheduler2.groupQueueName(nodeGroupOfParent)
-    // }
-
-  //   return await this.enqueue_StepCompleted(queueName, event, workerForShortcut)
-  // }
-
-  //  async enqueue_StepCompleted(queueName, event, workerForShortcut=null) {
-    if (VERBOSE) {
-      console.log(`\n Queue=(${queueName}, bypassQueue=${bypassQueue}, hoppingToDifferentNode=${hoppingToDifferentNode})`.green)
-      if (VERBOSE > 1) console.log(`event=`, event)
-    }
-    // if (queueName.startsWith(Scheduler2.GROUP_QUEUE_PREFIX)) {
-    //   // console.log(`////////////////////////////////////////////`.magenta)
-    //   console.log(`enqueue_StepCompleted with group queue ${queueName}`.magenta)
-    //   // console.log(new Error('for debug').stack.magenta)
-    //   // console.log(`////////////////////////////////////////////`.magenta)
-    // }
-
-    // Add the event to the queue
-    event.eventType = Scheduler2.STEP_COMPLETED_EVENT
-    event.fromNodeId = this.#nodeId
-    // console.log(`Adding ${event.eventType} event to queue ${queueName}`.brightGreen)
-    // const queue = await getQueueConnection()
-
-    if (bypassQueue) {
-
-      // Complete the step without queueing, in the current worker thread
-      // console.log(`Shortcutting StepCompleted !!!!!`)
-      const rv = await workerForShortcut.processEvent_StepCompleted(event)
-      assert(rv === GO_BACK_AND_RELEASE_WORKER)
-    } else {
-
-      // Queue this for execution
-      if (hoppingToDifferentNode) {
-        // dbLogbook.bulkLogging(event.txId, pipelineStepId, [{ message: `step complete -> TX TO REDIS`,  level: dbLogbook.LOG_LEVEL_TRACE, source: dbLogbook.LOG_SOURCE_SYSTEM }])
-        // TransactionCache.moveToGlobalCache(event.txId)
-
-        // Need to include the transaction state in the event
-        if (INCLUDE_STATE_IN_NODE_HOPPING_EVENTS) {
-          event.state = tx.asJSON()
-        }
-
-      } else {
-        // dbLogbook.bulkLogging(event.txId, pipelineStepId, [{ message: `step complete -> NOT SAVOING STATE`,  level: dbLogbook.LOG_LEVEL_TRACE, source: dbLogbook.LOG_SOURCE_SYSTEM }])
-      }
-      await this._checkConnectedToQueue()
-      await this.#queueObject.enqueue(queueName, event)
     }
 
     // Update our statistics
@@ -1083,7 +900,7 @@ export default class Scheduler2 {
    * @param {string} nodeId mandatory
    * @param {object} event
    */
-  async schedule_TransactionCompleted(txInitNodeGroup, txInitNodeId, workerForShortcut, event) {
+  async schedule_TransactionCompleted(tx, txInitNodeGroup, txInitNodeId, workerForShortcut, event) {
     if (VERBOSE) {
       console.log(`\n<<< schedule_TransactionCompleted(${txInitNodeGroup}, ${txInitNodeId})`.green, event)
     }
@@ -1100,6 +917,10 @@ export default class Scheduler2 {
     let hoppingToDifferentNode = false
     let queueName
 
+    // Add to the event queue
+    event.eventType = Scheduler2.TRANSACTION_COMPLETED_EVENT
+    event.fromNodeId = this.#nodeId
+
     // Can we shortcut the reply, bypassing the queue?
     if (txInitNodeGroup === myNodeGroup && txInitNodeId === myNodeId) {
 
@@ -1108,13 +929,20 @@ export default class Scheduler2 {
         */
       if (SHORTCUT_TX_COMPLETION && workerForShortcut !== null) {
 
-        // We won't use a queue - we'll continue to use the current worker.
-        bypassQueue = true
+        // Complete the step without queueing, in the current worker thread
+        // console.log(`Shortcutting TxCompleted !!!!!`)
+        if (Q_VERBOSE) console.log(`YARP transactionCompleted - bypass queues`)
+        event.txState = tx
+        const rv = await workerForShortcut.processEvent_TransactionCompleted(event)
+        assert(rv === GO_BACK_AND_RELEASE_WORKER)
         // console.log(`TX COMPLETE - BYPASSING QUEUEING`)
       } else {
 
         // Place the event in this node's dedicated express queue.
-        queueName = Scheduler2.nodeExpressQueueName(myNodeGroup, myNodeId)
+        // queueName = Scheduler2.nodeExpressQueueName(myNodeGroup, myNodeId)
+        if (Q_VERBOSE) console.log(`YARP transactionCompleted - adding to express local memory queue`)
+        event.txState = tx
+        this.#expressMemoryQueue.add(event)
       }
     } else {
 
@@ -1122,46 +950,9 @@ export default class Scheduler2 {
       // console.log(`TX COMPLETE - SAVING STATE IN REDIS`)
       hoppingToDifferentNode = true
       // console.log(`schedule_TransactionCompleted: ${event.txId} - queue event to different node`)
-      queueName = Scheduler2.nodeExpressQueueName(txInitNodeGroup, txInitNodeId)
-    }
-    
-
-
-    // if (queueName.startsWith(Scheduler2.GROUP_QUEUE_PREFIX)) {
-    //   // console.log(`////////////////////////////////////////////`.magenta)
-    //   console.log(`schedule_TransactionCompleted with group queue ${queueName}`.magenta)
-    //   // console.log(new Error('for debug').stack.magenta)
-    //   // console.log(`////////////////////////////////////////////`.magenta)
-    // }
-
-
-    // Add to the event queue
-    event.eventType = Scheduler2.TRANSACTION_COMPLETED_EVENT
-    event.fromNodeId = this.#nodeId
-    // console.log(`Adding ${event.eventType} event to queue ${queueName}`.brightGreen)
-    // const queue = await getQueueConnection()
-
-
-    if (bypassQueue) {
-
-      // Complete the step without queueing, in the current worker thread
-      // console.log(`Shortcutting TxCompleted !!!!!`)
-      const rv = await workerForShortcut.processEvent_TransactionCompleted(event)
-      assert(rv === GO_BACK_AND_RELEASE_WORKER)
-    } else {
-
-      // Queue the transaction-complete event
-      if (hoppingToDifferentNode) {
-        // TransactionCache.moveToGlobalCache(event.txId)
-
-        // Need to include the transaction state in the event
-        if (INCLUDE_STATE_IN_NODE_HOPPING_EVENTS) {
-          const tx = await TransactionCache.getTransactionState(event.txId)
-          event.state = tx.asJSON()
-        }
-      }
-      await this._checkConnectedToQueue()
-      await this.#queueObject.enqueue(queueName, event)
+      const queueName = Scheduler2.nodeExpressQueueName(txInitNodeGroup, txInitNodeId)
+      event.txState = tx.stringify()
+      await RedisQueue.enqueue(queueName, event)
     }
 
     // Update our statistics
@@ -1199,11 +990,8 @@ export default class Scheduler2 {
 
     // Add to the event queue
     event.eventType = Scheduler2.TRANSACTION_CHANGE_EVENT
-    // console.log(`Adding ${event.eventType} event to queue ${queueName}`.brightGreen)
-    // const queue = await getQueueConnection()
-    await this._checkConnectedToQueue()
     event.fromNodeId = this.#nodeId
-    await this.#queueObject.enqueue(queueName, event)
+    await RedisQueue.enqueue(queueName, event)
 
     // Update our statistics
     this.#enqueuePastMinute.add(1)
@@ -1212,56 +1000,18 @@ export default class Scheduler2 {
     return GO_BACK_AND_RELEASE_WORKER
   }//- enqueue_TransactionChange
 
-
-  // /**
-  //  *
-  //  * @param {string} eventType
-  //  * @param {object} data
-  //  */
-  // async enqueue_NoOperation(queueName) {
-  //   if (VERBOSE) {
-  //     console.log(`\n<<< enqueue_NoOperation(${queueName})`.green)
-  //   }
-
-  //   assert(typeof(queueName) === 'string')
-
-  //   // Add to the event queue
-  //   const event = {
-  //     eventType: Scheduler2.NULL_EVENT,
-  //     fromNodeId: this.#nodeId
-  //   }
-  //   // console.log(`Adding ${event.eventType} event to queue ${queueName}`.brightGreen)
-  //   // const queue = await getQueueConnection()
-  //   await this._checkConnectedToQueue()
-  //   await this.#queueObject.enqueue(queueName, event)
-
-  //   // Update our statistics
-  //   this.#enqueuePastMinute.add(1)
-  //   this.#enqueuePastHour.add(1)
-  // }//- enqueue_NoOperation
-
-
-
-
-
-
-
-
   async queueLength() {
-    await this._checkConnectedToQueue()
-    return await this.#queueObject.queueLength(this.#groupQueue)
+    return await RedisQueue.queueLength(this.#groupQueue)
   }
 
   async queueLengths() {
-    await this._checkConnectedToQueue()
-    return await this.#queueObject.queueLengths()
+    return await RedisQueue.queueLengths()
   }
 
   async drainQueue() {
-    await this._checkConnectedToQueue()
-    await this.#queueObject.drainQueue(this.#groupQueue)
-    await this.#queueObject.drainQueue(this.#nodeRegularQueue)
-    await this.#queueObject.drainQueue(this.#nodeExpressQueue)
+    await RedisQueue.drainQueue(this.#groupQueue)
+    await RedisQueue.drainQueue(this.#nodeRegularQueue)
+    await RedisQueue.drainQueue(this.#nodeExpressQueue)
   }
 
   /**
@@ -1310,12 +1060,11 @@ export default class Scheduler2 {
    */
   async handleOrphanQueues(nodeGroup, nodeId) {
     console.log(`handleOrphanQueues(${nodeGroup}, ${nodeId})`)
-    this._checkConnectedToQueue()
     const regularQueue = Scheduler2.nodeRegularQueueName(nodeGroup, nodeId)
     const expressQueue = Scheduler2.nodeExpressQueueName(nodeGroup, nodeId)
     const groupQueue = Scheduler2.groupQueueName(nodeGroup)
-    let num = await this.#queueObject.moveElementsToAnotherQueue(regularQueue, groupQueue)
-    num += await this.#queueObject.moveElementsToAnotherQueue(expressQueue, groupQueue)
+    let num = await RedisQueue.moveElementsToAnotherQueue(regularQueue, groupQueue)
+    num += await RedisQueue.moveElementsToAnotherQueue(expressQueue, groupQueue)
     return num
   }
 
@@ -1358,10 +1107,7 @@ export default class Scheduler2 {
     // }
     this.#workers = [ ] // Free up the workers
 
-    await this._checkConnectedToQueue()
-    if (this.#queueObject) {
-      this.#queueObject.close()
-    }
+    RedisQueue.close()
 
     // Make this scheduler unusable
     this.#state = Scheduler2.DESTROYED
@@ -1369,24 +1115,20 @@ export default class Scheduler2 {
 
   async getDetailsOfActiveNodesfromREDIS(withStepTypes=false) {
     // if (VERBOSE) console.log(`Scheduler2.getDetailsOfActiveNodesfromREDIS(withStepTypes=${withStepTypes})`)
-    await this._checkConnectedToQueue()
-    return await this.#queueObject.getDetailsOfActiveNodesfromREDIS(withStepTypes)
+    return await RedisQueue.getDetailsOfActiveNodesfromREDIS(withStepTypes)
   }
 
   async getNodeDetailsFromREDIS(nodeGroup, nodeId) {
     // if (VERBOSE) console.log(`Scheduler2.getNodeDetailsFromREDIS(${nodeGroup}, ${nodeId})`)
-    await this._checkConnectedToQueue()
-    return await this.#queueObject.getNodeDetailsFromREDIS(nodeGroup, nodeId)
+    return await RedisQueue.getNodeDetailsFromREDIS(nodeGroup, nodeId)
   }
 
   async getCurrentNodeDetails({ withStats, withStepTypes }) {
     // if (VERBOSE) console.log(`Scheduler2.getStatus()`)
-    await this._checkConnectedToQueue()
-
     // this.#transactionsInPastMinute.display('tx/sec')
     // this.#stepsPastMinute.display('steps/sec')
 
-    const waiting = await this.#queueObject.queueLength(this.#groupQueue)
+    // const waiting = await RedisQueue.queueLength(this.#groupQueue)
     const info = {
       nodeGroup: schedulerForThisNode.getNodeGroup(),
       nodeId: schedulerForThisNode.getNodeId(),
@@ -1394,8 +1136,10 @@ export default class Scheduler2 {
       datpVersion,
       buildTime,
       events: {
-        waiting,
-        processing: 0
+        waiting: 987654321,
+        processing: 0,
+        expressMemoryQueue: this.#expressMemoryQueue.len(),
+        regularMemoryQueue: this.#regularMemoryQueue.len(),
       },
       workers: {
         total: this.#workers.length,
@@ -1408,7 +1152,7 @@ export default class Scheduler2 {
       stats: { },
       throughput: { },
       stepTypes: [ ],
-    }
+    }//- info
 
     if (withStepTypes) {
       info.stepTypes = await StepTypeRegister.myStepTypes()
@@ -1441,7 +1185,7 @@ export default class Scheduler2 {
         const total = arr[l-1] + arr[l-2] + arr[l-3] + arr[l-4] + arr[l-5]
         info.throughput.txOutSec = Math.round(total / 5)
       }
-      info.transactionsInCache = await TransactionCache.size()
+      info.transactionsInCache = -1
       info.outstandingLongPolls = await LongPoll.outstandingLongPolls()
     }
 
@@ -1485,9 +1229,8 @@ export default class Scheduler2 {
    * @param {string}} value
    * @param {number} duration Expiry time in seconds
    */
-   async setTemporaryValue(key, value, duration) {
-     this._checkConnectedToQueue()
-     await this.#queueObject.setTemporaryValue(key, value, duration)
+  async setTemporaryValue(key, value, duration) {
+     await RedisQueue.setTemporaryValue(key, value, duration)
   }
 
   /**
@@ -1498,30 +1241,26 @@ export default class Scheduler2 {
    * @returns The value saved using _setTemporaryValue_.
    */
   async getTemporaryValue(key) {
-    this._checkConnectedToQueue()
-    return await this.#queueObject.getTemporaryValue(key)
+    return await RedisQueue.getTemporaryValue(key)
   }
 
   /**
    * @param {Transaction} transaction 
    * @param {number} persistAfter Time before it is written to long term storage (seconds)
    */
-  async saveTransactionStateToREDIS(transaction, persistAfter) {
-    // console.log(`Scheduler2.saveTransactionStateToREDIS(transaction, persistAfter=${persistAfter})`)
-    // console.log(`typeof(transaction)=`, typeof(transaction))
-    await this._checkConnectedToQueue()
-    await this.#queueObject.saveTransactionState(transaction, persistAfter)
+  async saveTransactionState_level1(tx) {
+    // console.log(`Scheduler2.saveTransactionState_level1()`, tx.toJSON())
+    await RedisQueue.saveTransactionState_level1(tx)
   }
 
   async getTransactionStateFromREDIS(txId) {
     // console.log(`Scheduler2.getTransactionStateFromREDIS(${txId})`)
-    await this._checkConnectedToQueue()
-    const tx = await this.#queueObject.getTransactionState(txId)
+    const tx = await RedisQueue.getTransactionState(txId)
     return tx
   }
 
   async cacheStats() {
-    const q = await this.#queueObject.queueStats()
+    const q = await RedisQueue.queueStats()
 
     const statePersistanceInterval = await juice.integer('datp.statePersistanceInterval', 0)
 
@@ -1540,20 +1279,18 @@ export default class Scheduler2 {
    */
   async persistTransactionStatesToLongTermStorage() {
     // console.log(`persistTransactionStatesToLongTermStorage()`)
-    await this._checkConnectedToQueue()
-    await this.#queueObject.persistTransactionStatesToLongTermStorage()
+    await RedisQueue.persistTransactionStatesToLongTermStorage()
   }
 
 
   async dump() {
-    await this._checkConnectedToQueue()
     // console.log(``)
     // console.log(``)
     console.log(``)
     console.log(`DUMP (${this.#groupQueue}):`)
     // console.log(`SCHEDULER`)
     // console.log(`---------`)
-    console.log(`  - ${await this.#queueObject.queueLength(this.#groupQueue)} waiting events.`)
+    console.log(`  - ${await RedisQueue.queueLength(this.#groupQueue)} waiting events.`)
 
     // console.log(`${this.#waitingToRun.size()} steps waiting to run:`)
     // for (const job of this.#waitingToRun.items()) {
