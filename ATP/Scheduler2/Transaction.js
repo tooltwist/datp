@@ -229,6 +229,7 @@ export default class Transaction {
     let id = stepId ? stepId.substring(2, 10) : 'tx'
     // console.log(`delta - ${note} - ${id}`)
     if (VERBOSE) console.log(`\n*** delta(${stepId}, data, replayingPastDeltas=${replayingPastDeltas})`, data)
+// console.log(`YARP delta - #${this.#deltaCounter}`)
 
     // Check that this function is not already in action, because someone forgot an 'await'.
     if (this.#processingDelta) {
@@ -805,11 +806,21 @@ export default class Transaction {
     }
 
     // pagination
-    sql += `\nORDER BY last_updated DESC LIMIT ? OFFSET ?`
-    // 2022-03-15 Phil - need to pass parameters as strings due to MySQL bug.
-    // See https://stackoverflow.com/questions/65543753/error-incorrect-arguments-to-mysqld-stmt-execute
-    params.push('' + pagesize)
-    params.push('' + offset)
+    // See https://www.w3schools.com/php/php_mysql_select_limit.asp
+    const syntax1 = false
+    if (syntax1) {
+      sql += `\nORDER BY last_updated DESC LIMIT ? OFFSET ?`
+      // 2022-03-15 Phil - need to pass parameters as strings due to MySQL bug.
+      // See https://stackoverflow.com/questions/65543753/error-incorrect-arguments-to-mysqld-stmt-execute
+      params.push('' + pagesize)
+      params.push('' + offset)
+    } else {
+      sql += `\nORDER BY last_updated DESC LIMIT ?, ?`
+      // 2022-03-15 Phil - need to pass parameters as strings due to MySQL bug.
+      // See https://stackoverflow.com/questions/65543753/error-incorrect-arguments-to-mysqld-stmt-execute
+      params.push(offset)
+      params.push(pagesize) // reversed
+    }
 
     // console.log(`sql=`, sql)
     // console.log(`params=`, params)
