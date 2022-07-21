@@ -14,6 +14,7 @@ const VERBOSE = 0
 class RandomDelayStep extends Step {
   #minDelay
   #maxDelay
+  #forceDeepSleep
 
   constructor(definition) {
     super(definition)
@@ -26,6 +27,10 @@ class RandomDelayStep extends Step {
     }
     if (typeof(definition.max) !== 'undefined') {
       this.#maxDelay = definition.max
+    }
+    this.#forceDeepSleep = false
+    if (typeof(definition.forceDeepSleep) === 'boolean') {
+      this.#forceDeepSleep = definition.forceDeepSleep
     }
   }//- constructor
 
@@ -72,7 +77,7 @@ class RandomDelayStep extends Step {
       await instance.syncLogs()
 
 // console.log(`delayMs=`, delayMs)
-      if (delayMs < 10000) { // 10 seconds
+      if (delayMs < 10000 && !this.#forceDeepSleep) { // 10 seconds
         // Sleep using pause, which has millisecond resolution (sort of)
         instance.trace(`Will retry again in ${delayMs}ms`)
         await pause(delayMs)
@@ -82,7 +87,7 @@ class RandomDelayStep extends Step {
         const delaySeconds = Math.round(delayMs / 1000)
         instance.trace(`Will retry again in ${delaySeconds} seconds`)
         // console.log(`4. util/delay - worker.state = ${instance.getWorker().getState()}`)
-        const rv = await instance.retryLater(null, delaySeconds)
+        const rv = await instance.retryLater(null, delaySeconds, this.#forceDeepSleep)
         // console.log(`4a. util/delay - worker.state = ${instance.getWorker().getState()}`)
         return rv
       }
@@ -108,6 +113,7 @@ async function register() {
 async function defaultDefinition() {
   return {
     // description: 'Wait a random period of time',
+    forceDeepSleep: false,
     min: 1000,
     max: 5000,
   }

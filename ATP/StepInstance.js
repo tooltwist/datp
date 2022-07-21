@@ -9,7 +9,7 @@ import Step, { STEP_ABORTED, STEP_FAILED, STEP_INTERNAL_ERROR, STEP_RUNNING, STE
 import dbPipelines from "../database/dbPipelines"
 import XData, { dataFromXDataOrObject } from "./XData"
 import { STEP_TYPE_PIPELINE } from './StepTypeRegister'
-import TransactionCache, { PERSIST_TRANSACTION_STATE } from "./Scheduler2/txState-level-1";
+import { PERSIST_TRANSACTION_STATE } from "./Scheduler2/txState-level-1";
 import indentPrefix from '../lib/indentPrefix'
 import assert from 'assert'
 import Transaction from './Scheduler2/Transaction'
@@ -690,7 +690,7 @@ export default class StepInstance {
    * @param {string} nameOfSwitch Retry immediately if the value of this switch changes
    * @param {number} sleepDuration Number of seconds after which to retry (defaults to two minutes)
    */
-  async retryLater(nameOfSwitch=null, sleepDuration=120) {
+  async retryLater(nameOfSwitch=null, sleepDuration=120, forceDeepSleep=false) {
     sleepDuration = Math.round(sleepDuration)
     if (VERBOSE) console.log(`StepInstance.retryLater(nameOfSwitch=${nameOfSwitch}, sleepDuration=${sleepDuration})`)
     this.#waitingForCompletionFunction = false
@@ -729,7 +729,7 @@ export default class StepInstance {
     const nodeGroup = this.#nodeGroup
     const txId = this.#txId
     const stepId = this.#stepId
-    if (sleepDuration < DEEP_SLEEP_SECONDS) {
+    if (sleepDuration < DEEP_SLEEP_SECONDS && !forceDeepSleep) {
       console.log(`Step will NAP for ${sleepDuration} seconds till ${wakeTime.toLocaleTimeString('PST')}`)
       console.log(`    tx: ${txId}`)
       console.log(`  step: ${stepId}`)
