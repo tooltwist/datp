@@ -8,10 +8,12 @@ import { schedulerForThisNode } from ".."
 import { STEP_SLEEPING } from "../ATP/Step"
 import query from "../database/query"
 import juice from "@tooltwist/juice-client"
+import TransactionCache from '../ATP/Scheduler2/txState-level-1'
 import { tryTheWebhook } from "../ATP/Scheduler2/returnTxStatusCallback"
 import dbupdate from "../database/dbupdate"
+import { isDevelopmentMode } from "../datp-constants"
 
-export const CRON_INTERVAL = 15 // seconds
+export const CRON_INTERVAL = 5 // seconds
 const VERBOSE = 0
 const PERSIST_VERBOSE = 0
 
@@ -90,6 +92,7 @@ export default class DatpCron {
 
     // Move these to the queue
     for (const row of rows) {
+      // console.log(`row=`, row)
       try {
         // Clear the wake time, so we don't rerun it a second time. If required,
         // the step will specify to rerun itself.
@@ -98,7 +101,7 @@ export default class DatpCron {
         await dbupdate(sql2, params2)
 
         //
-        const tx = await TransactionCache.getTransactionState(txId)
+        const tx = await TransactionCache.getTransactionState(row.txId)
         // console.log(`Restarting transaction [${tx.txId}]`)
         await schedulerForThisNode.enqueue_StepRestart(tx, nodeGroup, row.txId, row.wakeStepId)
       } catch (e) {
@@ -147,27 +150,36 @@ export default class DatpCron {
 
   async persistTransactionStates () {
 
-    // Check we have the config
-    if (this.#persistInterval < 0) {
-      const persistInterval = await juice.integer('datp.statePersistanceInterval', 0)
-      this.#persistInterval = (persistInterval < 0) ? 0 : (persistInterval * 1000) // Convert to seconds
-      if (this.#persistInterval > 0) {
-        console.log(`Node ${schedulerForThisNode.getNodeId()} will persist transaction states every ${this.#persistInterval/1000} seconds.`)
+    if (await isDevelopmentMode()) {
+      console.log(``)
+      console.log(`DEVELOPMENT MODE: true`)
+      console.log(`Node ${schedulerForThisNode.getNodeId()} will persist transaction states immediately.`)
+    } else {
+
+      // Check we have the config
+      console.log(``)
+      console.log(`DEVELOPMENT MODE: false`)
+      if (this.#persistInterval < 0) {
+        const persistInterval = await juice.integer('datp.statePersistanceInterval', 0)
+        this.#persistInterval = (persistInterval < 0) ? 0 : (persistInterval * 1000) // Convert to seconds
+        if (this.#persistInterval > 0) {
+          console.log(`Node ${schedulerForThisNode.getNodeId()} will persist transaction states every ${this.#persistInterval/1000} seconds.`)
+        }
       }
-    }
 
-    // Perhaps persiting is not done by this node?
-    if (this.#persistInterval === 0) {
-      return
-    }
+      // Perhaps persiting is not done by this node?
+      if (this.#persistInterval === 0) {
+        return
+      }
 
-    // If we haven't persisted for a while, do it now.
-    const now = Date.now()
-    if ((now - this.#lastPersisted) > this.#persistInterval) {
-      // Let's do the persistance
-      if (PERSIST_VERBOSE) console.log(`Persisting transaction states.`)
-      this.#lastPersisted = now
-      await schedulerForThisNode.persistTransactionStatesToLongTermStorage()
+      // If we haven't persisted for a while, do it now.
+      const now = Date.now()
+      if ((now - this.#lastPersisted) > this.#persistInterval) {
+        // Let's do the persistance
+        if (PERSIST_VERBOSE) console.log(`Persisting transaction states.`)
+        this.#lastPersisted = now
+        await schedulerForThisNode.persistTransactionStatesToLongTermStorage()
+      }
     }
   }
 
