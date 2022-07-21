@@ -12,7 +12,6 @@ import GenerateHash from '../GenerateHash'
 import { PIPELINES_VERBOSE } from '../hardcoded-steps/PipelineStep'
 import { STEP_SUCCESS, STEP_ABORTED, STEP_FAILED, STEP_INTERNAL_ERROR } from '../Step'
 import Scheduler2 from './Scheduler2'
-import TransactionCache from './txState-level-1'
 import { GO_BACK_AND_RELEASE_WORKER } from './Worker2'
 
 

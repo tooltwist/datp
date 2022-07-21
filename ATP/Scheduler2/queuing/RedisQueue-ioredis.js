@@ -481,7 +481,7 @@ export class RedisQueue {
    * @returns
    */
   static async getDetailsOfActiveNodesfromREDIS(withStepTypes=false) {
-    console.log(`getDetailsOfActiveNodesfromREDIS(withStepTypes=${withStepTypes})`)
+    // console.log(`getDetailsOfActiveNodesfromREDIS(withStepTypes=${withStepTypes})`)
     const keys = await connection_admin.keys(`${KEYPREFIX_NODE_REGISTRATION}*`)
     // console.log(`keys=`, keys)
 
@@ -493,7 +493,7 @@ export class RedisQueue {
       const arr = key.split(':')
       if (arr.length === 5) {
         const nodeGroup = arr[3]
-        console.log(`nodeGroup=`, nodeGroup)
+        // console.log(`nodeGroup=`, nodeGroup)
         const nodeId = arr[4]
         let group = groups[nodeGroup]
         if (!group) {
@@ -506,9 +506,6 @@ export class RedisQueue {
         // Are we collecting stepTypes also?
         if (withStepTypes) {
           const nodeJSON = await connection_admin.get(key)
-          if (nodeGroup==='slave1') {
-            console.log(`nodeJSON for slave1=`, nodeJSON)
-          }
           try {
             const definition = JSON.parse(nodeJSON)
             // console.log(`definition=`, definition)

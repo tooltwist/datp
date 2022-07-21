@@ -33,7 +33,7 @@ async function route_tx_start_$transactionType(req, res, next) {
   // console.log(`req.params=`, req.params)
   // console.log(`req.body=`, req.body)
   // console.log(`req.query=`, req.query)
-  if (await isDevelopmentMode()) {
+  // if (await isDevelopmentMode()) {
 
     const transactionType = req.params.transactionType
     assert(transactionType && typeof(transactionType) === 'string')
@@ -46,10 +46,10 @@ async function route_tx_start_$transactionType(req, res, next) {
 
     // This will reply, although maybe not till it times out.
     await startTransactionRoute(req, res, next, TEST_TENANT, transactionType, data, metadata)
-  } else {
-    res.send(new errors.UnauthorizedError('Can only start transactions like this in development environment.'))
-    return next()
-  }
+  // } else {
+  //   res.send(new errors.UnauthorizedError('Can only start transactions like this in development environment.'))
+  //   return next()
+  // }
 }
 
 

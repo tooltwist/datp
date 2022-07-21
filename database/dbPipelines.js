@@ -158,7 +158,7 @@ export async function clonePipeline(name, version) {
   }
 
   const pipeline = pipelines[0]
-  console.log(`pipeline=`, pipeline)
+  // console.log(`pipeline=`, pipeline)
 
   // Adjust the commit comments
   let cc = [ ]

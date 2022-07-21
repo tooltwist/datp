@@ -7,7 +7,6 @@
 import { schedulerForThisNode } from "../.."
 import { PIPELINES_VERBOSE } from "../hardcoded-steps/PipelineStep"
 import Scheduler2 from "./Scheduler2"
-import TransactionCache from "./txState-level-1"
 import { GO_BACK_AND_RELEASE_WORKER } from "./Worker2"
 import assert from "assert"
 

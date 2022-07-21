@@ -5,7 +5,6 @@
  * the author or owner be liable for any claim or damages.
  */
 import assert from 'assert'
-import TransactionCache from './txState-level-1'
 import { STEP_FAILED } from '../Step'
 import { ROUTERSTEP_VERBOSE } from '../hardcoded-steps/RouterStep'
 import indentPrefix from '../../lib/indentPrefix'
