@@ -23,11 +23,13 @@ export default class DatpCron {
   #running
   #persistInterval
   #lastPersisted
+  #initialPersistMessageDisplayed
 
   constructor() {
     this.#running = false
     this.#persistInterval = -1
     this.#lastPersisted = 0
+    this.#initialPersistMessageDisplayed = 0
   }
 
   async start() {
@@ -151,19 +153,23 @@ export default class DatpCron {
   async persistTransactionStates () {
 
     if (await isDevelopmentMode()) {
-      console.log(``)
-      console.log(`DEVELOPMENT MODE: true`)
-      console.log(`Node ${schedulerForThisNode.getNodeId()} will persist transaction states immediately.`)
+      if (!this.#initialPersistMessageDisplayed++) {
+        console.log(``)
+        console.log(`DEVELOPMENT MODE: true`)
+        console.log(`Node ${schedulerForThisNode.getNodeId()} will persist transaction states to database as they occur.`)
+      }
     } else {
 
       // Check we have the config
-      console.log(``)
-      console.log(`DEVELOPMENT MODE: false`)
       if (this.#persistInterval < 0) {
         const persistInterval = await juice.integer('datp.statePersistanceInterval', 0)
         this.#persistInterval = (persistInterval < 0) ? 0 : (persistInterval * 1000) // Convert to seconds
         if (this.#persistInterval > 0) {
-          console.log(`Node ${schedulerForThisNode.getNodeId()} will persist transaction states every ${this.#persistInterval/1000} seconds.`)
+          if (!this.#initialPersistMessageDisplayed++) {
+            console.log(``)
+            console.log(`DEVELOPMENT MODE: false`)
+            console.log(`Node ${schedulerForThisNode.getNodeId()} will persist transaction states every ${this.#persistInterval/1000} seconds.`)
+          }
         }
       }
 

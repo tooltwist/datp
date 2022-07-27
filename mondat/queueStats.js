@@ -26,7 +26,7 @@ export async function getQueueStatsV1(req, res, next) {
   const getGroup = (nodeGroup) => {
     let grp = stats[nodeGroup]
     if (!grp) {
-      grp = { nodeGroup, queueLength: 0, nodes: { }, orphanNodes: { } }
+      grp = { nodeGroup, queueLength: 0, regularQueueLength: 0, expressQueueLength: 0, nodes: { }, orphanNodes: { } }
       stats[nodeGroup] = grp
     }
     return grp
@@ -120,6 +120,8 @@ export async function getQueueStatsV1(req, res, next) {
     // Add the group and node to our lists
     const group = getGroup(activeGroup.nodeGroup)
     group.queueLength = 0
+    group.regularQueueLength = 0
+    group.expressQueueLength = 0
     // console.log(`    group=`, group)
     for (const nodeId of activeGroup.nodes) {
       // console.log(`    nodeId=`, nodeId)
@@ -155,6 +157,13 @@ export async function getQueueStatsV1(req, res, next) {
           // Queue is for the group
           // console.log(`Group queue length ${queue.length} for ${nodeGroup}`)
           grp.queueLength += queue.length
+          grp.regularQueueLength += queue.length
+          break
+        case Scheduler2.GROUP_EXPRESS_QUEUE_PREFIX:
+          // Queue is for the group
+          // console.log(`Group queue length ${queue.length} for ${nodeGroup}`)
+          grp.queueLength += queue.length
+          grp.expressQueueLength += queue.length
           break
         case Scheduler2.REGULAR_QUEUE_PREFIX:
           {

@@ -11,7 +11,7 @@ Database updates are the most resource intensive part of most DATP-based applica
 
 1. Status changes that need to be seen by the initiator of the transaction must be stored to the database. These include progress reports and the final status of trnsactions (ie. success, fail, etc)
 
-2. State changes that need to accessible to multiple DATP nodes must be saved to REDIS. For example, when a pipeline or step jumps to a different node.
+2. State changes that need to be accessible by multiple DATP nodes must be saved to REDIS. For example, when a pipeline or step jumps to a different node.
 
 3. Other transaction state changes can be saved using an in-memory cache.
 

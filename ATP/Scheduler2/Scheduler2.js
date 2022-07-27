@@ -51,6 +51,7 @@ export default class Scheduler2 {
 
   // Queue names
   #groupQueue
+  #groupExpressQueue
   #nodeRegularQueue
   #nodeExpressQueue
 
@@ -63,9 +64,9 @@ export default class Scheduler2 {
   #workers // Worker2[]
 
   // Event loop parameters
-  #eventloopPauseBusy
-  #eventloopPauseIdle
-  #eventloopPause
+  #eventloopPause // Default time till we re-check the queues
+  #eventloopPauseBusy // time if all workers are busy
+  #eventloopPauseIdle // time if no workers are busy
   #delayToEnterSlothMode
   #timeSinceLastEvent
 
@@ -115,6 +116,7 @@ export default class Scheduler2 {
 
   // Queue prefixes
   static GROUP_QUEUE_PREFIX = 'group'
+  static GROUP_EXPRESS_QUEUE_PREFIX = 'groupOut'
   static REGULAR_QUEUE_PREFIX = 'node'
   static EXPRESS_QUEUE_PREFIX = 'express'
 
@@ -131,6 +133,7 @@ export default class Scheduler2 {
 
     // Queues
     this.#groupQueue = Scheduler2.groupQueueName(groupName)
+    this.#groupExpressQueue = Scheduler2.groupExpressQueueName(groupName)
     this.#nodeRegularQueue = Scheduler2.nodeRegularQueueName(groupName, this.#nodeId)
     this.#nodeExpressQueue = Scheduler2.nodeExpressQueueName(groupName, this.#nodeId)
 
@@ -194,6 +197,43 @@ export default class Scheduler2 {
     }
     this.#state = Scheduler2.RUNNING
 
+    // Handle Operating Systems signals so we can prepare for system shutdown.
+    const windup = function () {
+      console.log('Received SIGTERM signal from the operating system.')
+      console.log(`Shutdown must be imminent - commencing shutdown sequence`)
+      this.#state = Scheduler2.SHUTTING_DOWN
+
+      setTimeout(async () => {
+        //ZZZZ Move events from memory queue to REDIS queue for the group
+        console.log(`YARP Moving events from memory queue to REDIS queue for nodeGroup.`)
+
+        // let i = 0
+        // for (const worker of this.#workers) {
+        //   const state = await worker.getState()
+        //   console.log(`worker ${i++} - ${state}`)
+        // }  
+
+      //ZZZZ Wait a while, then report still-running transactions.
+      setTimeout(async () => {
+          console.log(`Workers still running:`)
+          let stillRunning = 0
+          let i = 0
+          for (const worker of this.#workers) {
+            const state = await worker.getState()
+            if (state !== Worker2.WAITING) {
+              console.log(`worker ${i++} - ${state}`)
+              stillRunning++
+            }
+          }
+
+          // Shut down this process now.
+          process.exit(stillRunning > 0 ? 1 : 0)
+        }, 25 * 1000)
+      }, 1 * 1000)
+    }//- windup
+    process.on('SIGTERM', windup)
+    process.on('SIGINT', windup)
+
 
 
     // Loop around getting events and passing them to the workers
@@ -202,6 +242,13 @@ export default class Scheduler2 {
     let lastCheck = -1 // Last time we check the required number of workers.
     const eventLoop = async () => {
       // if (VERBOSE) console.log(`######## Start event loop.`)
+
+      // If we are shutting down, do not process any more events
+      if (this.#state === Scheduler2.SHUTTING_DOWN) {
+        // End of event loop
+        console.log(`Event loop stopped.`)
+        return
+      }
 
       // If we haven't checked for a while (or ever) then make
       // sure we have the number of required workers available.
@@ -296,6 +343,7 @@ export default class Scheduler2 {
         const queues = [
           this.#nodeExpressQueue,
           this.#nodeRegularQueue,
+          this.#groupExpressQueue,
           this.#groupQueue
         ]
         const block = false
@@ -581,8 +629,8 @@ export default class Scheduler2 {
       // Update our statistics
       this.#transactionsInPastMinute.add(1)
       this.#transactionsInPastHour.add(1)
-      this.#enqueuePastMinute.add(1)
-      this.#enqueuePastHour.add(1)
+      // this.#enqueuePastMinute.add(1)
+      // this.#enqueuePastHour.add(1)
 
       // console.log(`txId=`, txId)
       const fullSequence = txId.substring(3, 9)
@@ -867,23 +915,28 @@ export default class Scheduler2 {
       /*
        *  The completion callback runs in a different group or a different node in this group.
        */
-      if (nodeGroupOfParent === myNodeGroup && nodeIdOfParent !== null) {
+      console.log(`nodeGroupOfParent=`, nodeGroupOfParent)
+      console.log(`nodeIdOfParent=`, nodeIdOfParent)
+      // if (nodeGroupOfParent === myNodeGroup && nodeIdOfParent !== null) {
 
-        // Send the reply to the specific node's express queue.
-        const queueName = Scheduler2.nodeExpressQueueName(nodeGroupOfParent, nodeIdOfParent)
-        if (Q_VERBOSE) console.log(`YARP stepCompleted - adding to queue ${queueName}`)
-        event.txState = tx.stringify()
-        await RedisQueue.enqueue(queueName, event)
-        // dbLogbook.bulkLogging(event.txId, pipelineStepId, [{ message: `step complete -> express ${queueName}`,  level: dbLogbook.LOG_LEVEL_TRACE, source: dbLogbook.LOG_SOURCE_SYSTEM }])
-      } else {
+      //   // Send the reply to the specific node's express queue.
+      //   const queueName = Scheduler2.nodeExpressQueueName(nodeGroupOfParent, nodeIdOfParent)
+      //   // if (Q_VERBOSE)
+      //   console.log(`YARP stepCompleted - adding to node queue ${queueName}`)
+      //   event.txState = tx.stringify()
+      //   await RedisQueue.enqueue(queueName, event)
+      //   // dbLogbook.bulkLogging(event.txId, pipelineStepId, [{ message: `step complete -> express ${queueName}`,  level: dbLogbook.LOG_LEVEL_TRACE, source: dbLogbook.LOG_SOURCE_SYSTEM }])
+      // } else {
 
         // Put the event in the node group's queue
-        const queueName = Scheduler2.groupQueueName(nodeGroupOfParent)
-        if (Q_VERBOSE) console.log(`YARP stepCompleted - adding to queue ${queueName}`)
+        // const queueName = Scheduler2.groupQueueName(nodeGroupOfParent)
+        const queueName = Scheduler2.groupExpressQueueName(nodeGroupOfParent)
+        // if (Q_VERBOSE)
+        console.log(`YARP stepCompleted - adding to group queue ${queueName}`)
         event.txState = tx.stringify()
         await RedisQueue.enqueue(queueName, event)
         // dbLogbook.bulkLogging(event.txId, pipelineStepId, [{ message: `step complete -> group ${queueName}`,  level: dbLogbook.LOG_LEVEL_TRACE, source: dbLogbook.LOG_SOURCE_SYSTEM }])
-      }
+      // }
     }
 
     // Update our statistics
@@ -1021,6 +1074,15 @@ export default class Scheduler2 {
    static groupQueueName(nodeGroup) {
     assert(nodeGroup)
     return `${Scheduler2.GROUP_QUEUE_PREFIX}:${nodeGroup}`
+  }
+
+  /**
+   * @param {String} nodeGroup
+   * @returns Queue name
+   */
+   static groupExpressQueueName(nodeGroup) {
+    assert(nodeGroup)
+    return `${Scheduler2.GROUP_EXPRESS_QUEUE_PREFIX}:${nodeGroup}`
   }
 
   /**

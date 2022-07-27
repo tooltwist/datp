@@ -15,7 +15,7 @@
     "sonar": "node sonar-project.js"
   },
   "dependencies": {
-    "@tooltwist/juice-client": "^1.0.20",
+    "@tooltwist/juice-client": "1.1",
     "aws-sdk": "^2.1143.0",
     "colors": "^1.4.0",
     "esm": "^3.2.25",
