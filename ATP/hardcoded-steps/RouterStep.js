@@ -4,7 +4,7 @@
  * rights reserved. No warranty, explicit or implicit, provided. In no event shall
  * the author or owner be liable for any claim or damages.
  */
-import { assert } from 'joi'
+import assert from 'assert'
 import { schedulerForThisNode } from '../..'
 import { getPipelineVersionInUse } from '../../database/dbPipelines'
 import { deepCopy } from '../../lib/deepCopy'
@@ -98,7 +98,7 @@ export class RouterStep extends Step {
     const metadata = await instance.getMetadata()
 
     // Start the child pipeline
-    instance.trace(`Start child transaction pipeline - ${pipelineName}`)
+    instance.trace(`Start child pipeline - ${pipelineName}`)
     const parentStepId = await instance.getStepId()
     const parentNodeGroup = instance.getNodeGroup() // ZZZZ shouldn't this be the current node?
     const myNodeGroup = schedulerForThisNode.getNodeGroup()
@@ -133,7 +133,7 @@ export class RouterStep extends Step {
     const childFullSequence = `${instance.getFullSequence()}.1` // Start sequence at 1
 
 
-    instance.trace(`Start child pipeline ${pipelineName}`)
+    // instance.trace(`Start child pipeline ${pipelineName}`)
     instance.syncLogs()
 
     const workerForShortcut = instance.getWorker()
@@ -189,21 +189,26 @@ export class RouterStep extends Step {
       return await instance.badDefinition(`RouterStep.choosePipeline - definition map has wrong type`)
     }
 
-    // See what value the selection field hs
-    const data = instance.getDataAsObject()
-    // It would be nice if this handled nested values
-    const value = data[this.#field]
+    // See what value the selection field has
+    if (this.#field && this.#field !== '-') {
 
-    // Look for the mapping for this value
-    for (const row of this.#map) {
-      if (row.value === value) {
-        return row.pipeline
+      // It would be nice if this handled nested values
+      const data = instance.getDataAsObject()
+      const value = data[this.#field]
+      if (typeof(value) === 'undefined') {
+
+        // The value is not defined, proceed to use the default pipeline
+        instance.trace(`Field missing [${this.#field}]`)
+      } else {
+
+        // Look for the mapping for this value
+        for (const row of this.#map) {
+          if (row.value === value) {
+            return row.pipeline
+          }
+        }
+        instance.trace(`Unexpected value for field [${this.#field}]: ${value}`)
       }
-    }
-    if (typeof(value) === 'undefined') {
-      instance.trace(`Field missing [${this.#field}]`)
-    } else {
-      instance.trace(`Unknown value for field [${this.#field}]`)
     }
 
     // No mapping found

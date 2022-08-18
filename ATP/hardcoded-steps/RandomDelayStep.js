@@ -79,13 +79,13 @@ class RandomDelayStep extends Step {
 // console.log(`delayMs=`, delayMs)
       if (delayMs < 10000 && !this.#forceDeepSleep) { // 10 seconds
         // Sleep using pause, which has millisecond resolution (sort of)
-        instance.trace(`Will retry again in ${delayMs}ms`)
+        instance.trace(`Will pause worker for ${delayMs}ms then retry`)
         await pause(delayMs)
         // console.log(`3. util/delay - worker.state = ${instance.getWorker().getState()}`)
       } else {
         // Sleep using retry, which will work via cron
         const delaySeconds = Math.round(delayMs / 1000)
-        instance.trace(`Will retry again in ${delaySeconds} seconds`)
+        instance.trace(`Will queue for retry after ${delaySeconds} seconds`)
         // console.log(`4. util/delay - worker.state = ${instance.getWorker().getState()}`)
         const rv = await instance.retryLater(null, delaySeconds, this.#forceDeepSleep)
         // console.log(`4a. util/delay - worker.state = ${instance.getWorker().getState()}`)

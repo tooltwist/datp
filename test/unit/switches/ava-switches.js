@@ -6,7 +6,7 @@
  */
 import test from 'ava'
 import Transaction from '../../../ATP/Scheduler2/Transaction'
-import TransactionCache from '../../../ATP/Scheduler2/TransactionCache'
+import TransactionCache from '../../../ATP/Scheduler2/txState-level-1'
 
 const OWNER = 'fred'
 const TRANSACTION_TYPE = 'example'

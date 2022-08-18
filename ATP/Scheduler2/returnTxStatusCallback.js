@@ -24,6 +24,7 @@ const VERBOSE = 0
 const MIN_WEBHOOK_RETRY = 10
 const RETRY_EXPONENT = 1.4
 const MAX_WEBHOOK_RETRY = 600 // 5 minutes
+let maxWebhookAttempts = -1
 
 export const WEBHOOK_EVENT_TXSTATUS = 'txstatus'
 export const WEBHOOK_EVENT_PROGRESS = 'progressReport'
@@ -112,6 +113,7 @@ export async function sendStatusByWebhook(owner, txId, webhookUrl, eventType) {
     // console.log(`params=`, params)
     const result = await dbupdate(sql, params)
     // console.log(`result=`, result)
+    assert(result.affectedRows === 1)
   } catch (e) {
 
     // console.log(`e=`, e)
@@ -127,11 +129,17 @@ export async function sendStatusByWebhook(owner, txId, webhookUrl, eventType) {
     }
   }
 
-  await tryTheWebhook(owner, txId, webhookUrl, eventType, eventTime, 0)
+  // Try the webhook now (but don't wait for it to complete)
+  setTimeout(async () => {
+    await tryTheWebhook(owner, txId, webhookUrl, eventType, eventTime, 0)
+  }, 0)
 }
 
 export async function tryTheWebhook(owner, txId, webhookUrl, eventType, eventTime, retryCount) {
   if (VERBOSE) console.log(`tryTheWebhook(${owner}, ${txId}, ${webhookUrl}, ${eventType}, ${eventTime}, ${retryCount})`)
+
+  // We start with zero
+  retryCount++
 
   // Get the status
   const summary = await Transaction.getSummary(owner, txId)
@@ -210,7 +218,9 @@ export async function tryTheWebhook(owner, txId, webhookUrl, eventType, eventTim
       await dbLogbook.bulkLogging(txId, null, [ {
         level: dbLogbook.LOG_LEVEL_INFO,
         source: dbLogbook.LOG_SOURCE_SYSTEM,
-        message: 'Webhook called successfully.'
+        message: 'Webhook called successfully.',
+        sequence: txId.substring(0, 6),
+        ts: Date.now()
       }])
       if (VERBOSE) console.log(`Webhook delivered for ${txId}`)
       return
@@ -220,7 +230,7 @@ export async function tryTheWebhook(owner, txId, webhookUrl, eventType, eventTim
     if (e.code === 'ECONNREFUSED') {
       errorMsg = `Webhook failed: ECONNREFUSED`
     } else {
-      console.log(`Error calling webhook ${webhookUrl}:`, e)
+      console.log(`Error calling webhook (attempt ${retryCount}, ${webhookUrl}):`, e.message)
       errorMsg = JSON.stringify(e)
     }
   }
@@ -230,8 +240,30 @@ export async function tryTheWebhook(owner, txId, webhookUrl, eventType, eventTim
   await dbLogbook.bulkLogging(txId, null, [ {
     level: dbLogbook.LOG_LEVEL_INFO,
     source: dbLogbook.LOG_SOURCE_SYSTEM,
-    message: 'Webhook called successfully.'
+    message: 'Webhook failed:' + errorMsg,
+    sequence: txId.substring(0, 6),
+    ts: Date.now()
   }])
+
+  // If we've tried too many times, stop trying.
+  if (maxWebhookAttempts < 0) {
+    maxWebhookAttempts = await juice.integer('datp.maxWebhookAttempts', 5)
+  }
+  if (retryCount >= maxWebhookAttempts) {
+    console.log(`Cancelling webhook after ${retryCount} attempts (txId=${txId})`)
+    await dbLogbook.bulkLogging(txId, null, [ {
+      level: dbLogbook.LOG_LEVEL_INFO,
+      source: dbLogbook.LOG_SOURCE_SYSTEM,
+      message: 'Webhook - too many attempts, giving up.',
+      sequence: txId.substring(0, 6),
+      ts: Date.now()
+    }])
+    // Update DB to stop calling the webhook
+    const sqlToStopWebhook = `UPDATE atp_webhook SET status = 'aborted' WHERE transaction_id=?`
+    const paramsToStopWebhook = [ txId ]
+    await query(sqlToStopWebhook, paramsToStopWebhook)
+    return
+  }
 
   // Work out the retry time, with exponential interval increase
   let interval = MIN_WEBHOOK_RETRY
@@ -245,18 +277,23 @@ export async function tryTheWebhook(owner, txId, webhookUrl, eventType, eventTim
 
   // Let cron know when to try again
   const sql2 = `UPDATE atp_webhook SET
-    next_attempt = DATE_ADD(NOW(), INTERVAL ${interval} SECOND),
-    retry_count = retry_count + 1,
+    next_attempt = DATE_ADD(NOW(), INTERVAL ${interval} SECOND), status='outstanding',
+    retry_count=?,
     message=?
     WHERE transaction_id=?`
-  const params2 = [ txId, errorMsg ]
+  const params2 = [ retryCount, errorMsg, txId ]
+  // console.log(`sql2=`, sql2)
+  // console.log(`params2=`, params2)
   const reply2 = await dbupdate(sql2, params2)
   // console.log(`reply2=`, reply2)
+  assert(reply2.affectedRows === 1)
 
   const wakeTime = new Date(Date.now() + (interval * 1000))
   await dbLogbook.bulkLogging(txId, null, [ {
     level: dbLogbook.LOG_LEVEL_INFO,
     source: dbLogbook.LOG_SOURCE_SYSTEM,
-    message: `Webhook rety in ${interval} seconds, at ${wakeTime.toLocaleTimeString('PST')}.`
+    message: `Webhook rety in ${interval} seconds, at ${wakeTime.toLocaleTimeString('PST')}.`,
+    sequence: txId.substring(0, 6),
+    ts: Date.now()
   }])
 }

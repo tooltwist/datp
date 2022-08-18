@@ -21,7 +21,8 @@ export const CHILD_PIPELINE_COMPLETION_CALLBACK = 'childPipelineComplete'
  * status of the child pipeline it invoked.
  */
 export async function childPipelineCompletionCallback (tx, callbackContext, nodeInfo, worker) {
-  if (PIPELINES_VERBOSE) console.log(`==> Callback childPipelineCompletionCallback()`, callbackContext, nodeInfo)
+  // if (PIPELINES_VERBOSE)
+  console.log(`==> Callback childPipelineCompletionCallback()`, callbackContext, nodeInfo)
 
   // Get the transaction details
   const txId = callbackContext.txId
@@ -30,11 +31,17 @@ export async function childPipelineCompletionCallback (tx, callbackContext, node
   if (ROUTERSTEP_VERBOSE) console.log(`FINISHED child ${childStepId}`)
   const childStep = tx.stepData(childStepId)
   assert(childStep)
+  console.log(`childStep=`, childStep)
+  const childStepFullSequence = childStep.fullSequence
+  console.log(`childStepFullSequence=`, childStepFullSequence)
+
 
   const parentStepId = callbackContext.parentStepId
   if (ROUTERSTEP_VERBOSE) console.log(`WHICH MEANS FINISHED parent ${parentStepId}`)
   const parentStep = tx.stepData(parentStepId)
   assert(parentStep)
+  const parentStepFullSequence = parentStep.fullSequence
+  console.log(`parentStepFullSequence=`, parentStepFullSequence)
   const indent = indentPrefix(parentStep.level)
   if (ROUTERSTEP_VERBOSE) console.log(indent + `==> Callback childPipelineCompletionCallback() context=`, callbackContext, nodeInfo)
 
@@ -50,7 +57,9 @@ export async function childPipelineCompletionCallback (tx, callbackContext, node
   dbLogbook.bulkLogging(txId, parentStepId, [{
     level: dbLogbook.LOG_LEVEL_TRACE,
     source: dbLogbook.LOG_SOURCE_SYSTEM,
-    message: `Child pipeline completed with status #${childStatus}`
+    message: `Child pipeline completed with status ${childStatus}`,
+    sequence: childStepFullSequence,
+    ts: Date.now()
   }])
 
   /*
@@ -68,9 +77,10 @@ export async function childPipelineCompletionCallback (tx, callbackContext, node
   dbLogbook.bulkLogging(txId, parentStepId, [{
     level: dbLogbook.LOG_LEVEL_TRACE,
     source: dbLogbook.LOG_SOURCE_SYSTEM,
-    message: `This step will complete with status ${childStep.status}`
+    message: `RouterStep completing with status ${childStep.status}`,
+    sequence: parentStepFullSequence,
+    ts: Date.now()
   }])
-
 
   // Send the event back to whoever started this step
   const parentNodeGroup = parentStep.onComplete.nodeGroup

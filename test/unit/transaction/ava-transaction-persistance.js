@@ -9,7 +9,7 @@ import createTestTransaction from '../helpers/createTestTransaction'
 import query from '../../../database/query'
 import TransactionIndexEntry from '../../../ATP/TransactionIndexEntry'
 import TransactionPersistance from '../../../ATP/Scheduler2/TransactionPersistance'
-import TransactionCache from '../../../ATP/Scheduler2/TransactionCache'
+import TransactionCache from '../../../ATP/Scheduler2/txState-level-1'
 
 
 // https://github.com/avajs/ava/blob/master/docs/01-writing-tests.md

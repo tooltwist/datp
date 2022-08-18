@@ -14,9 +14,10 @@ import { STEP_ABORTED, STEP_FAILED, STEP_INTERNAL_ERROR, STEP_QUEUED, STEP_RUNNI
 import { schedulerForThisNode } from "../.."
 import { CHECK_FOR_BLOCKING_WORKERS_TIMEOUT, INCLUDE_STATE_IN_NODE_HOPPING_EVENTS, SHORTCUT_STEP_START } from "../../datp-constants"
 import Transaction from "./Transaction"
-import { zalgo } from "colors"
+import me from "../../lib/me"
 
 const VERBOSE = 0
+const VERBOSE_16aug22 = 1
 const TX_FROM_EVENT = true
 
 require('colors')
@@ -60,9 +61,6 @@ export default class Worker2 {
     const typeStr = event.eventType ? ` (${event.eventType})` : ''
     if (VERBOSE) console.log(`\n[worker ${this.#workerId} processing event${typeStr}]`.bold)
     // console.log(`event=`, event)
-
-  // console.log(`------ PROCESS EVENT ${event.eventType} ------`)
-  // console.log(`event.txState=`, event.txState)
 
     // Check that the event includes the transaction state
     assert(event.txState)
@@ -146,6 +144,7 @@ export default class Worker2 {
    * @param {XData} event
    */
   async processEvent_StepStart(event) {
+    if (VERBOSE_16aug22) console.log(`${me()}: ********** START STEP PULLED FROM QUEUE`)
     // if (VERBOSE) console.log(`Worker2.processEvent_StepStart()`)
     // if (VERBOSE > 1) console.log(`event=`, event)
     this.#reuseCounter++
@@ -158,9 +157,15 @@ export default class Worker2 {
       const txId = event.txId
       const stepId = event.stepId
       const tx = await extractTransactionStateFromEvent(event)
-
+      if (!tx) {
+        // This should be flagged as a serious system error.ZZZZZ
+        this.#reuseCounter--
+        const msg = `SERIOUS ERROR: stepStart event for unknown transaction ${txId}. Step ID is ${stepId}. Where did this come from?`
+        console.log(msg)
+        throw new Error(msg)
+      }
+      if (VERBOSE_16aug22) tx.xoxYarp('Worker starting step', stepId)
       const txData = tx.txData()
-
       const stepData = tx.stepData(stepId)
       if (stepData === null) {
         console.log(`-----------------------------------------`)
@@ -173,7 +178,15 @@ export default class Worker2 {
       // if (!SHORTCUT_STEP_START) {
       //   assert(stepData.status === STEP_QUEUED)
       // }
-      assert(stepData.fullSequence)
+      // assert(stepData.fullSequence)
+      if (!stepData.fullSequence) {
+        console.log(`INTERNAL ERROR: Assertion failure: stepData.fullSequence is null or undefined`)
+        console.log(`stepData.fullSequence=`, stepData.fullSequence)
+        console.log(`my nodeId=`, schedulerForThisNode.getNodeId())
+        console.log(`event=`, event)
+        console.log(`tx=`, tx)
+        throw new Error(`ZZZZ: missing stepData.fullSequence`)
+      }
 
       const trace = (typeof(txData.metadata.traceLevel) === 'number') && txData.metadata.traceLevel > 0
       if (trace || VERBOSE) console.log(`${this.#reuseCounter}: >>> processEvent_StepStart()`.brightGreen)

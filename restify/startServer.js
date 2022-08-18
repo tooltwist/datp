@@ -9,6 +9,11 @@ import corsMiddleware from "restify-cors-middleware2";
 import figlet from 'figlet'
 import juice from '@tooltwist/juice-client'
 import mondat from './mondat'
+import dbLogbook from '../database/dbLogbook';
+import DatabaseLogbook from '../database/DatabaseLogbook';
+import NullLogbook from '../database/NullLogbook';
+import DatadogLogbook from '../database/DatadogLogbook';
+import ConsoleLogbook from '../database/ConsoleLogbook';
 
 const restify = require('restify');
 
@@ -51,13 +56,20 @@ export async function startDatpServer(options) {
     keepExtensions: true,
   }));
 
+  // Set up our default options for logging
+  dbLogbook.registerHandler('db', new DatabaseLogbook())
+  dbLogbook.registerHandler('none', new NullLogbook())
+  dbLogbook.registerHandler('datadog', new DatadogLogbook())
+  dbLogbook.registerHandler('console', new ConsoleLogbook())
+
   await DATP.run()
   await DATP.routesForRestify(server)
   // await DATP.registerAsMaster(server)
 
   // If this is a master node, provide routes for MONDAT to call
   const nodeGroup = await juice.string('datp.nodeGroup', "master") // Checked elsewhere
-  if (nodeGroup === 'master') {
+  const serveMondatApi = await juice.boolean('datp.serveMondatApi', false) // Checked elsewhere
+  if (nodeGroup === 'master' || serveMondatApi) {
     mondat.registerRoutes(server)
     // await DATP.monitorMidi()
   }
@@ -79,6 +91,8 @@ export async function startDatpServer(options) {
   const port = await juice.int('datp.port', 8080)
   console.log(`Starting server on port ${port}`)
   server.listen(port, '0.0.0.0');
+  server.keepAliveTimeout = await juice.integer('datp.keepAliveTimeout', 65000)
+  server.headersTimeout = await juice.integer('datp.headersTimeout', 66000)
 
   return server
 }

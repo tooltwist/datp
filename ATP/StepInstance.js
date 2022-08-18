@@ -19,8 +19,11 @@ import { DEEP_SLEEP_SECONDS, isDevelopmentMode } from '../datp-constants'
 import isEqual  from 'lodash.isequal'
 import { GO_BACK_AND_RELEASE_WORKER } from './Scheduler2/Worker2'
 import { requiresWebhookProgressReports, sendStatusByWebhook, WEBHOOK_EVENT_PROGRESS } from './Scheduler2/returnTxStatusCallback'
+import me from '../lib/me'
 
 const VERBOSE = 0
+const VERBOSE_16aug22 = 0
+
 
 export default class StepInstance {
   #worker
@@ -221,7 +224,7 @@ export default class StepInstance {
   }
 
   // This function gets the transaction state object. We want to keep this unpublished
-  // ans hard to notice - we don't want developers mucking with the internals of DATP.
+  // and hard to notice - we don't want developers mucking with the internals of DATP.
   _7agghtstrajj_37(txId) {
     if (this.#transactionState.getTxId() !== txId) {
       console.log(`Serious Error: Getting transaction that is not my transaction!!!!`)
@@ -692,6 +695,7 @@ export default class StepInstance {
    */
   async retryLater(nameOfSwitch=null, sleepDuration=120, forceDeepSleep=false) {
     sleepDuration = Math.round(sleepDuration)
+    if (VERBOSE_16aug22) console.log(`\n\n${me()}: **************************** RETRY LATER!!!!`)
     if (VERBOSE) console.log(`StepInstance.retryLater(nameOfSwitch=${nameOfSwitch}, sleepDuration=${sleepDuration})`)
     this.#waitingForCompletionFunction = false
 
@@ -703,6 +707,7 @@ export default class StepInstance {
 
     // Update the transaction status
     const tx = this.#transactionState
+    if (VERBOSE_16aug22) tx.xoxYarp('retryLater', this.#stepId)
     await tx.delta(null, {
       status: STEP_SLEEPING,
       wakeSwitch: nameOfSwitch,
@@ -730,21 +735,21 @@ export default class StepInstance {
     const txId = this.#txId
     const stepId = this.#stepId
     if (sleepDuration < DEEP_SLEEP_SECONDS && !forceDeepSleep) {
-      console.log(`Step will NAP for ${sleepDuration} seconds till ${wakeTime.toLocaleTimeString('PST')}`)
-      console.log(`    tx: ${txId}`)
-      console.log(`  step: ${stepId}`)
+      if (VERBOSE) console.log(`Step will NAP for ${sleepDuration} seconds till ${wakeTime.toLocaleTimeString('PST')}`)
+      if (VERBOSE) console.log(`    tx: ${txId}`)
+      if (VERBOSE) console.log(`  step: ${stepId}`)
       setTimeout(async() => {
-        console.log(`Restarting step after a nap of ${sleepDuration} seconds.`)
-        console.log(`    tx: ${txId}`)
-        console.log(`  step: ${stepId}`)
+        if (VERBOSE) console.log(`Restarting step after a nap of ${sleepDuration} seconds.`)
+        if (VERBOSE) console.log(`    tx: ${txId}`)
+        if (VERBOSE) console.log(`  step: ${stepId}`)
         await schedulerForThisNode.enqueue_StepRestart(tx, nodeGroup, txId, stepId)
       }, sleepDuration * 1000)
     } else {
       // Long term sleep - will be woken by our cron process.
       // We need to persist the transaction state, so the step can pick it up when it retries.
-      console.log(`Step will SLEEP for ${sleepDuration} seconds till ${wakeTime.toLocaleTimeString('PST')}`)
-      console.log(`    tx: ${txId}`)
-      console.log(`  step: ${stepId}`)
+      if (VERBOSE) console.log(`Step will SLEEP for ${sleepDuration} seconds till ${wakeTime.toLocaleTimeString('PST')}`)
+      if (VERBOSE) console.log(`    tx: ${txId}`)
+      if (VERBOSE) console.log(`  step: ${stepId}`)
     }
     return GO_BACK_AND_RELEASE_WORKER
   }
@@ -823,7 +828,8 @@ console.log(new Error().stack)
     const level = dbLogbook.LOG_LEVEL_TRACE
     assert(typeof(source) !== 'undefined')
     assert(typeof(message) !== 'undefined')
-    this.#logBuffer.push({ level, source, message })
+    this.#logBuffer.push({ level, source, message, ts: Date.now(), fullSequence: this.#fullSequence })
+    // console.log(`yomp ${message}`)
   }
 
   /**
@@ -834,7 +840,9 @@ console.log(new Error().stack)
     const level = dbLogbook.LOG_LEVEL_DEBUG
     assert(typeof(source) !== 'undefined')
     assert(typeof(message) !== 'undefined')
-    this.#logBuffer.push({ level, source, message })
+    this.#logBuffer.push({ level, source, message, ts: Date.now(), fullSequence: this.#fullSequence })
+
+// console.log(`yomp ${message}`)
   }
 
   /**
@@ -845,7 +853,8 @@ console.log(new Error().stack)
     const level = dbLogbook.LOG_LEVEL_INFO
     assert(typeof(source) !== 'undefined')
     assert(typeof(message) !== 'undefined')
-    this.#logBuffer.push({ level, source, message })
+    this.#logBuffer.push({ level, source, message, ts: Date.now(), fullSequence: this.#fullSequence })
+    // console.log(`yomp ${message}`)
   }
 
   /**
@@ -856,7 +865,8 @@ console.log(new Error().stack)
     const level = dbLogbook.LOG_LEVEL_WARNING
     assert(typeof(source) !== 'undefined')
     assert(typeof(message) !== 'undefined')
-    this.#logBuffer.push({ level, source, message })
+    this.#logBuffer.push({ level, source, message, ts: Date.now(), fullSequence: this.#fullSequence })
+    // console.log(`yomp ${message}`)
   }
 
   /**
@@ -867,7 +877,8 @@ console.log(new Error().stack)
     const level = dbLogbook.LOG_LEVEL_ERROR
     assert(typeof(source) !== 'undefined')
     assert(typeof(message) !== 'undefined')
-    this.#logBuffer.push({ level, source, message })
+    this.#logBuffer.push({ level, source, message, ts: Date.now(), fullSequence: this.#fullSequence })
+    // console.log(`yomp ${message}`)
   }
 
   /**
@@ -878,7 +889,8 @@ console.log(new Error().stack)
     const level = dbLogbook.LOG_LEVEL_FATAL
     assert(typeof(source) !== 'undefined')
     assert(typeof(message) !== 'undefined')
-    this.#logBuffer.push({ level, source, message })
+    this.#logBuffer.push({ level, source, message, ts: Date.now(), fullSequence: this.#fullSequence })
+    // console.log(`yomp ${message}`)
   }
   // addLog(level, source, message) {
   //   this.#logBuffer.push({ level, source, message })
@@ -886,6 +898,8 @@ console.log(new Error().stack)
 
   async syncLogs() {
     // console.log(`\n\n\n\n\n********************\n\n\nsyncLogs()`)
+    // console.log(`---- yomp syncem`)
+    // for (const event of this.#logBuffer) { console.log(`-- ${event.message}`) }
     if (this.#logBuffer.length > 0) {
       await dbLogbook.bulkLogging(this.#txId, this.#stepId, this.#logBuffer)
       this.#logBuffer = [ ]

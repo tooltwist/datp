@@ -13,7 +13,7 @@ import { tryTheWebhook } from "../ATP/Scheduler2/returnTxStatusCallback"
 import dbupdate from "../database/dbupdate"
 import { isDevelopmentMode } from "../datp-constants"
 
-export const CRON_INTERVAL = 5 // seconds
+export const CRON_INTERVAL = 15 // seconds
 const VERBOSE = 0
 const PERSIST_VERBOSE = 0
 
@@ -74,10 +74,11 @@ export default class DatpCron {
       status,
       wake_node_group AS nodeGroup,
       wake_time AS wakeTime
-    FROM atp_transaction2 WHERE
-    status = ? AND
-    wake_node_group = ? AND
-    wake_time IS NOT NULL AND wake_time < ?`
+    FROM atp_transaction2
+    WHERE status = ?
+      AND wake_node_group = ?
+      AND wake_time IS NOT NULL
+      AND wake_time < ?`
     const status = STEP_SLEEPING
     const nodeGroup = schedulerForThisNode.getNodeGroup()
     const params = [
@@ -89,40 +90,55 @@ export default class DatpCron {
     // console.log(`params=`, params)
     const rows = await query(sql, params)
     if (VERBOSE && rows.length > 0) {
-      console.log(`rows=`, rows)
+      console.log(`cron: rows=`, rows)
     }
 
     // Move these to the queue
-    for (const row of rows) {
-      // console.log(`row=`, row)
+    for (const tx of rows) {
       try {
-        // Clear the wake time, so we don't rerun it a second time. If required,
-        // the step will specify to rerun itself.
-        const sql2 = `UPDATE atp_transaction2 SET wake_time = NULL WHERE transaction_id = ?`
-        const params2 = [ row.txId ]
-        await dbupdate(sql2, params2)
+        // Clear the wake time, so we don't rerun it a second time.
+        // If required, the step will specify to rerun itself.
+        // If multiple processes are trying to restart this transaction at the same time,
+        // only one will succeed in making this change to this record.
+        const sql2 = `UPDATE atp_transaction2
+          SET wake_time = NULL
+          WHERE transaction_id=?
+            AND status=?
+            AND wake_time=?`
+        const params2 = [ tx.txId, tx.status, tx.wakeTime ]
+        // console.log(`sql2=`, sql2)
+        // console.log(`params2=`, params2)
+        const result = await dbupdate(sql2, params2)
+        // console.log(`result of cron's update=`, result)
+
+        // This prevents multiple crons restarting the transaction
+        if (result.affectedRows === 1) {
+
+          const tx = await TransactionCache.getTransactionState(tx.txId)
+          if (VERBOSE) console.log(`Restarting transaction [${tx.txId}]`)
+          await schedulerForThisNode.enqueue_StepRestart(tx, nodeGroup, tx.txId, tx.wakeStepId)
+        } else {
+          if (VERBOSE) console.log(`cron: some other thread restarted the transaction`)
+        }
 
         //
-        const tx = await TransactionCache.getTransactionState(row.txId)
-        // console.log(`Restarting transaction [${tx.txId}]`)
-        await schedulerForThisNode.enqueue_StepRestart(tx, nodeGroup, row.txId, row.wakeStepId)
       } catch (e) {
         // Log this and potentially cancel the sleep info in the transaction.
         //ZZZZZ
         console.log(`e.message=`, e.message)
-        if (e.message === `Unknown transaction ${row.txId}`) {
+        if (e.message === `Unknown transaction ${tx.txId}`) {
           //ZZZZZ This should notify the administrator
           console.log(`---------------------------------------------------------------------------------------------------`)
           console.log(`SERIOUS ERROR:`)
           console.log(`Transaction was put to sleep, but when we try to re-awake it the transaction state has gone missing.`)
-          console.log(`Please investigate transaction ${row.txId}.`)
+          console.log(`Please investigate transaction ${tx.txId}.`)
           console.log(`We will not try again.`)
           console.log(`---------------------------------------------------------------------------------------------------`)
         
         } else {
           //ZZZZZ This should notify the administrator
           console.log(`Error while waking transaction:`)
-          console.log(`txId: ${row.txId}`)
+          console.log(`txId: ${tx.txId}`)
           console.log(e)
         }
       }

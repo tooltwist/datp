@@ -25,13 +25,15 @@ import { DUP_EXTERNAL_ID_DELAY, INCLUDE_STATE_IN_NODE_HOPPING_EVENTS } from '../
 import { getPipelineVersionInUse } from '../../database/dbPipelines'
 import juice from '@tooltwist/juice-client'
 import Transaction from './Transaction'
-import dbLogbook from '../../database/dbLogbook'
+// import dbLogbook from '../../database/dbLogbook'
 import LongPoll from './LongPoll'
 import { MemoryEventQueue } from './MemoryEventQueue'
 import { RedisQueue } from './queuing/RedisQueue-ioredis'
+import me from '../../lib/me'
 
 // Debug related
 const VERBOSE = 0
+const VERBOSE_16aug22 = 0
 const Q_VERBOSE = 0
 require('colors')
 
@@ -46,7 +48,6 @@ export default class Scheduler2 {
    */
   #nodeGroup // Group of this node
   #nodeId
-  #name
   #description
 
   // Queue names
@@ -127,7 +128,6 @@ export default class Scheduler2 {
 
     this.#nodeGroup = groupName
     this.#nodeId = GenerateHash('nodeId')
-    this.#name = (options.name) ? options.name : this.#nodeGroup
     this.#description = (options.description) ? options.description : this.#nodeGroup
 
 
@@ -198,41 +198,62 @@ export default class Scheduler2 {
     this.#state = Scheduler2.RUNNING
 
     // Handle Operating Systems signals so we can prepare for system shutdown.
-    const windup = function () {
-      console.log('Received SIGTERM signal from the operating system.')
+    const me = this
+    const windup = function (signal) {
+      // We sometimes get multiple signals. Only respond to the first.
+      if (me.#state === Scheduler2.SHUTTING_DOWN) {
+        return
+      }
+      console.log(``)
+      console.log(``)
+      console.log(`------------------------------------------------------------------`)
+      console.log(`Received ${signal} signal from the operating system.`)
       console.log(`Shutdown must be imminent - commencing shutdown sequence`)
-      this.#state = Scheduler2.SHUTTING_DOWN
+      me.#state = Scheduler2.SHUTTING_DOWN
 
       setTimeout(async () => {
-        //ZZZZ Move events from memory queue to REDIS queue for the group
-        console.log(`YARP Moving events from memory queue to REDIS queue for nodeGroup.`)
+        // Move events from memory queue to REDIS queue for the group
+        //ZZZZ Implement this
+        console.log(``)
+        console.log(`Moving events from memory queue to REDIS queue for nodeGroup.`)
+        console.log(`WARNING WARNING WARNING`)
+        console.log(`Event moving is not implemented yet!`)
+        console.log(`${me.#regularMemoryQueue.len()} events in regular memory queue.`)
+        console.log(`${me.#expressMemoryQueue.len()} events in express memory queue.`)
+        console.log(`WARNING WARNING WARNING`)
 
         // let i = 0
-        // for (const worker of this.#workers) {
+        // for (const worker of me.#workers) {
         //   const state = await worker.getState()
         //   console.log(`worker ${i++} - ${state}`)
         // }  
 
-      //ZZZZ Wait a while, then report still-running transactions.
+      // Wait a while, then report still-running transactions.
       setTimeout(async () => {
-          console.log(`Workers still running:`)
           let stillRunning = 0
           let i = 0
-          for (const worker of this.#workers) {
+          for (const worker of me.#workers) {
             const state = await worker.getState()
             if (state !== Worker2.WAITING) {
+              if (stillRunning === 0) console.log(`Workers still running:`)
               console.log(`worker ${i++} - ${state}`)
               stillRunning++
             }
           }
 
           // Shut down this process now.
-          process.exit(stillRunning > 0 ? 1 : 0)
+          if (stillRunning > 0) {
+            console.log(`Shutting down, with ${stillRunning} workers still running.`)
+            process.exit(1)
+          } else {
+            console.log(`Shutting down. No incomplete workers.`)
+            process.exit(0)
+          }
         }, 25 * 1000)
       }, 1 * 1000)
     }//- windup
-    process.on('SIGTERM', windup)
-    process.on('SIGINT', windup)
+    process.on('SIGTERM', () => windup('SIGTERM'))
+    process.on('SIGINT', () => windup('SIGINT'))
 
 
 
@@ -301,7 +322,7 @@ export default class Scheduler2 {
       let eventsStarted = 0
       let countWorker = 0
       for ( ; countWorker < numberOfAvailableWorkers && this.#expressMemoryQueue.len() > 0; countWorker++) {
-        if (Q_VERBOSE) console.log(`YARP - got event from express memory queue`)
+        if (Q_VERBOSE) console.log(` - got event from express memory queue`)
         // Process the event
         // Do NOT wait for it to complete. It will set it's state back to 'waiting' when it's ready.
         const event = this.#expressMemoryQueue.next()
@@ -318,7 +339,7 @@ export default class Scheduler2 {
 
       // Now try the regular memory queue
       for ( ; countWorker < numberOfAvailableWorkers && this.#regularMemoryQueue.len() > 0; countWorker++) {
-        if (Q_VERBOSE) console.log(`YARP - got event from regular memory queue`)
+        if (Q_VERBOSE) console.log(` - got event from regular memory queue`)
         // Process the event
         // Do NOT wait for it to complete. It will set it's state back to 'waiting' when it's ready.
         const event = this.#regularMemoryQueue.next()
@@ -361,7 +382,7 @@ export default class Scheduler2 {
 
           // Process the event
           // Do NOT wait for it to complete. It will set it's state back to 'waiting' when it's ready.
-          if (Q_VERBOSE) console.log(`YARP - got event from REDIS queue`)
+          if (Q_VERBOSE) console.log(` - got event from REDIS queue`)
 
           const worker = workersWaiting[countWorker]
           const event = events[i]
@@ -718,6 +739,15 @@ export default class Scheduler2 {
     await tx.delta(null, {
       nextStepId: obj.stepId, //ZZZZZ Choose a better field name
     }, 'Scheduler2.schedule_StepStart()')
+    if (!obj.fullSequence) {
+      throw new Error('Missing obj.fullSequence')
+    }
+    if (!obj.stepDefinition) {
+      throw new Error('Missing obj.stepDefinition')
+    }
+    if (!obj.data) {
+      throw new Error('Missing obj.data')
+    }
     await tx.delta(obj.stepId, {
       // Used on return from the step.
       onComplete: {
@@ -817,8 +847,8 @@ export default class Scheduler2 {
    * @param {string} stepId 
    */
   async enqueue_StepRestart(tx, nodeGroup, txId, stepId) {
-    // if (VERBOSE)
-    console.log(`\n<<< enqueue_StepRestart EVENT(${nodeGroup})`.green)
+    if (VERBOSE_16aug22) console.log(`${me()}: ********** RESTART STEP, ADD TO QUEUE`)
+    if (VERBOSE) console.log(`\n<<< enqueue_StepRestart EVENT(${nodeGroup})`.green)
     assert(typeof(nodeGroup) === 'string')
     assert(typeof(txId) === 'string')
     assert(typeof(stepId) === 'string')
@@ -830,19 +860,30 @@ export default class Scheduler2 {
     if (!tx) {
       throw new Error(`Unknown transaction ${txId}`)
     }
+    if (VERBOSE_16aug22) tx.xoxYarp('Loaded by restart', stepId)
+    // A quick sanity check...
+    const stepData = tx.stepData(stepId)
+    if (!stepData) {
+      console.log(`\n\n\n\n\n\n`)
+      console.log(`***********************`)
+      console.log(`SERIOUS INTERNAL ERROR!!!!!`)
+      console.log(`enqueue_StepRestart() is trying to set the status of a step, but`)
+      console.log(`the transaction state does not know about that step (${stepId})`)
+      console.log(`***********************`)
+      console.log(`\n\n\n\n\n\n`)
+    }
+
+    // Save our changes to the transaction state
     await tx.delta(null, {
       status: STEP_RUNNING
     }, 'Scheduler2.enqueue_StepRestart()')
     await tx.delta(stepId, {
       status: STEP_QUEUED
     }, 'Scheduler2.enqueue_StepRestart()')
-
     await PERSIST_TRANSACTION_STATE(tx)
-
 
     // Add to the event queue
     // const queue = await getQueueConnection()
-    const hoppingToDifferentNode = true
     const event = {
       eventType: Scheduler2.STEP_START_EVENT,
       txId,
@@ -915,8 +956,8 @@ export default class Scheduler2 {
       /*
        *  The completion callback runs in a different group or a different node in this group.
        */
-      console.log(`nodeGroupOfParent=`, nodeGroupOfParent)
-      console.log(`nodeIdOfParent=`, nodeIdOfParent)
+      // console.log(`nodeGroupOfParent=`, nodeGroupOfParent)
+      // console.log(`nodeIdOfParent=`, nodeIdOfParent)
       // if (nodeGroupOfParent === myNodeGroup && nodeIdOfParent !== null) {
 
       //   // Send the reply to the specific node's express queue.
@@ -931,8 +972,7 @@ export default class Scheduler2 {
         // Put the event in the node group's queue
         // const queueName = Scheduler2.groupQueueName(nodeGroupOfParent)
         const queueName = Scheduler2.groupExpressQueueName(nodeGroupOfParent)
-        // if (Q_VERBOSE)
-        console.log(`YARP stepCompleted - adding to group queue ${queueName}`)
+        if (Q_VERBOSE) console.log(`YARP stepCompleted - adding to group queue ${queueName}`)
         event.txState = tx.stringify()
         await RedisQueue.enqueue(queueName, event)
         // dbLogbook.bulkLogging(event.txId, pipelineStepId, [{ message: `step complete -> group ${queueName}`,  level: dbLogbook.LOG_LEVEL_TRACE, source: dbLogbook.LOG_SOURCE_SYSTEM }])
@@ -966,9 +1006,6 @@ export default class Scheduler2 {
 
     const myNodeGroup = schedulerForThisNode.getNodeGroup()
     const myNodeId = schedulerForThisNode.getNodeId()
-    let bypassQueue = false
-    let hoppingToDifferentNode = false
-    let queueName
 
     // Add to the event queue
     event.eventType = Scheduler2.TRANSACTION_COMPLETED_EVENT
@@ -1001,7 +1038,6 @@ export default class Scheduler2 {
 
       // Put the event in a specific node's express queue.
       // console.log(`TX COMPLETE - SAVING STATE IN REDIS`)
-      hoppingToDifferentNode = true
       // console.log(`schedule_TransactionCompleted: ${event.txId} - queue event to different node`)
       const queueName = Scheduler2.nodeExpressQueueName(txInitNodeGroup, txInitNodeId)
       event.txState = tx.stringify()

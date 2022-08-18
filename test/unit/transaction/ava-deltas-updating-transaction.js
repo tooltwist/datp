@@ -6,7 +6,7 @@
  */
 import test from 'ava'
 import { STEP_QUEUED, STEP_RUNNING, STEP_SUCCESS } from '../../../ATP/Step'
-import TransactionCache from '../../../ATP/Scheduler2/TransactionCache'
+import TransactionCache from '../../../ATP/Scheduler2/txState-level-1'
 import createTestTransaction from '../helpers/createTestTransaction'
 import { schedulerForThisNode, prepareForUnitTesting } from '../../..'
 

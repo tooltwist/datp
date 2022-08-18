@@ -15,7 +15,7 @@ let hackCount = 0
 let countDbAtpLogbook = 0
 let logHandlers = new Map() // logType => LogHandler
 
-export class LogHandler {
+export class LogbookHandler {
   async getLog(txId) {
     return [ ]
   }
@@ -44,7 +44,6 @@ export default class dbLogbook {
   static LOG_SOURCE_UNKNOWN = 'unknown'
 
   static registerHandler(type, handler) {
-    console.log(`Registering logbook handler for '${type}'.`)
     logHandlers.set(type, handler)
   }
 
@@ -55,18 +54,16 @@ export default class dbLogbook {
    * @returns A list of { stepId, level, source, message, created }
    */
   static async getLog(txId) {
-    // console.log(`getLog(${txId})`)
-
-    const dest = await logDestination()
-    const handler = logHandlers.get(dest)
-    if (handler) {
-      return await handler.getLog(txId)
-    } else {
-      console.log(`**************************************************************************`)
-      console.log(`CONFIGURATION ERROR: unknown log destination ${dest}`)
-      console.log(`**************************************************************************`)
-      return [ ]
-    }
+    const sql = `SELECT
+      step_id AS stepId,
+      level,
+      source,
+      message,
+      created
+    FROM atp_logbook WHERE transaction_id = ?`
+    const params = [ txId ]
+    const rows = await query(sql, params)
+    return rows
   }
 
 
@@ -82,28 +79,17 @@ export default class dbLogbook {
 
     // Where will we send these logs?
     const dest = await logDestination()
-    const handler = logHandlers.get(dest)
-    if (handler) {
-      await handler.bulkLogging(txId, stepId, array)
-    } else {
-      console.log(`**************************************************************************`)
-      console.log(`CONFIGURATION ERROR: unknown log destination ${dest}`)
-      console.log(`**************************************************************************`)
+    switch (dest) {
+      case 'none':
+        // Nothing to do
+        return
+
+      case 'db':
+        return await dbLogbook.bulkLogging_database(txId, stepId, array)
+
+      case 'pico':
+        return await dbLogbook.bulkLogging_pico(txId, stepId, array)
     }
-
-
-
-    // switch (dest) {
-    //   case 'none':
-    //     // Nothing to do
-    //     return
-
-    //   case 'db':
-    //     return await dbLogbook.bulkLogging_database(txId, stepId, array)
-
-    //   case 'pico':
-    //     return await dbLogbook.bulkLogging_pico(txId, stepId, array)
-    // }
   }
 
 

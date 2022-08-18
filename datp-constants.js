@@ -16,7 +16,6 @@ export const DUP_EXTERNAL_ID_DELAY = 60 // seconds
 export const DEEP_SLEEP_SECONDS = 2 * 60 // seconds
 
 
-
 // Debugging database access
 export const DEBUG_DB_ATP_TRANSACTION = 0
 export const DEBUG_DB_ATP_TRANSACTION_DELTA = 0
@@ -42,7 +41,6 @@ export const WORKER_CHECK_INTERVAL = 15 * 1000
 
 export const TEST_TENANT = 'acme'
 
-
 /*
  *  Load config values using juice.
  */
@@ -55,26 +53,7 @@ async function checkConfigLoaded() {
     return
   }
   _development = await juice.boolean('datp.development', false)
-
-  const dest = await juice.string('datp.logDestination', 'db')
-  switch (dest) {
-    case 'pico':
-    case 'db':
-      _logDestination = dest
-      break
-
-    case 'none':
-      console.log(`WARNING!!!!!`)
-      console.log(`Not saving log entries`)
-      _logDestination = dest
-      break
-      
-    default:
-      console.log(`Error: unknown datp.logDestination [${dest}]`)
-      console.log(`Should be pico | db | none`)
-      console.log(`Will proceed with 'db'.`)
-      _logDestination = 'db'
-  }//-
+  _logDestination = await juice.string('datp.logDestination', 'db')
   _loaded = true
 }
 
@@ -87,4 +66,3 @@ export async function logDestination() {
   await checkConfigLoaded()
   return _logDestination;
 }
-

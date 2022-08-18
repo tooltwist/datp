@@ -55,7 +55,6 @@ export async function goLive(server) {
     console.log(`FATAL ERROR: Config does not specify datp.nodeGroup. Shutting down.`)
     process.exit(1)
   }
-  const name = await juice.string('datp.name', juice.OPTIONAL)
   const description = await juice.string('datp.description', juice.OPTIONAL)
   const serveMondat = await juice.boolean('datp.serveMondat', false)
 
@@ -67,7 +66,7 @@ export async function goLive(server) {
   healthcheck.registerRoutes(server)
 
   // Start the master Scheduler
-  schedulerForThisNode = new Scheduler2(nodeGroup, { name, description })
+  schedulerForThisNode = new Scheduler2(nodeGroup, { description })
   // await scheduler.drainQueue()
   await schedulerForThisNode.start()
 

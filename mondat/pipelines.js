@@ -11,7 +11,7 @@ import { db_updatePipelineType, getPipelineType } from '../database/dbTransactio
 import crypto from 'crypto'
 
 export async function route_getPipelinesTypesV1(req, res, next) {
-  console.log(`route_getPipelinesTypesV1()`)
+  // console.log(`route_getPipelinesTypesV1()`)
   const list = await db_getPipelineTypesV1()
   res.send(list)
   return next();

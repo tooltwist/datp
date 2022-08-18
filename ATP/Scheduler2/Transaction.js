@@ -21,8 +21,9 @@ import TransactionPersistance from "./TransactionPersistance"
 import Scheduler2 from "./Scheduler2"
 import { schedulerForThisNode } from "../.."
 import { DEBUG_DB_ATP_TRANSACTION } from "../../datp-constants"
-import { route_transactionStatusV1 } from "../../mondat/transactions"
+// import { route_transactionStatusV1 } from "../../mondat/transactions"
 import dbupdate from "../../database/dbupdate"
+import me from "../../lib/me"
 
 // Debug stuff
 const VERBOSE = 0
@@ -424,10 +425,12 @@ export default class Transaction {
             // console.log(`params=`, params)
             const response = await dbupdate(sql, params)
             // console.log(`response=`, response)
-            if (response.changedRows !== 1) {
+            if (response.affectedRows !== 1) {
               // This should never happen.
-              //ZZZZZ What do we do if the transaction was not updated?
-              throw new Error(`INTERNAL ERROR: Could not update transaction summary (atp_transaction2 record not found for ${txId})`)
+              console.log(`sql=`, sql)
+              console.log(`params=`, params)
+              console.log(`response=`, response)
+              throw new Error(`INTERNAL ERROR: Could not update transaction record`)
             }
 
             // Notify any event handler
@@ -836,6 +839,47 @@ export default class Transaction {
     return stepIds
   }
 
+  // Temporary debug hack for 16aug22.
+  xoxYarp(msg='', highlightedStepId=null) {
+    console.log(``)
+    console.log(`${me()}: ${msg}: TX ===>>> ${this.#txId}`)
+    let found = false
+    for (const stepId in this.#steps) {
+      const step = this.#steps[stepId]
+      let arrow = ''
+      if (stepId===highlightedStepId) {
+        arrow = ' <====='
+        found = true
+      }
+      console.log(`${me()}     -> step ${stepId} (fullSequence: ${step.fullSequence}) ${arrow}`)
+    }
+    if (!found) {
+      console.log(``)
+      console.log(``)
+      console.log(``)
+      console.log(``)
+      console.log(``)
+      console.log(``)
+      console.log(``)
+      console.log(``)
+      console.log(``)
+      console.log(``)
+      console.log(`${me()} **********************************************`)
+      console.log(`${me()} ***  STEP NOT FOUND IN TRANSACTION STATUS  ***`)
+      console.log(`${me()} **********************************************`)
+      console.log(``)
+      console.log(``)
+      console.log(``)
+      console.log(``)
+      console.log(``)
+      console.log(``)
+      console.log(``)
+      console.log(``)
+      console.log(``)
+      console.log(``)
+    }
+    console.log(``)
+  }
 
   async getDetails(withSteps=true, withDeltas=false) {
     const obj = {

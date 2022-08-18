@@ -14,10 +14,11 @@ import { schedulerForThisNode } from '../..'
 import pause from '../../lib/pause'
 import { isDevelopmentMode } from '../../datp-constants'
 import { saveTransactionState_level2 } from './txState-level-2'
+import me from '../../lib/me'
 // import { objectsAreTheSame } from '../../lib/objectDiff'
 
-const PERSIST_FAST_DURATION = 10 // Almost immediately
-const PERSIST_REGULAR_DURATION = 120 // Two minutes
+// const PERSIST_FAST_DURATION = 10 // Almost immediately
+// const PERSIST_REGULAR_DURATION = 120 // Two minutes
 
 const VERBOSE = 0
 
@@ -77,7 +78,7 @@ class TransactionCache {
 
     // Not in our in-memory cache
     // Try loading the transaction from our global (REDIS) cache
-    if (VERBOSE) console.log(`TransactionCache.getTransactionState(${txId}): try to fetch from REDIS`)
+    if (VERBOSE) console.log(`${me()}: TransactionCache.getTransactionState(${txId}): try to fetch from REDIS`)
     // await pause(20)//ZZZZZZ Hack to give REDIS time to sync or flush or whatever...
     const tx1 = await schedulerForThisNode.getTransactionStateFromREDIS(txId)
 
@@ -101,7 +102,7 @@ class TransactionCache {
 
     // Not found in the global (REDIS) cache.
     // Try to select from the database.
-    if (VERBOSE) console.log(`TransactionCache.getTransactionState(${txId}): try to fetch from database`)
+    if (VERBOSE) console.log(`${me()}: TransactionCache.getTransactionState(${txId}): try to fetch from database`)
     const sql = `SELECT json FROM atp_transaction_state WHERE transaction_id=?`
     const params = [ txId ]
     // console.log(`sql=`, sql)
@@ -110,7 +111,7 @@ class TransactionCache {
     // console.log(`rows=`, rows)
     if (rows.length > 0) {
       // Found in the Database
-      if (VERBOSE) console.log(`Transaction state was found in the database`)
+      if (VERBOSE) console.log(`${me()}: Transaction state was found in the database`)
       const json = rows[0].json
       try {
         const tx2 = Transaction.transactionStateFromJSON(json)
@@ -177,7 +178,7 @@ export default TransactionCache = new TransactionCache()
 
 
 export async function PERSIST_TRANSACTION_STATE(tx) {
-  if (VERBOSE) console.log(`TransactionCache.PERSIST_TRANSACTION_STATE(${tx.txId})`)
+  if (VERBOSE) console.log(`${me()}: TransactionCache.PERSIST_TRANSACTION_STATE(${tx.txId})`)
 
   if (await isDevelopmentMode()) {
 

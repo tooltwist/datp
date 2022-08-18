@@ -18,7 +18,10 @@ import { GO_BACK_AND_RELEASE_WORKER } from './Worker2'
 export const PIPELINE_STEP_COMPLETE_CALLBACK = `pipelineStepComplete`
 
 export async function pipelineStepCompleteCallback (tx, callbackContext, nodeInfo, worker) {
-  if (PIPELINES_VERBOSE) console.log(`==> Callback pipelineStepCompleteCallback() context=`, callbackContext, nodeInfo)
+  // if (PIPELINES_VERBOSE)
+  console.log(`==> Callback pipelineStepCompleteCallback() context=`, callbackContext, nodeInfo)
+
+  // console.log(`callbackContext=`, callbackContext)
 
   // Get the transaction details
   const txId = callbackContext.txId
@@ -26,8 +29,14 @@ export async function pipelineStepCompleteCallback (tx, callbackContext, nodeInf
 
   const pipelineStep = tx.stepData(callbackContext.parentStepId)
   assert(pipelineStep)
+  const pipelineFullSequence = pipelineStep.fullSequence
+  console.log(`pipelineStep=`, pipelineStep)
+  console.log(`pipelineFullSequence=`, pipelineFullSequence)
   const childStep = tx.stepData(callbackContext.childStepId)
   assert(childStep)
+  const childStepFullSequence = childStep.fullSequence
+  console.log(`childStep=`, childStep)
+  console.log(`childStepFullSequence=`, childStepFullSequence)
 
   // Tell the transaction we're back from the child, back to this pipeline.
   await tx.delta(null, {
@@ -53,7 +62,9 @@ export async function pipelineStepCompleteCallback (tx, callbackContext, nodeInf
   dbLogbook.bulkLogging(txId, pipelineStepId, [{
     level: dbLogbook.LOG_LEVEL_TRACE,
     source: dbLogbook.LOG_SOURCE_SYSTEM,
-    message: `Pipeline step #${indexOfCurrentChildStep+1} completed with status ${childStep.status}`
+    message: `Step #${indexOfCurrentChildStep+1} - end [${childStep.status}]`,
+    sequence: pipelineFullSequence,
+    ts: Date.now()
   }])
 
 
@@ -77,7 +88,9 @@ export async function pipelineStepCompleteCallback (tx, callbackContext, nodeInf
       dbLogbook.bulkLogging(txId, pipelineStepId, [{
         level: dbLogbook.LOG_LEVEL_TRACE,
         source: dbLogbook.LOG_SOURCE_SYSTEM,
-        message: `Pipeline completed with status ${childStep.status}`
+        message: `Pipeline completed with status ${childStep.status}`,
+        sequence: pipelineFullSequence,
+        ts: Date.now()
       }])
 
       // Save the child status and output as our own
@@ -87,11 +100,13 @@ export async function pipelineStepCompleteCallback (tx, callbackContext, nodeInf
         status: childStep.status
       }, 'pipelineStepCompleteCallback()')
 
-dbLogbook.bulkLogging(txId, pipelineStepId, [{
-  level: dbLogbook.LOG_LEVEL_TRACE,
-  source: dbLogbook.LOG_SOURCE_SYSTEM,
-  message: `delta count YARP ${tx.getDeltaCounter()}`
-}])
+// dbLogbook.bulkLogging(txId, pipelineStepId, [{
+//   level: dbLogbook.LOG_LEVEL_TRACE,
+//   source: dbLogbook.LOG_SOURCE_SYSTEM,
+//   message: `delta count YARP ${tx.getDeltaCounter()}`,
+//   sequence: txId.substring(0, 6),
+//   ts: Date.now()
+// }])
 
       // Send the event back to whoever started this step
       // const queueToParentOfPipeline = Scheduler2.groupQueueName(pipelineStep.onComplete.nodeGroup)
@@ -116,14 +131,16 @@ dbLogbook.bulkLogging(txId, pipelineStepId, [{
       if (PIPELINES_VERBOSE) console.log(indent + `----    ON TO THE NEXT PIPELINE STEP  `.black.bgGreen.bold)
 
 
-      // Remember that we'ree moving on to the next step
+      // Remember that we're moving on to the next step
       await tx.delta(pipelineStepId, {
         indexOfCurrentChildStep: nextStepNo,
       }, 'pipelineStepCompleteCallback()')
       dbLogbook.bulkLogging(txId, pipelineStepId, [{
         level: dbLogbook.LOG_LEVEL_TRACE,
         source: dbLogbook.LOG_SOURCE_SYSTEM,
-        message: `Start pipeline step #${nextStepNo+1}`
+        message: `Step #${nextStepNo+1} - begin`,
+        sequence: pipelineFullSequence,
+        ts: Date.now()
       }])
 
 

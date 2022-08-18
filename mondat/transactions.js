@@ -90,16 +90,23 @@ export async function route_transactionStatusV1(req, res, next) {
   const logEntries = await dbLogbook.getLog(txId)
   const brokenSteps = new Set() // stepIds we've already complained about
   for (const entry of logEntries) {
-    const step = index[entry.stepId]
-    if (step) {
-      step.logs.push(entry)
-      delete entry.stepId
-    } else {
-      //ZZZZZ Write this to the system error log
-      if (!brokenSteps.has(entry.stepId)) {
-        console.log(`INTERNAL ERROR: Found log entry for unknown step in transaction [ ${entry.stepId} in ${txId}]`)
-        brokenSteps.add(entry.stepId)
+    if (entry.stepId) {
+      const step = index[entry.stepId]
+      if (step) {
+        step.logs.push(entry)
+        delete entry.stepId
+      } else {
+        //ZZZZZ Write this to the system error log
+        if (!brokenSteps.has(entry.stepId)) {
+          console.log(`INTERNAL ERROR: Found log entry for unknown step in transaction [ ${entry.stepId} in ${txId}]`)
+  console.log(`typeof(entry.stepId)=`, typeof(entry.stepId))
+          brokenSteps.add(entry.stepId)
+        }
       }
+    } else {
+      // Transaction level log entry
+      //ZZZZZ
+      // console.log(`YARP TX LOG:`, entry)
     }
   }
 

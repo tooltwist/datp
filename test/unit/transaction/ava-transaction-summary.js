@@ -6,7 +6,7 @@
  */
 import test from 'ava'
 import Transaction from '../../../ATP/Scheduler2/Transaction'
-import TransactionCache from '../../../ATP/Scheduler2/TransactionCache'
+import TransactionCache from '../../../ATP/Scheduler2/txState-level-1'
 import { STEP_FAILED, STEP_QUEUED, STEP_RUNNING, STEP_SLEEPING, STEP_SUCCESS } from '../../../ATP/Step'
 import createTestTransaction from '../helpers/createTestTransaction'
 
