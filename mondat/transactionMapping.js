@@ -8,8 +8,8 @@ import query from '../database/query'
 import errors from 'restify-errors';
 import dbupdate from '../database/dbupdate';
 
-export async function getTransactionMappingsV1(req, res, next) {
-  // console.log(`getTransactionMappingsV1()`)
+export async function mondatRoute_getTransactionMappingsV1(req, res, next) {
+  // console.log(`mondatRoute_getTransactionMappingsV1()`)
 
   const sql = `SELECT
     transaction_type AS transactionType,
@@ -24,8 +24,8 @@ export async function getTransactionMappingsV1(req, res, next) {
   return next();
 }
 
-export async function saveTransactionMappingsV1(req, res, next) {
-  // console.log(`saveTransactionMappingsV1()`)
+export async function mondatRoute_saveTransactionMappingsV1(req, res, next) {
+  // console.log(`mondatRoute_saveTransactionMappingsV1()`)
   // console.log(`req.params=`, req.params)
   // console.log(`req.body=`, req.body)
   const node = 'master'
@@ -70,14 +70,14 @@ export async function saveTransactionMappingsV1(req, res, next) {
       return next()
     }
   } catch (e) {
-    console.log(`saveTransactionMappingsV1(): Exception saving mapping:`, e)
+    console.log(`mondatRoute_saveTransactionMappingsV1(): Exception saving mapping:`, e)
   }
   res.send(new errors.InternalServerError(`Unable to save new mapping`))
   return next()
 }
 
-export async function deleteTransactionMappingsV1(req, res, next) {
-  console.log(`deleteTransactionMappingsV1()`)
+export async function mondatRoute_deleteTransactionMappingsV1(req, res, next) {
+  console.log(`mondatRoute_deleteTransactionMappingsV1()`)
   // console.log(`req.params=`, req.params)
 
   try {
@@ -92,7 +92,7 @@ export async function deleteTransactionMappingsV1(req, res, next) {
       return next()
     }
   } catch (e) {
-    console.log(`deleteTransactionMappingsV1(): Exception deleting mapping:`, e)
+    console.log(`mondatRoute_deleteTransactionMappingsV1(): Exception deleting mapping:`, e)
   }
   res.send(new errors.InternalServerError(`Unable to delete mapping`))
   return next()

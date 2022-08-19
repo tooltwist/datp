@@ -10,15 +10,15 @@ import errors from 'restify-errors'
 import { db_updatePipelineType, getPipelineType } from '../database/dbTransactionType'
 import crypto from 'crypto'
 
-export async function route_getPipelinesTypesV1(req, res, next) {
-  // console.log(`route_getPipelinesTypesV1()`)
+export async function mondatRoute_getPipelinesTypesV1(req, res, next) {
+  // console.log(`mondatRoute_getPipelinesTypesV1()`)
   const list = await db_getPipelineTypesV1()
   res.send(list)
   return next();
 }
 
-export async function route_getPipelineV1(req, res, next) {
-  // console.log(`route_getPipelineV1()`)
+export async function mondatRoute_getPipelineV1(req, res, next) {
+  // console.log(`mondatRoute_getPipelineV1()`)
 
   const pipelineName = req.params.pipeline
   const type = await getPipelineType(pipelineName)
@@ -29,8 +29,8 @@ export async function route_getPipelineV1(req, res, next) {
   return next()
 }
 
-export async function pipelineDescriptionV1(req, res, next) {
-  // console.log(`pipelineDescriptionV1()`)
+export async function mondatRoute_pipelineDescriptionV1(req, res, next) {
+  // console.log(`mondatRoute_pipelineDescriptionV1()`)
 
   // A pipeline is a type of step.
   const pipelineName = req.params.pipeline
@@ -39,8 +39,8 @@ export async function pipelineDescriptionV1(req, res, next) {
   return next();
 }
 
-export async function pipelineDefinitionV1(req, res, next) {
-  // console.log(`pipelineDefinitionV1()`)
+export async function mondatRoute_pipelineDefinitionV1(req, res, next) {
+  // console.log(`mondatRoute_pipelineDefinitionV1()`)
 
   // A pipeline is a type of step.
   const pipelineName = req.params.pipeline
@@ -49,8 +49,8 @@ export async function pipelineDefinitionV1(req, res, next) {
   return next();
 }
 
-export async function listPipelinesV1(req, res, next) {
-  // console.log(`listPipelinesV1()`)
+export async function mondatRoute_listPipelinesV1(req, res, next) {
+  // console.log(`mondatRoute_listPipelinesV1()`)
   const list = await dbPipelines.myPipelines()
   res.send(list)
   return next();
@@ -59,8 +59,8 @@ export async function listPipelinesV1(req, res, next) {
 /**
  * Clone an existing pipeline version, to create a version named 'draft'.
  */
-export async function clonePipelineV1(req, res, next) {
-  // console.log(`clonePipelineV1()`)
+export async function mondatRoute_clonePipelineV1(req, res, next) {
+  // console.log(`mondatRoute_clonePipelineV1()`)
   // console.log(`req.params=`, req.params)
   const newPipeline = await clonePipeline(req.params.pipeline, req.params.version)
   // console.log(`newPipeline=`, newPipeline)
@@ -71,8 +71,8 @@ export async function clonePipelineV1(req, res, next) {
 /**
  * Update the steps for a draft pipeline.
  */
-export async function savePipelineDraftV1(req, res, next) {
-  // console.log(`savePipelineDraftV1()`)
+export async function mondatRoute_savePipelineDraftV1(req, res, next) {
+  // console.log(`mondatRoute_savePipelineDraftV1()`)
   // console.log(`req.params=`, req.params)
   // console.log(`req.body=`, req.body)
 
@@ -84,8 +84,8 @@ export async function savePipelineDraftV1(req, res, next) {
 /**
  * Commit the current draft version, to create a version that uses a hash as the version number.
  */
-export async function commitPipelineV1(req, res, next) {
-  // console.log(`commitPipelineV1()`)
+export async function mondatRoute_commitPipelineV1(req, res, next) {
+  // console.log(`mondatRoute_commitPipelineV1()`)
   // console.log(`req.params=`, req.params)
 
   const pipelineName = req.params.pipeline
@@ -98,8 +98,8 @@ export async function commitPipelineV1(req, res, next) {
 /**
  * Delete a version of a pipeline
  */
-export async function route_deletePipelineVersionV1(req, res, next) {
-  // console.log(`route_deletePipelineVersionV1()`)
+export async function mondatRoute_deletePipelineVersionV1(req, res, next) {
+  // console.log(`mondatRoute_deletePipelineVersionV1()`)
   const pipelineName = req.params.pipeline
   const version = req.params.version
 
@@ -114,7 +114,7 @@ export async function route_deletePipelineVersionV1(req, res, next) {
   await deletePipelineVersion(pipelineName, version)
   res.send({ status: 'ok' })
   return next()
-}//- route_deletePipelineVersionV1
+}//- mondatRoute_deletePipelineVersionV1
 
 /**
  * Generate a unique hash based on a pipeline definition.
@@ -180,8 +180,8 @@ export function generatePipelineHash(pipelineName, stepJson, commitLogJson) {
 /**
  * Update pipeline definition.
  */
-export async function route_updatePipelineTypeV1(req, res, next) {
-  // console.log(`route_updatePipelineTypeV1()`)
+export async function mondatRoute_updatePipelineTypeV1(req, res, next) {
+  // console.log(`mondatRoute_updatePipelineTypeV1()`)
   const pipelineName = req.params.pipelineName
   const updates = req.body
   // console.log(`pipelineName=`, pipelineName)
@@ -191,10 +191,10 @@ export async function route_updatePipelineTypeV1(req, res, next) {
   await db_updatePipelineType(pipelineName, updates)
   res.send({ status: 'ok' })
   return next()
-}//- route_updatePipelineTypeV1
+}//- mondatRoute_updatePipelineTypeV1
 
-export async function route_exportPipelineVersionV1(req, res, next) {
-  // console.log(`route_exportPipelineVersionV1()`)
+export async function mondatRoute_exportPipelineVersionV1(req, res, next) {
+  // console.log(`mondatRoute_exportPipelineVersionV1()`)
   const pipelineName = req.params.pipelineName
   const version = req.params.version
   // console.log(`pipelineName=`, pipelineName)
@@ -233,13 +233,13 @@ export async function route_exportPipelineVersionV1(req, res, next) {
 
   res.send({ status: 'ok', filename, contents })
   return next()
-}//- route_exportPipelineVersionV1
+}//- mondatRoute_exportPipelineVersionV1
 
 /**
  * Export a pipeline definition.
  */
-export async function route_importPipelineVersionV1(req, res, next) {
-  console.log(`route_importPipelineVersionV1()`)
+export async function mondatRoute_importPipelineVersionV1(req, res, next) {
+  console.log(`mondatRoute_importPipelineVersionV1()`)
   const pipelineName = req.params.pipelineName
   const data = req.body
   // console.log(`pipelineName=`, pipelineName)
@@ -326,10 +326,10 @@ export async function route_importPipelineVersionV1(req, res, next) {
 
   res.send({ status: 'ok', message: warning })
   return next()
-}//- route_importPipelineVersionV1
+}//- mondatRoute_importPipelineVersionV1
 
-export async function route_newPipelineTypeV1(req, res, next) {
-  console.log(`route_newPipelineTypeV1()`)
+export async function mondatRoute_newPipelineTypeV1(req, res, next) {
+  console.log(`mondatRoute_newPipelineTypeV1()`)
   console.log(`req.params=`, req.params)
 
   const name = req.params.pipelineName.trim()

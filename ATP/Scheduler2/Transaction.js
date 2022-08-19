@@ -21,7 +21,6 @@ import TransactionPersistance from "./TransactionPersistance"
 import Scheduler2 from "./Scheduler2"
 import { schedulerForThisNode } from "../.."
 import { DEBUG_DB_ATP_TRANSACTION } from "../../datp-constants"
-// import { route_transactionStatusV1 } from "../../mondat/transactions"
 import dbupdate from "../../database/dbupdate"
 import me from "../../lib/me"
 

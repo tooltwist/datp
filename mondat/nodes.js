@@ -7,8 +7,8 @@
 import { schedulerForThisNode } from '..';
 import { getNodeGroups } from '../database/dbNodeGroup';
 
-export async function route_activeNodesV1(req, res, next) {
-  // console.log(`route_activeNodesV1()`)
+export async function mondatRoute_activeNodesV1(req, res, next) {
+  // console.log(`mondatRoute_activeNodesV1()`)
   try {
     let withStepTypes = false
     if (req.query.stepTypes) {
@@ -38,6 +38,6 @@ export async function route_activeNodesV1(req, res, next) {
     res.send(nodeList)
     return next();
   } catch (e) {
-    console.log(`Error in route_activeNodesV1():`, e)
+    console.log(`Error in mondatRoute_activeNodesV1():`, e)
   }
 }

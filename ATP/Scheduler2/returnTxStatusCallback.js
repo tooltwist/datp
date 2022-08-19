@@ -277,7 +277,8 @@ export async function tryTheWebhook(owner, txId, webhookUrl, eventType, eventTim
 
   // Let cron know when to try again
   const sql2 = `UPDATE atp_webhook SET
-    next_attempt = DATE_ADD(NOW(), INTERVAL ${interval} SECOND), status='outstanding',
+    next_attempt = DATE_ADD(NOW(), INTERVAL ${interval} SECOND),
+    status='outstanding',
     retry_count=?,
     message=?
     WHERE transaction_id=?`

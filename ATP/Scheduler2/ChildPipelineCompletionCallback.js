@@ -21,8 +21,7 @@ export const CHILD_PIPELINE_COMPLETION_CALLBACK = 'childPipelineComplete'
  * status of the child pipeline it invoked.
  */
 export async function childPipelineCompletionCallback (tx, callbackContext, nodeInfo, worker) {
-  // if (PIPELINES_VERBOSE)
-  console.log(`==> Callback childPipelineCompletionCallback()`, callbackContext, nodeInfo)
+  if (PIPELINES_VERBOSE) console.log(`==> Callback childPipelineCompletionCallback()`, callbackContext, nodeInfo)
 
   // Get the transaction details
   const txId = callbackContext.txId
@@ -31,9 +30,9 @@ export async function childPipelineCompletionCallback (tx, callbackContext, node
   if (ROUTERSTEP_VERBOSE) console.log(`FINISHED child ${childStepId}`)
   const childStep = tx.stepData(childStepId)
   assert(childStep)
-  console.log(`childStep=`, childStep)
+  // console.log(`childStep=`, childStep)
   const childStepFullSequence = childStep.fullSequence
-  console.log(`childStepFullSequence=`, childStepFullSequence)
+  // console.log(`childStepFullSequence=`, childStepFullSequence)
 
 
   const parentStepId = callbackContext.parentStepId
@@ -41,7 +40,7 @@ export async function childPipelineCompletionCallback (tx, callbackContext, node
   const parentStep = tx.stepData(parentStepId)
   assert(parentStep)
   const parentStepFullSequence = parentStep.fullSequence
-  console.log(`parentStepFullSequence=`, parentStepFullSequence)
+  // console.log(`parentStepFullSequence=`, parentStepFullSequence)
   const indent = indentPrefix(parentStep.level)
   if (ROUTERSTEP_VERBOSE) console.log(indent + `==> Callback childPipelineCompletionCallback() context=`, callbackContext, nodeInfo)
 

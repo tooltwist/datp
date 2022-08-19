@@ -7,8 +7,8 @@
 import errors from 'restify-errors';
 import dbStep from '../database/dbStep';
 
-export async function getRecentPerformanceV1(req, res, next) {
-  // console.log(`getRecentPerformanceV1()`)
+export async function mondatRoute_getRecentPerformanceV1(req, res, next) {
+  // console.log(`mondatRoute_getRecentPerformanceV1()`)
   // console.log(`req.params=`, req.params)
   // console.log(`req.query=`, req.query)
 

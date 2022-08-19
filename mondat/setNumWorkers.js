@@ -6,7 +6,7 @@
  */
 import { saveNodeGroup } from "../database/dbNodeGroup"
 
-export async function setNumWorkersV1(req, res, next) {
+export async function mondatRoute_setNumWorkersV1(req, res, next) {
   // console.log(`setRequiredWorkersV1()`)
   const nodeGroup = req.params.nodeGroup
   const numWorkers = req.body.numWorkers

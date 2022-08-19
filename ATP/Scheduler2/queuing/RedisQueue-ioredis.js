@@ -7,12 +7,8 @@
 import juice from '@tooltwist/juice-client'
 import assert from 'assert'
 import Transaction from '../Transaction'
-import query from '../../../database/query';
-// import { route_getPipelinesTypesV1 } from '../../../mondat/pipelines';
 import Scheduler2 from '../Scheduler2';
 import { schedulerForThisNode } from '../../..';
-import pause from '../../../lib/pause';
-import dbupdate from '../../../database/dbupdate';
 import { saveTransactionState_level2 } from '../txState-level-2';
 const Redis = require('ioredis');
 

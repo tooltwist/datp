@@ -8,8 +8,8 @@ import query from '../database/query'
 import errors from 'restify-errors';
 import dbupdate from '../database/dbupdate';
 
-export async function getTestCasesV1(req, res, next) {
-  // console.log(`getTestCasesV1()`)
+export async function mondatRoute_getTestCasesV1(req, res, next) {
+  // console.log(`mondatRoute_getTestCasesV1()`)
 
   const sql = `SELECT
     name,
@@ -25,8 +25,8 @@ export async function getTestCasesV1(req, res, next) {
   return next();
 }
 
-export async function saveTestCasesV1(req, res, next) {
-  // console.log(`saveTestCasesV1()`)
+export async function mondatRoute_saveTestCasesV1(req, res, next) {
+  // console.log(`mondatRoute_saveTestCasesV1()`)
   // console.log(`req.params=`, req.params)
   // console.log(`req.body=`, req.body)
   // res.send(new errors.InternalServerError(`Not yet`))
@@ -60,14 +60,14 @@ export async function saveTestCasesV1(req, res, next) {
       return next()
     }
   } catch (e) {
-    console.log(`saveTestCasesV1(): Exception saving m_test_case:`, e)
+    console.log(`mondatRoute_saveTestCasesV1(): Exception saving m_test_case:`, e)
   }
   res.send(new errors.InternalServerError(`Unable to save new test case`))
   return next()
 }
 
-export async function deleteTestCasesV1(req, res, next) {
-  console.log(`deleteTestCasesV1()`)
+export async function mondatRoute_deleteTestCasesV1(req, res, next) {
+  console.log(`mondatRoute_deleteTestCasesV1()`)
   // console.log(`req.params=`, req.params)
   // res.send(new errors.InternalServerError(`Not yet`))
   // return next()
@@ -84,7 +84,7 @@ export async function deleteTestCasesV1(req, res, next) {
       return next()
     }
   } catch (e) {
-    console.log(`deleteTestCasesV1(): Exception deleting test case:`, e)
+    console.log(`mondatRoute_deleteTestCasesV1(): Exception deleting test case:`, e)
   }
   res.send(new errors.InternalServerError(`Unable to delete mapping`))
   return next()

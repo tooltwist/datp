@@ -6,8 +6,8 @@
  */
 import { getStepInstanceDetails } from "../database/dbStepInstance"
 
-export async function getStepInstanceDetailsV1(req, res, next) {
-  // console.log(`getStepInstanceDetailsV1()`)
+export async function mondatRoute_getStepInstanceDetailsV1(req, res, next) {
+  // console.log(`mondatRoute_getStepInstanceDetailsV1()`)
 
   const stepId = req.params.stepId
   const details = await getStepInstanceDetails(stepId)

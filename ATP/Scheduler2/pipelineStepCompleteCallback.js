@@ -18,8 +18,7 @@ import { GO_BACK_AND_RELEASE_WORKER } from './Worker2'
 export const PIPELINE_STEP_COMPLETE_CALLBACK = `pipelineStepComplete`
 
 export async function pipelineStepCompleteCallback (tx, callbackContext, nodeInfo, worker) {
-  // if (PIPELINES_VERBOSE)
-  console.log(`==> Callback pipelineStepCompleteCallback() context=`, callbackContext, nodeInfo)
+  if (PIPELINES_VERBOSE) console.log(`==> Callback pipelineStepCompleteCallback() context=`, callbackContext, nodeInfo)
 
   // console.log(`callbackContext=`, callbackContext)
 
@@ -30,13 +29,13 @@ export async function pipelineStepCompleteCallback (tx, callbackContext, nodeInf
   const pipelineStep = tx.stepData(callbackContext.parentStepId)
   assert(pipelineStep)
   const pipelineFullSequence = pipelineStep.fullSequence
-  console.log(`pipelineStep=`, pipelineStep)
-  console.log(`pipelineFullSequence=`, pipelineFullSequence)
+  // console.log(`pipelineStep=`, pipelineStep)
+  // console.log(`pipelineFullSequence=`, pipelineFullSequence)
   const childStep = tx.stepData(callbackContext.childStepId)
   assert(childStep)
   const childStepFullSequence = childStep.fullSequence
-  console.log(`childStep=`, childStep)
-  console.log(`childStepFullSequence=`, childStepFullSequence)
+  // console.log(`childStep=`, childStep)
+  // console.log(`childStepFullSequence=`, childStepFullSequence)
 
   // Tell the transaction we're back from the child, back to this pipeline.
   await tx.delta(null, {

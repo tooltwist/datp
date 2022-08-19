@@ -30,8 +30,8 @@ export async function dumpTransactionV1(req, res, next) {
   return next();
 }
 
-export async function mondatTransactionsV1(req, res, next) {
-  // console.log(`mondatTransactionsV1()`)
+export async function mondatRoute_transactionsV1(req, res, next) {
+  // console.log(`mondatRoute_transactionsV1()`)
   // console.log(`req.query=`, req.query)
   // console.log(`req.params=`, req.params)
 
@@ -56,8 +56,8 @@ export async function mondatTransactionsV1(req, res, next) {
   return next();
 }
 
-export async function route_transactionStatusV1(req, res, next) {
-  // console.log(`route_transactionStatusV1()`)
+export async function mondatRoute_transactionStatusV1(req, res, next) {
+  // console.log(`mondatRoute_transactionStatusV1()`)
 
   //ZZZZZZZ This should get the transaction summary from the database, and leave the state alone.
 

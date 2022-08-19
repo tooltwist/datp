@@ -10,8 +10,8 @@ import LongPoll from '../ATP/Scheduler2/LongPoll'
 import Scheduler2 from '../ATP/Scheduler2/Scheduler2'
 import { getNodeGroups } from '../database/dbNodeGroup';
 
-export async function routeCacheStatsV1(req, res, next) {
-  // console.log(`routeCacheStatsV1()`)
+export async function mondatRoute_cacheStatsV1(req, res, next) {
+  // console.log(`mondatRoute_cacheStatsV1()`)
 
   const stats = await schedulerForThisNode.cacheStats()
 

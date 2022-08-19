@@ -18,9 +18,9 @@ const VERBOSE = 0
  * @param {Response} res 
  * @param {*} next 
  */
-export async function getQueueStatsV1(req, res, next) {
+export async function mondatRoute_getQueueStatsV1(req, res, next) {
   if (VERBOSE) console.log(`-----------------`)
-  if (VERBOSE) console.log(`getQueueStatsV1()`)
+  if (VERBOSE) console.log(`mondatRoute_getQueueStatsV1()`)
 
   const stats = { }
   const getGroup = (nodeGroup) => {
