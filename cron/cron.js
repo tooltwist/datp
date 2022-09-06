@@ -114,9 +114,9 @@ export default class DatpCron {
         // This prevents multiple crons restarting the transaction
         if (result.affectedRows === 1) {
 
-          const tx = await TransactionCache.getTransactionState(tx.txId)
+          const txState = await TransactionCache.getTransactionState(tx.txId)
           if (VERBOSE) console.log(`Restarting transaction [${tx.txId}]`)
-          await schedulerForThisNode.enqueue_StepRestart(tx, nodeGroup, tx.txId, tx.wakeStepId)
+          await schedulerForThisNode.enqueue_StepRestart(txState, nodeGroup, tx.txId, tx.wakeStepId)
         } else {
           if (VERBOSE) console.log(`cron: some other thread restarted the transaction`)
         }
