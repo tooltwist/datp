@@ -17,7 +17,7 @@ import Transaction from "./Transaction"
 import me from "../../lib/me"
 
 const VERBOSE = 0
-const VERBOSE_16aug22 = 1
+const VERBOSE_16aug22 = 0
 const TX_FROM_EVENT = true
 
 require('colors')

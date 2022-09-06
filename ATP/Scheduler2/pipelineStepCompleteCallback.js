@@ -58,13 +58,15 @@ export async function pipelineStepCompleteCallback (tx, callbackContext, nodeInf
   const indexOfCurrentChildStep = pipelineStep.indexOfCurrentChildStep
   const childStatus = childStep.status
 
-  dbLogbook.bulkLogging(txId, pipelineStepId, [{
-    level: dbLogbook.LOG_LEVEL_TRACE,
-    source: dbLogbook.LOG_SOURCE_SYSTEM,
-    message: `Step #${indexOfCurrentChildStep+1} - end [${childStep.status}]`,
-    sequence: pipelineFullSequence,
-    ts: Date.now()
-  }])
+  if (PIPELINES_VERBOSE) {
+    dbLogbook.bulkLogging(txId, pipelineStepId, [{
+      level: dbLogbook.LOG_LEVEL_TRACE,
+      source: dbLogbook.LOG_SOURCE_SYSTEM,
+      message: `Step #${indexOfCurrentChildStep+1} - end [${childStep.status}]`,
+      sequence: pipelineFullSequence,
+      ts: Date.now()
+    }])
+  }
 
 
   if (childStatus === STEP_SUCCESS) {
@@ -134,14 +136,16 @@ export async function pipelineStepCompleteCallback (tx, callbackContext, nodeInf
       await tx.delta(pipelineStepId, {
         indexOfCurrentChildStep: nextStepNo,
       }, 'pipelineStepCompleteCallback()')
-      dbLogbook.bulkLogging(txId, pipelineStepId, [{
-        level: dbLogbook.LOG_LEVEL_TRACE,
-        source: dbLogbook.LOG_SOURCE_SYSTEM,
-        message: `Step #${nextStepNo+1} - begin`,
-        sequence: pipelineFullSequence,
-        ts: Date.now()
-      }])
 
+      if (PIPELINES_VERBOSE) {
+        dbLogbook.bulkLogging(txId, pipelineStepId, [{
+          level: dbLogbook.LOG_LEVEL_TRACE,
+          source: dbLogbook.LOG_SOURCE_SYSTEM,
+          message: `Step #${nextStepNo+1} - begin`,
+          sequence: pipelineFullSequence,
+          ts: Date.now()
+        }])
+      }
 
       const childStepId = childStepIds[nextStepNo]
       const metadataForNewStep = txData.metadata

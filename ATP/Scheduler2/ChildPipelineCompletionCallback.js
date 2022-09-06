@@ -53,13 +53,15 @@ export async function childPipelineCompletionCallback (tx, callbackContext, node
   const childStatus = childStep.status
   assert(childStatus !== STEP_FAILED) // Should not happen. Pipelines either succeed, rollback to success, or abort.
 
-  dbLogbook.bulkLogging(txId, parentStepId, [{
-    level: dbLogbook.LOG_LEVEL_TRACE,
-    source: dbLogbook.LOG_SOURCE_SYSTEM,
-    message: `Child pipeline completed with status ${childStatus}`,
-    sequence: childStepFullSequence,
-    ts: Date.now()
-  }])
+  if (ROUTERSTEP_VERBOSE) {
+    dbLogbook.bulkLogging(txId, parentStepId, [{
+      level: dbLogbook.LOG_LEVEL_TRACE,
+      source: dbLogbook.LOG_SOURCE_SYSTEM,
+      message: `Child pipeline completed with status ${childStatus}`,
+      sequence: childStepFullSequence,
+      ts: Date.now()
+    }])
+  }
 
   /*
    *  We've finished this pipeline - return the final respone
@@ -73,13 +75,15 @@ export async function childPipelineCompletionCallback (tx, callbackContext, node
     status: childStep.status
   }, 'childPipelineCompletionCallback()')
 
-  dbLogbook.bulkLogging(txId, parentStepId, [{
-    level: dbLogbook.LOG_LEVEL_TRACE,
-    source: dbLogbook.LOG_SOURCE_SYSTEM,
-    message: `RouterStep completing with status ${childStep.status}`,
-    sequence: parentStepFullSequence,
-    ts: Date.now()
-  }])
+  if (ROUTERSTEP_VERBOSE) {
+    dbLogbook.bulkLogging(txId, parentStepId, [{
+      level: dbLogbook.LOG_LEVEL_TRACE,
+      source: dbLogbook.LOG_SOURCE_SYSTEM,
+      message: `RouterStep completing with status ${childStep.status}`,
+      sequence: parentStepFullSequence,
+      ts: Date.now()
+    }])
+  }
 
   // Send the event back to whoever started this step
   const parentNodeGroup = parentStep.onComplete.nodeGroup
