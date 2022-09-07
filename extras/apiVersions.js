@@ -22,7 +22,7 @@ export const LOGIN_OPTIONAL = false
 export const LOGIN_MANDATORY = true
 export const LOGIN_IGNORED = 'ignore'
 
-const VERBOSE = false
+const VERBOSE = 0
 
 
 export function showVersions() {

@@ -13,7 +13,7 @@ import dbLogbook from './dbLogbook'
 
 let hackCount = 0
 let countDbAtpLogbook = 0
-const VERBOSE = 1
+const VERBOSE = 0
 
 export default class DatabaseLogbook extends LogbookHandler{
 

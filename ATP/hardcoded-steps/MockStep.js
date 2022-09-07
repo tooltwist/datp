@@ -8,7 +8,7 @@ import Step from "../Step"
 import StepTypes from '../StepTypeRegister'
 import query from '../../database/query'
 
-const VERBOSE = true
+const VERBOSE = 1
 
 class MockStep extends Step {
 

@@ -5,7 +5,7 @@
  * the author or owner be liable for any claim or damages.
  */
 import { LogbookHandler } from './Logbook'
-const VERBOSE = 1
+const VERBOSE = 0
 
 export default class NullLogbook extends LogbookHandler {
 
