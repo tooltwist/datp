@@ -98,7 +98,7 @@ export class RouterStep extends Step {
     const metadata = await instance.getMetadata()
 
     // Start the child pipeline
-    instance.trace(`Start child pipeline - ${pipelineName}`)
+    if (ROUTERSTEP_VERBOSE) instance.trace(`Start child pipeline - ${pipelineName}`)
     const parentStepId = await instance.getStepId()
     const parentNodeGroup = instance.getNodeGroup() // ZZZZ shouldn't this be the current node?
     const myNodeGroup = schedulerForThisNode.getNodeGroup()
@@ -133,7 +133,7 @@ export class RouterStep extends Step {
     const childFullSequence = `${instance.getFullSequence()}.1` // Start sequence at 1
 
 
-    // instance.trace(`Start child pipeline ${pipelineName}`)
+    if (ROUTERSTEP_VERBOSE) instance.trace(`Start child pipeline ${pipelineName}`)
     instance.syncLogs()
 
     const workerForShortcut = instance.getWorker()

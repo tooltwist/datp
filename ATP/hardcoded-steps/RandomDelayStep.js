@@ -64,22 +64,20 @@ class RandomDelayStep extends Step {
     const delayMs = this.#minDelay + Math.floor(Math.random() * range)
     const minmax = (this.#maxDelay === this.#minDelay) ? `` : `(${this.#minDelay}ms - ${this.#maxDelay}ms)`
 
-    instance.trace(`Delay ${delayMs}ms ${minmax}`)
+    if (VERBOSE) instance.trace(`Delay ${delayMs}ms ${minmax}`)
     // console.log(`2. util/delay - worker.state = ${instance.getWorker().getState()}`)
 
     // If this is the first time this step has been called, do the sleep.
     const counter = await instance.getRetryCounter()
     if (counter === 0) {
 
-      if (VERBOSE) {
-        console.log(`Delay ${delayMs}ms ${minmax}`)
-      }
+      if (VERBOSE) console.log(`Delay ${delayMs}ms ${minmax}`)
       await instance.syncLogs()
 
 // console.log(`delayMs=`, delayMs)
       if (delayMs < 10000 && !this.#forceDeepSleep) { // 10 seconds
         // Sleep using pause, which has millisecond resolution (sort of)
-        instance.trace(`Will pause worker for ${delayMs}ms then retry`)
+        if (VERBOSE) instance.trace(`Will pause worker for ${delayMs}ms then retry`)
         await pause(delayMs)
         // console.log(`3. util/delay - worker.state = ${instance.getWorker().getState()}`)
       } else {

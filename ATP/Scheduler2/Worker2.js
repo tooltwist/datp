@@ -255,8 +255,8 @@ export default class Worker2 {
       // instance.trace(`Invoke step ${instance.getStepId()}`, hackSource)
       const stepDesc = (typeof(stepData.stepDefinition) === 'string') ? `Pipeline ${stepData.stepDefinition}` : `Step ${stepData.stepDefinition.stepType}`
       // instance.trace(`Invoked: ${stepDesc}`)
-      instance.trace(stepDesc)
-      instance.trace(`Run on ${schedulerForThisNode.getNodeGroup()} / ${schedulerForThisNode.getNodeId()}`)
+      if (trace || VERBOSE) instance.trace(stepDesc)
+      if (trace || VERBOSE) instance.trace(`Run on ${schedulerForThisNode.getNodeGroup()} / ${schedulerForThisNode.getNodeId()}`)
       // instance.trace(`deltaCounter=${tx.getDeltaCounter()}`)
       await instance.syncLogs()
 

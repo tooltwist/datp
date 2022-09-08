@@ -75,8 +75,6 @@ export default class Step {
     // console.log(`typeof(options.definition)=`, typeof(options.definition))
     switch (typeof(definition)) {
       case 'string':
-        // console.log(`Loading definition for pipeline ${definition}`)
-        // const rawdata = fs.readFileSync(`./pipeline-definitions/transaction-${definition}.json`)
         const pipelineName = definition
         const sql = `SELECT node_name, name, version, description, steps_json, notes FROM atp_pipeline WHERE name=?`
         const params = [ pipelineName ]

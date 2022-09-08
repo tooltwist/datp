@@ -86,13 +86,15 @@ export async function pipelineStepCompleteCallback (tx, callbackContext, nodeInf
        */
       if (PIPELINES_VERBOSE) console.log(indent + `<<<<    PIPELINE COMPLETED ${pipelineStepId}  `.black.bgGreen.bold)
       if (PIPELINES_VERBOSE) console.log(`pipelineStep.onComplete=`, pipelineStep.onComplete)
-      dbLogbook.bulkLogging(txId, pipelineStepId, [{
-        level: dbLogbook.LOG_LEVEL_TRACE,
-        source: dbLogbook.LOG_SOURCE_SYSTEM,
-        message: `Pipeline completed with status ${childStep.status}`,
-        sequence: pipelineFullSequence,
-        ts: Date.now()
-      }])
+      if (PIPELINES_VERBOSE) {
+        dbLogbook.bulkLogging(txId, pipelineStepId, [{
+          level: dbLogbook.LOG_LEVEL_TRACE,
+          source: dbLogbook.LOG_SOURCE_SYSTEM,
+          message: `Pipeline completed with status ${childStep.status}`,
+          sequence: pipelineFullSequence,
+          ts: Date.now()
+        }])
+      }
 
       // Save the child status and output as our own
       await tx.delta(pipelineStepId, {

@@ -88,7 +88,7 @@ class Pipeline extends Step {
 
     const childFullSequence = `${pipelineInstance.getFullSequence()}.1` // Start sequence at 1
 
-    pipelineInstance.trace(`Step #1 - begin`)
+    if (PIPELINES_VERBOSE)  pipelineInstance.trace(`Step #1 - begin`)
     pipelineInstance.syncLogs()
 
     // The child will run in this node - same as this pipeline.

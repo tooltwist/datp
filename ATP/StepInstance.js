@@ -367,7 +367,7 @@ export default class StepInstance {
     if (VERBOSE > 1) console.log(`this.#onComplete=`, this.#onComplete)
 
     // Sync any buffered logs
-    this.trace(`Step succeeded - ${note}`, dbLogbook.LOG_SOURCE_SYSTEM)
+    if (VERBOSE) this.trace(`Step succeeded - ${note}`, dbLogbook.LOG_SOURCE_SYSTEM)
     await this.syncLogs()
 
     // Quick sanity check - make sure this step is actually running, and has not already exited.
