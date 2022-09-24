@@ -105,7 +105,15 @@ export default class Scheduler2 {
   // Scheduler states
   static STOPPED = 'stopped'
   static RUNNING = 'running'
-  static SHUTTING_DOWN = 'shutting-down'
+  static SHUTDOWN_PHASE_1 = 'shutdown1' // Stop processing REDIS events
+  static PHASE_1_DELAY = 20 * 1000
+  static SHUTDOWN_PHASE_2 = 'shutdown2' // Move memory events to REDIS
+  static PHASE_2_DELAY = 0 * 1000
+  static SHUTDOWN_PHASE_3 = 'shutdown3' // Give running events time to complete
+  static PHASE_3_DELAY = 20 * 1000
+  static SHUTDOWN_PHASE_4 = 'shutdown4' // Report running workers
+  static PHASE_4_DELAY = 0 * 1000
+  static SHUTDOWN_PHASE_5 = 'shutdown5' // Shutdown
 
   // Event types
   static NULL_EVENT = 'no-op'
@@ -199,63 +207,8 @@ export default class Scheduler2 {
 
     // Handle Operating Systems signals so we can prepare for system shutdown.
     const me = this
-    const windup = function (signal) {
-      // We sometimes get multiple signals. Only respond to the first.
-      if (me.#state === Scheduler2.SHUTTING_DOWN) {
-        return
-      }
-      console.log(``)
-      console.log(``)
-      console.log(`------------------------------------------------------------------`)
-      console.log(`Received ${signal} signal from the operating system.`)
-      console.log(`Shutdown must be imminent - commencing shutdown sequence`)
-      me.#state = Scheduler2.SHUTTING_DOWN
-
-      setTimeout(async () => {
-        // Move events from memory queue to REDIS queue for the group
-        //ZZZZ Implement this
-        console.log(``)
-        console.log(`Moving events from memory queue to REDIS queue for nodeGroup.`)
-        console.log(`WARNING WARNING WARNING`)
-        console.log(`Event moving is not implemented yet!`)
-        console.log(`${me.#regularMemoryQueue.len()} events in regular memory queue.`)
-        console.log(`${me.#expressMemoryQueue.len()} events in express memory queue.`)
-        console.log(`WARNING WARNING WARNING`)
-
-        // let i = 0
-        // for (const worker of me.#workers) {
-        //   const state = await worker.getState()
-        //   console.log(`worker ${i++} - ${state}`)
-        // }  
-
-      // Wait a while, then report still-running transactions.
-      setTimeout(async () => {
-          let stillRunning = 0
-          let i = 0
-          for (const worker of me.#workers) {
-            const state = await worker.getState()
-            if (state !== Worker2.WAITING) {
-              if (stillRunning === 0) console.log(`Workers still running:`)
-              console.log(`worker ${i++} - ${state}`)
-              stillRunning++
-            }
-          }
-
-          // Shut down this process now.
-          if (stillRunning > 0) {
-            console.log(`Shutting down, with ${stillRunning} workers still running.`)
-            process.exit(1)
-          } else {
-            console.log(`Shutting down. No incomplete workers.`)
-            process.exit(0)
-          }
-        }, 25 * 1000)
-      }, 1 * 1000)
-    }//- windup
-    process.on('SIGTERM', () => windup('SIGTERM'))
-    process.on('SIGINT', () => windup('SIGINT'))
-
-
+    process.on('SIGTERM', () => me.shutdownPhase1('SIGTERM'))
+    process.on('SIGINT', () => me.shutdownPhase1('SIGINT'))
 
     // Loop around getting events and passing them to the workers
     // We count how many workers are waiting for an event, then
@@ -265,7 +218,7 @@ export default class Scheduler2 {
       // if (VERBOSE) console.log(`######## Start event loop.`)
 
       // If we are shutting down, do not process any more events
-      if (this.#state === Scheduler2.SHUTTING_DOWN) {
+      if (this.#state === Scheduler2.SHUTDOWN_PHASE_5) {
         // End of event loop
         console.log(`Event loop stopped.`)
         return
@@ -318,74 +271,17 @@ export default class Scheduler2 {
       //  4. Normal REDIS queue for node (steps)
       //  5. REDIS Queue for group (incoming transactions)
 
-      // Read from the express local memory queue first
       let eventsStarted = 0
       let countWorker = 0
-      for ( ; countWorker < numberOfAvailableWorkers && this.#expressMemoryQueue.len() > 0; countWorker++) {
-        if (Q_VERBOSE) console.log(` - got event from express memory queue`)
-        // Process the event
-        // Do NOT wait for it to complete. It will set it's state back to 'waiting' when it's ready.
-        const event = this.#expressMemoryQueue.next()
-        const worker = workersWaiting[countWorker]
-        // console.log(`Scheduler2.start: have ${event.eventType} event`)
-        worker.setInUse()
-        setImmediate(() => {
-          // Do not wait. The worker will set itself to INUSE and
-          // then back to WAITING again once it is finished.
-          worker.processEvent(event)
-        })
-        eventsStarted++
-      }
+      if (this.processingEventsFromMemoryQueues()) {
 
-      // Now try the regular memory queue
-      for ( ; countWorker < numberOfAvailableWorkers && this.#regularMemoryQueue.len() > 0; countWorker++) {
-        if (Q_VERBOSE) console.log(` - got event from regular memory queue`)
-        // Process the event
-        // Do NOT wait for it to complete. It will set it's state back to 'waiting' when it's ready.
-        const event = this.#regularMemoryQueue.next()
-        const worker = workersWaiting[countWorker]
-        // console.log(`Scheduler2.start: have ${event.eventType} event`)
-        worker.setInUse()
-        setImmediate(() => {
-          // Do not wait. The worker will set itself to INUSE and
-          // then back to WAITING again once it is finished.
-          worker.processEvent(event)
-        })
-        eventsStarted++
-      }
-
-      // Now we read from the REDIS queues. These can be read from multiple queues in one call.
-      const requiredEvents = numberOfAvailableWorkers - countWorker
-      if (requiredEvents > 0) {
-
-        /*
-         *  We've emptied the memory queues. Now look at external queues.
-         */
-        const queues = [
-          this.#nodeExpressQueue,
-          this.#nodeRegularQueue,
-          this.#groupExpressQueue,
-          this.#groupQueue
-        ]
-        const block = false
-        // console.log(`${requiredEvents} = ${numberOfAvailableWorkers} - ${countWorker}`)
-
-        const events = await RedisQueue.dequeue(queues, requiredEvents, block)
-        // console.log(`events=`, events)
-        eventsStarted += events.length
-
-        // const tick = (events.length === workersWaiting.length) ? ' <==' : ''
-        // console.log(`${events.length} events <==> ${workersWaiting.length} available workers${tick}`)
-
-        // Pair up the workers and the events
-        for (let i = 0; countWorker < numberOfAvailableWorkers && i < events.length; i++, countWorker++) {
-
+        // Read from the express local memory queue first
+        for ( ; countWorker < numberOfAvailableWorkers && this.#expressMemoryQueue.len() > 0; countWorker++) {
+          if (Q_VERBOSE) console.log(` - got event from express memory queue`)
           // Process the event
           // Do NOT wait for it to complete. It will set it's state back to 'waiting' when it's ready.
-          if (Q_VERBOSE) console.log(` - got event from REDIS queue`)
-
+          const event = this.#expressMemoryQueue.next()
           const worker = workersWaiting[countWorker]
-          const event = events[i]
           // console.log(`Scheduler2.start: have ${event.eventType} event`)
           worker.setInUse()
           setImmediate(() => {
@@ -393,6 +289,65 @@ export default class Scheduler2 {
             // then back to WAITING again once it is finished.
             worker.processEvent(event)
           })
+          eventsStarted++
+        }
+
+        // Now try the regular memory queue
+        for ( ; countWorker < numberOfAvailableWorkers && this.#regularMemoryQueue.len() > 0; countWorker++) {
+          if (Q_VERBOSE) console.log(` - got event from regular memory queue`)
+          // Process the event
+          // Do NOT wait for it to complete. It will set it's state back to 'waiting' when it's ready.
+          const event = this.#regularMemoryQueue.next()
+          const worker = workersWaiting[countWorker]
+          // console.log(`Scheduler2.start: have ${event.eventType} event`)
+          worker.setInUse()
+          setImmediate(() => {
+            // Do not wait. The worker will set itself to INUSE and
+            // then back to WAITING again once it is finished.
+            worker.processEvent(event)
+          })
+          eventsStarted++
+        }
+      }
+
+      if (this.processingEventsFromREDIS()) {
+
+        // Now we read from the REDIS queues. These can be read from multiple queues in one call.
+        const requiredEvents = numberOfAvailableWorkers - countWorker
+        if (requiredEvents > 0) {
+
+          /*
+          *  We've emptied the memory queues. Now look at external queues.
+          */
+          const queues = [
+            this.#nodeExpressQueue,
+            this.#nodeRegularQueue,
+            this.#groupExpressQueue,
+            this.#groupQueue
+          ]
+          const block = false
+          // console.log(`${requiredEvents} = ${numberOfAvailableWorkers} - ${countWorker}`)
+          const events = await RedisQueue.dequeue(queues, requiredEvents, block)
+          // console.log(`events=`, events)
+          eventsStarted += events.length
+
+          // Pair up the workers and the events
+          for (let i = 0; countWorker < numberOfAvailableWorkers && i < events.length; i++, countWorker++) {
+
+            // Process the event
+            // Do NOT wait for it to complete. It will set it's state back to 'waiting' when it's ready.
+            if (Q_VERBOSE) console.log(` - got event from REDIS queue`)
+
+            const worker = workersWaiting[countWorker]
+            const event = events[i]
+            // console.log(`Scheduler2.start: have ${event.eventType} event`)
+            worker.setInUse()
+            setImmediate(() => {
+              // Do not wait. The worker will set itself to INUSE and
+              // then back to WAITING again once it is finished.
+              worker.processEvent(event)
+            })
+          }
         }
       }
 
@@ -419,6 +374,167 @@ export default class Scheduler2 {
     // Let's start the event loop in the background
     setTimeout(eventLoop, 0)
   }//- start
+
+  /**
+   * Phase 1 of shutdown - stop processing events from REDIS queues
+   * 
+   * @param {*} signal 
+   */
+  async shutdownPhase1(signal) {
+    // We sometimes get multiple signals. Only respond to the first.
+    console.log(`Received ${signal} signal.`)
+    if (this.shuttingDown()) {
+      return
+    }
+    console.log(``)
+    console.log(`### SHUTDOWN PHASE 1 - Stopped processing events from REDIS queues`)
+    this.#state = Scheduler2.SHUTDOWN_PHASE_1
+
+    const me = this
+    const eventsInMemoryQueues = this.#expressMemoryQueue.len() + this.#regularMemoryQueue.len()
+    const delay = (eventsInMemoryQueues > 0) ? Scheduler2.PHASE_1_DELAY : 0
+    setTimeout(async () => { await me.shutdownPhase2() }, delay)
+  }//- shutdownPhase1
+
+  /**
+   * Phase 2 of shutdown - move memory queue events to REDIS
+   */
+  async shutdownPhase2() {
+    console.log(``)
+    console.log(`### SHUTDOWN PHASE 2 - Moving memory queue events to REDIS`)
+    this.#state = Scheduler2.SHUTDOWN_PHASE_2
+
+    // In the memory queue the transaction state is an object, so we'll
+    // need to convert it to JSON before the event put in REDIS.
+    const nodeGroup = schedulerForThisNode.getNodeGroup()
+    const queueName = Scheduler2.groupExpressQueueName(nodeGroup)
+    console.log(`  ${this.#expressMemoryQueue.len()} events in express memory queue.`)
+    while (this.#expressMemoryQueue.len() > 0) {
+      const event = this.#expressMemoryQueue.next()
+      // console.log(`  express event=`, event)
+      // console.log(`          1. event.txState=`, event.txState)
+      event.txState = await event.txState.stringify()
+      // console.log(`          2. event.txState=`, event.txState)
+      console.log(`  - moving ${event.eventType} event for ${event.txId}`)
+      await RedisQueue.enqueue(queueName, event)
+    }
+    console.log(`  ${this.#regularMemoryQueue.len()} events in regular memory queue.`)
+    while (this.#regularMemoryQueue.len() > 0) {
+      const event = this.#regularMemoryQueue.next()
+      // console.log(`  express event=`, event)
+      // console.log(`          1. event.txState=`, event.txState)
+      event.txState = await event.txState.stringify()
+      // console.log(`          2. event.txState=`, event.txState)
+      console.log(`  - moving ${event.eventType} event for ${event.txId}`)
+      await RedisQueue.enqueue(queueName, event)
+    }    
+
+    const me = this
+    setTimeout(() => { me.shutdownPhase3() }, Scheduler2.PHASE_2_DELAY)
+  }//- shutdown2
+
+  /**
+   * Phase 3 of shutdown - give running events time to complete
+   */
+  async shutdownPhase3() {
+    console.log(``)
+    console.log(`### SHUTDOWN PHASE 3 - Give running workers time to complete`)
+    this.#state = Scheduler2.SHUTDOWN_PHASE_3
+    // let i = 0
+    // for (const worker of me.#workers) {
+    //   const state = await worker.getState()
+    //   console.log(`worker ${i++} - ${state}`)
+    // }  
+
+    // Wait a while, then report still-running transactions.
+    const numStillRunning = await this.numberOfRunningWorkers()
+    if (numStillRunning > 0) {
+      const me = this
+      console.log(`  - ${numStillRunning} workers are still running`)
+      setTimeout(() => {me.shutdownPhase4()}, Scheduler2.PHASE_3_DELAY)
+    } else {
+      const me = this
+      console.log(`  - No workers are running`)
+      setTimeout(() => {me.shutdownPhase4()}, 0)
+    }
+  }//- shutdownPhase3
+
+  /**
+   * Phase 4 of shutdown - report still running steps
+   */
+  async shutdownPhase4() {
+    console.log(``)
+    console.log(`### SHUTDOWN PHASE 4 - Send a notification for still running steps`)
+    console.log(`(Not implemented yet)`)
+
+
+    let stillRunning = 0
+    let i = 0
+    for (const worker of this.#workers) {
+      const state = await worker.getState()
+      if (state !== Worker2.WAITING) {
+        if (stillRunning++ === 0) console.log(`Workers still running:`)
+        console.log(`worker ${i++} - ${state} - ${worker.getRecentTxId()}`)
+      }
+    }
+
+    // On to the next phase
+    const me = this
+    setTimeout(() => { me.shutdownPhase5() }, Scheduler2.PHASE_4_DELAY)
+  }//- shutdownPhase4
+
+  /**
+   * Phase 5 of shutdown - exit
+   */
+   async shutdownPhase5() {
+
+    // Shut down this process now.
+    const stillRunning = await this.numberOfRunningWorkers()
+    if (stillRunning > 0) {
+      console.log(``)
+      console.log(`### SHUTDOWN PHASE 5 - Exit with ${stillRunning} workers still running.`)
+      process.exit(1)
+    } else {
+      console.log(``)
+      console.log(`### SHUTDOWN PHASE 5 - Exit with no incomplete workers.`)
+      process.exit(0)
+    }
+  }//- shutdownPhase5
+
+  shuttingDown() {
+    return (
+      this.#state === Scheduler2.SHUTDOWN_PHASE_1
+      || this.#state === Scheduler2.SHUTDOWN_PHASE_2
+      || this.#state === Scheduler2.SHUTDOWN_PHASE_3
+      || this.#state === Scheduler2.SHUTDOWN_PHASE_4
+      || this.#state === Scheduler2.SHUTDOWN_PHASE_5
+    )
+  }
+
+  processingEventsFromREDIS() {
+    return !this.shuttingDown()
+  }
+
+  processingEventsFromMemoryQueues() {
+    // return false//XXXXXX
+    // We keep processing from memory until shutdown phase 2
+    return (
+      !this.shuttingDown()
+      ||
+      this.#state !== Scheduler2.SHUTDOWN_PHASE_1
+    )
+  }
+
+  async numberOfRunningWorkers() {
+    let stillRunning = 0
+    for (const worker of this.#workers) {
+      const state = await worker.getState()
+      if (state !== Worker2.WAITING) {
+        stillRunning++
+      }
+    }
+    return stillRunning
+  }
 
   /**
    * This function gets called periodically, to allow this node

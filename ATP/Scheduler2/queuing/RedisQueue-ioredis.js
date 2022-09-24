@@ -728,7 +728,12 @@ export class RedisQueue {
       if (VERBOSE) console.log(`Removing transaction state from REDIS [${txId}]`)
       await connection_admin.zrem(KEYPREFIX_STATES_TO_PERSIST, txId)
       await connection_admin.del(key)
-    }
+
+      // If we are shutting down now, quit immediately.
+      if (schedulerForThisNode.shuttingDown()) {
+        return
+      }
+    }// next txId
   }
 
   /**

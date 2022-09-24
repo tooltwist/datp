@@ -20,7 +20,7 @@ export default {
 }
 
 export async function db_getPipelineTypesV1 () {
-  console.log(`db_getPipelineTypesV1()`)
+  // console.log(`db_getPipelineTypesV1()`)
 
   let sql = `SELECT
     transaction_type AS name,

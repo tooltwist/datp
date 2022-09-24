@@ -29,6 +29,7 @@ export default class Worker2 {
   #state
   #correctlyFinishedStep
   #reuseCounter // With shortcuts, we continue to use the same worker.
+  #recentTxId // Most recent transaction ID
 
   static STANDBY = 'standby'
   static WAITING = 'waiting'
@@ -39,13 +40,18 @@ export default class Worker2 {
     // console.log(`Worker2.constructor()`)
     this.#workerId = workerId
     this.#state = Worker2.WAITING
-    this.#correctlyFinishedStep = false
+    // this.#correctlyFinishedStep = false
     this.#reuseCounter = 0
+    this.#recentTxId = null
     if (VERBOSE) console.log(`[worker ${this.#workerId} => WAITING]`.bgRed.white)
   }
 
   getId() {
     return this.#workerId
+  }
+
+  getRecentTxId() {
+    return this.#recentTxId
   }
 
   /**
@@ -63,12 +69,19 @@ export default class Worker2 {
     // console.log(`event=`, event)
 
     // Check that the event includes the transaction state
+    if (!event.txState) {
+      // This is a malformed event, that does not contain transaction state information.
+      console.log(`Malformed event, with no state information, will be ignored.`)
+      this.#state = Worker2.WAITING
+      return
+    }
     assert(event.txState)
     // console.log(`event.txState=`, event.txState)
     // console.log(`event=`, event)
 
     // Process this event
     this.#state = Worker2.INUSE
+    this.#recentTxId = event.txId
     // if (VERBOSE) console.log(`Worker ${this.#workerId} => INUSE`.bgRed.white)
 
     try {

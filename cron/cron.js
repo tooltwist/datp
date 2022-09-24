@@ -34,19 +34,23 @@ export default class DatpCron {
 
   async start() {
     const eachLoop = async () => {
-      this.#running = true
-      // Start them in parallel
-      const p1 = schedulerForThisNode.keepAlive()
-      const p2 = this.moveScheduledEventsToEventQueue()
-      const p3 = this.retryWebhooks()
-      const p4 = this.persistTransactionStates()
+      if (schedulerForThisNode.shuttingDown()) {
+        console.log(`Skipping cron jobs - currently shutting down.`)
+      } else {
+        this.#running = true
+        // Start them in parallel
+        const p1 = schedulerForThisNode.keepAlive()
+        const p2 = this.moveScheduledEventsToEventQueue()
+        const p3 = this.retryWebhooks()
+        const p4 = this.persistTransactionStates()
 
-      // Wait till they all finish
-      await p1
-      await p2
-      await p3
-      await p4
-      this.#running = false
+        // Wait till they all finish
+        await p1
+        await p2
+        await p3
+        await p4
+        this.#running = false
+      }
 
       // Prepare to run it again.
       // unref() allows the process to shut down if required,
@@ -142,7 +146,12 @@ export default class DatpCron {
           console.log(e)
         }
       }
-    }
+
+      // If we are shutting down now, quit immediately.
+      if (schedulerForThisNode.shuttingDown()) {
+        return
+      }
+    }//- next tx
   }
 
   async retryWebhooks() {
@@ -163,6 +172,11 @@ export default class DatpCron {
       const retryCount = row.retry_count
       if (VERBOSE) console.log(`Cron retrying webhook for ${txId}`)
       await tryTheWebhook(owner, txId, webhookUrl, eventType, eventTime, retryCount)
+
+      // If we are shutting down now, quit immediately.
+      if (schedulerForThisNode.shuttingDown()) {
+        return
+      }
     }
   }
 
