@@ -191,7 +191,7 @@ export async function startTransactionRoute(req, res, next, tenant, transactionT
 
     // Reply by webhook.
     // Note that this does not preclude polling to get the status.
-    if (VERBOSE) console.log(`Will reply with web hook to ${reply}`)
+    if (VERBOSE) console.log(`Will reply with web hook to ${metadata.webhook}`)
     callback = RETURN_TX_STATUS_CALLBACK
     context.webhook = metadata.webhook
     context.progressReports = !!metadata.progressReports

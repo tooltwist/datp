@@ -95,7 +95,7 @@ export async function mondatRoute_getQueueStatsV1(req, res, next) {
       outstandingLongPolls: 0,
       stepTypes: [ ],
     }
-    console.log(`FOUND AN ORPHAN NODE [${nodeId}] IN GROUP ${group.nodeGroup}`)
+    // console.log(`FOUND AN ORPHAN NODE [${nodeId}] IN GROUP ${group.nodeGroup}`)
     group.orphanNodes[nodeId] = node
     return node
 

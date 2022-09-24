@@ -249,7 +249,7 @@ class MapFieldsStep extends Step {
   }
 
   async doConvertDates(instance, handler) {
-    console.log(`doConvertDates() have ${this.#convertDates.length} rules`)
+    if (VERBOSE) console.log(`doConvertDates() have ${this.#convertDates.length} rules`)
 
     //ZZZZZ Not yet
     return false
@@ -273,7 +273,7 @@ class MapFieldsStep extends Step {
    * @param {ConversionHandler} handler
    */
   async doAppendFields(instance, handler) {
-    console.log(`doAppendFields() have ${this.#appendFields.length} rules`)
+    if (VERBOSE) console.log(`doAppendFields() have ${this.#appendFields.length} rules`)
 
     // Iterate through the rules
     for (const rule of this.#appendFields) {

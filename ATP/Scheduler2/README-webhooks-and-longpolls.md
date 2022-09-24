@@ -47,7 +47,7 @@ An atp_webhook record is created for each required webhook reply, before the fir
 Retries initially occur fairly quickly, but the interval between retries increases exponentially with subsequent attempts, up to a maximum retry interval.
 
 ## Webhooks that fail to complete
-We don't want webhooks that fail to succeed causing retries forever an clogging the system, so we have the ability to view utstanding webhooks in Mondat. A webhook that is continually failing indicates a transaction where the client is not being notified of the status of the transaction. While an administrator can cancel the webhook, they shoud probably also contact the client to inform them that their webhook URL is not responding correctly.
+We don't want webhooks that fail to succeed causing retries forever and clogging the system, so we have the ability to view outstanding webhooks in Mondat. A webhook that is continually failing indicates a transaction where the client is not being notified of the status of the transaction. While an administrator can cancel the webhook, they shoud probably also contact the client to inform them that their webhook URL is not responding correctly.
 
 ## Dedicated webhook processing
 At the moment that webhook call will occur from whatever node is running the trasaction pipeline, or in the case of progress reports, the current step. In the future we may wish to centralize the dispatching of webhooks by running them through a queue.

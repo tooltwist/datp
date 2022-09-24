@@ -36,8 +36,12 @@ async function route_tx_start_$transactionType(req, res, next) {
   // if (await isDevelopmentMode()) {
 
     const transactionType = req.params.transactionType
-    assert(transactionType && typeof(transactionType) === 'string')
-    assert(req.body)
+    if (typeof(req.params.transactionType) !== 'string') {
+      throw new Error(`Invalid req.params.transactionType`)
+    }
+    if (typeof(req.body) !== 'object') {
+      throw new Error(`Invalid req.body`)
+    }
 
     let metadata = req.body.metadata ? req.body.metadata : { }
     let data = req.body.data ? req.body.data : { }
