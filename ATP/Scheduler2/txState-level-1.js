@@ -20,7 +20,8 @@ import me from '../../lib/me'
 // const PERSIST_FAST_DURATION = 10 // Almost immediately
 // const PERSIST_REGULAR_DURATION = 120 // Two minutes
 
-const VERBOSE = 0
+const USE_YARPLUA_PERSISTANCE = true
+const VERBOSE = 1
 
 class TransactionCache {
   #cacheId // To check we only have one cache!
@@ -178,7 +179,9 @@ export default TransactionCache = new TransactionCache()
 
 
 export async function PERSIST_TRANSACTION_STATE(tx) {
+  if (USE_YARPLUA_PERSISTANCE) return
   if (VERBOSE) console.log(`${me()}: TransactionCache.PERSIST_TRANSACTION_STATE(${tx.txId})`)
+
 
   if (await isDevelopmentMode()) {
 

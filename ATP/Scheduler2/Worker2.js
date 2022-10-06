@@ -15,6 +15,7 @@ import { schedulerForThisNode } from "../.."
 import { CHECK_FOR_BLOCKING_WORKERS_TIMEOUT, INCLUDE_STATE_IN_NODE_HOPPING_EVENTS, SHORTCUT_STEP_START } from "../../datp-constants"
 import Transaction from "./Transaction"
 import me from "../../lib/me"
+import { RedisQueue } from "./queuing/RedisQueue-ioredis"
 
 const VERBOSE = 0
 const VERBOSE_16aug22 = 0
@@ -66,7 +67,7 @@ export default class Worker2 {
   async processEvent(event) {
     const typeStr = event.eventType ? ` (${event.eventType})` : ''
     if (VERBOSE) console.log(`\n[worker ${this.#workerId} processing event${typeStr}]`.bold)
-    // console.log(`event=`, event)
+    // console.log(`event=`, JSON.stringify(event, '', 2))
 
     // Check that the event includes the transaction state
     if (!event.txState) {
@@ -157,9 +158,14 @@ export default class Worker2 {
    * @param {XData} event
    */
   async processEvent_StepStart(event) {
-    if (VERBOSE_16aug22) console.log(`${me()}: ********** START STEP PULLED FROM QUEUE`)
+    // if (VERBOSE_16aug22)
+    console.log(`${me()}: ********** START STEP PULLED FROM QUEUE`)
     // if (VERBOSE) console.log(`Worker2.processEvent_StepStart()`)
-    // if (VERBOSE > 1) console.log(`event=`, event)
+    // if (VERBOSE > 1)
+    console.log(`${me()}: event=`, JSON.stringify(event, '', 2))
+    // const zzz = JSON.parse(event.txState)
+    // console.log(`txState=`, JSON.stringify(zzz, '', 2))
+
     this.#reuseCounter++
 //    if (this.#reuseCounter > 1) console.log(`${this.#reuseCounter}: REUSING WORKER ${this.#workerId} (${this.#reuseCounter})`)
 
@@ -170,6 +176,7 @@ export default class Worker2 {
       const txId = event.txId
       const stepId = event.stepId
       const tx = await extractTransactionStateFromEvent(event)
+      // console.log(`MY NICE NEW TXSTATE=`, tx.asObject())
       if (!tx) {
         // This should be flagged as a serious system error.ZZZZZ
         this.#reuseCounter--
@@ -185,7 +192,7 @@ export default class Worker2 {
         console.log(`processEvent_StepStart: missing step data`)
         console.log(`my nodeId=`, schedulerForThisNode.getNodeId())
         console.log(`event=`, event)
-        console.log(`tx=`, tx)
+        // console.log(`tx=`, tx)
         throw new Error(`ZZZZ: missing step`)
       }
       // if (!SHORTCUT_STEP_START) {
@@ -197,8 +204,16 @@ export default class Worker2 {
         console.log(`stepData.fullSequence=`, stepData.fullSequence)
         console.log(`my nodeId=`, schedulerForThisNode.getNodeId())
         console.log(`event=`, event)
-        console.log(`tx=`, tx)
+        // console.log(`tx=`, tx)
         throw new Error(`ZZZZ: missing stepData.fullSequence`)
+      }
+      if (!stepData.vogPath) {
+        console.log(`INTERNAL ERROR: Assertion failure: stepData.vogPath is null or undefined`)
+        console.log(`stepData.vogPath=`, stepData.vogPath)
+        console.log(`my nodeId=`, schedulerForThisNode.getNodeId())
+        console.log(`event=`, event)
+        // console.log(`tx=`, tx)
+        throw new Error(`ZZZZ: missing stepData.vogPath`)
       }
 
       const trace = (typeof(txData.metadata.traceLevel) === 'number') && txData.metadata.traceLevel > 0
@@ -227,12 +242,11 @@ export default class Worker2 {
         await PERSIST_TRANSACTION_STATE(tx)
         
         const parentNodeGroup = stepData.onComplete.nodeGroup
-        const parentNodeId = stepData.onComplete.nodeId ? stepData.onComplete.nodeId : null
         const workerForShortcut = this
-        const rv = await schedulerForThisNode.schedule_StepCompleted(tx, parentNodeGroup, parentNodeId, {
+        const rv = await schedulerForThisNode.schedule_StepCompleted(tx, parentNodeGroup, {
           txId: event.txId,
           stepId: event.stepId,
-          completionToken: stepData.onComplete.completionToken
+          // completionToken: stepData.onComplete.completionToken
         }, workerForShortcut)
         assert(rv === GO_BACK_AND_RELEASE_WORKER)
         this.#reuseCounter--
@@ -262,6 +276,11 @@ export default class Worker2 {
       /*
        *  Start the step - we don't wait for it to complete
        */
+
+      // console.log(`tx.asObject()=`, tx.asObject())
+      tx.vog_flowRecordStepInvoked(stepId)
+      // console.log(`tx.vog_getFlow()=`, tx.vog_getFlow())
+
       const stepObject = instance.getStepObject()
 
       // const hackSource = 'system' // Not sure why, but using dbLogbook.LOG_SOURCE_SYSTEM causes a compile error
@@ -328,35 +347,43 @@ export default class Worker2 {
    * @param {object} event
    */
   async processEvent_StepCompleted(event) {
-    if (VERBOSE > 1) console.log(`<<< processEvent_StepCompleted()`.yellow, event)
+    // if (VERBOSE > 1)
+    console.log(`<<< processEvent_StepCompleted()`.yellow, event)
 
     try {
       const worker = this
       const txId = event.txId
       const stepId = event.stepId
-      const completionToken = event.completionToken
+      // const completionToken = event.completionToken
       const tx = await extractTransactionStateFromEvent(event)
 
+      assert(event.eventType === Scheduler2.STEP_COMPLETED_EVENT)
+      assert(typeof(event.txId) === 'string')
+      assert(typeof(event.flowIndex) === 'number')
 
+      const flow = tx.vog_getFlowRecord(event.flowIndex)
+      assert(flow)
+      console.log(`flow=`, flow)
 
       await PERSIST_TRANSACTION_STATE(tx)
 
-      const stepData = tx.stepData(stepId)
+      // const stepData = tx.stepData(stepId)
       // console.log(`stepData for step ${stepId}`, stepData)
       if (
-        stepData.status === STEP_ABORTED
-        || stepData.status === STEP_FAILED
-        || stepData.status === STEP_INTERNAL_ERROR
-        || stepData.status === STEP_SLEEPING
-        || stepData.status === STEP_SUCCESS
-        || stepData.status === STEP_RUNNING
-        || stepData.status === STEP_TIMEOUT
+        flow.completionStatus === STEP_ABORTED
+        || flow.completionStatus === STEP_FAILED
+        || flow.completionStatus === STEP_INTERNAL_ERROR
+        || flow.completionStatus === STEP_SLEEPING
+        || flow.completionStatus === STEP_SUCCESS
+        || flow.completionStatus === STEP_RUNNING
+        || flow.completionStatus === STEP_TIMEOUT
       ) {
         // OK
       } else {
         console.log(`\n\nXXXXXXXXXXXXX           XXXXXXXXXXXXX           XXXXXXXXXXXXX           XXXXXXXXXXXXX           XXXXXXXXXXXXX`)
         console.log(`\n\nXXXXXXXXXXXXX           XXXXXXXXXXXXX           XXXXXXXXXXXXX           XXXXXXXXXXXXX           XXXXXXXXXXXXX`)
         console.log(`\n\nXXXXXXXXXXXXX           XXXXXXXXXXXXX           XXXXXXXXXXXXX           XXXXXXXXXXXXX           XXXXXXXXXXXXX`)
+        console.log(`Invalid completion status: ${flow.completionStatus}`)
         console.log(`schedulerForThisNode.getNodeGroup()=`, schedulerForThisNode.getNodeGroup())
         console.log(`schedulerForThisNode.getNodeId()=`, schedulerForThisNode.getNodeId())
         console.log(`event=`, event)
@@ -368,22 +395,23 @@ export default class Worker2 {
         process.exit(1)//ZZZZZ
       }
 
+      // console.log(`VOG ZARP PEW 4`)
 
-      assert(
-        stepData.status === STEP_ABORTED
-        || stepData.status === STEP_FAILED
-        || stepData.status === STEP_INTERNAL_ERROR
-        || stepData.status === STEP_SLEEPING
-        || stepData.status === STEP_SUCCESS
-        || stepData.status === STEP_RUNNING
-        || stepData.status === STEP_TIMEOUT
-      )
+      // assert(
+      //   stepData.status === STEP_ABORTED
+      //   || stepData.status === STEP_FAILED
+      //   || stepData.status === STEP_INTERNAL_ERROR
+      //   || stepData.status === STEP_SLEEPING
+      //   || stepData.status === STEP_SUCCESS
+      //   || stepData.status === STEP_RUNNING
+      //   || stepData.status === STEP_TIMEOUT
+      // )
 
       // Check the completionToken is correct
       // console.log(`Checking completionToken (${completionToken} vs ${stepData.onComplete.completionToken})`)
-      if (completionToken !== stepData.onComplete.completionToken) {
-        throw Error(`Invalid completionToken`)
-      }
+      // if (completionToken !== stepData.onComplete.completionToken) {
+      //   throw Error(`Invalid completionToken`)
+      // }
 
       // Call the callback
       // console.log(`=> calling callback [${stepData.onComplete.callback}]`.dim)
@@ -391,7 +419,11 @@ export default class Worker2 {
         nodeGroup: schedulerForThisNode.getNodeGroup(),
         nodeId: schedulerForThisNode.getNodeId()
       }
-      const rv = await CallbackRegister.call(tx, stepData.onComplete.callback, stepData.onComplete.context, nodeInfo, worker)
+      // console.log(`VOG ZARP PEW 5`)
+      console.log(`processEvent_StepCompleted event.flowIndex=`.blue, event.flowIndex)
+      // console.log(`VOG ZARP PEW 6`)
+
+      const rv = await CallbackRegister.call(tx, flow.onComplete.callback, event.flowIndex, nodeInfo, worker)
       assert(rv === GO_BACK_AND_RELEASE_WORKER)
       return GO_BACK_AND_RELEASE_WORKER
     } catch (e) {
@@ -409,6 +441,8 @@ export default class Worker2 {
    */
    async processEvent_TransactionChanged(event) {
     if (VERBOSE > 1) console.log(`<<< processEvent_TransactionChanged()`.brightYellow, event)
+
+    assert(typeof(event.flowIndex) === 'number')
 
     try {
       const worker = this
@@ -436,7 +470,7 @@ export default class Worker2 {
         transactionOutput,
         sequenceOfUpdate
       }
-      const rv = await CallbackRegister.call(tx,txData.onChange.callback, txData.onChange.context, extraInfo, worker)
+      const rv = await CallbackRegister.call(tx, txData.onChange.callback, event.flowIndex, extraInfo, worker)
       assert(rv == GO_BACK_AND_RELEASE_WORKER)
       return GO_BACK_AND_RELEASE_WORKER
     } catch (e) {
@@ -455,6 +489,7 @@ export default class Worker2 {
    async processEvent_TransactionCompleted(event) {
     if (VERBOSE > 1) console.log(`<<< processEvent_TransactionCompleted()`.brightYellow, event)
 
+    assert(typeof(event.flowIndex) === 'number')
     try {
       const worker = this
       const txId = event.txId
@@ -480,7 +515,7 @@ export default class Worker2 {
         note,
         transactionOutput
       }
-      const rv = await CallbackRegister.call(tx, txData.onComplete.callback, txData.onComplete.context, extraInfo, worker)
+      const rv = await CallbackRegister.call(tx, txData.onComplete.callback, event.flowIndex, extraInfo, worker)
       assert(rv === GO_BACK_AND_RELEASE_WORKER)
       return GO_BACK_AND_RELEASE_WORKER
     } catch (e) {

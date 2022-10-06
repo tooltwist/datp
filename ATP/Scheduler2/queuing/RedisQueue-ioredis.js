@@ -10,6 +10,9 @@ import Transaction from '../Transaction'
 import Scheduler2 from '../Scheduler2';
 import { schedulerForThisNode } from '../../..';
 import { saveTransactionState_level2 } from '../txState-level-2';
+import { RedisLua } from './redis-lua';
+import { CloudDirectory } from 'aws-sdk';
+import pause from '../../../lib/pause';
 const Redis = require('ioredis');
 
 // This adds colors to the String class
@@ -42,10 +45,19 @@ export const TIME_TILL_GLOBAL_CACHE_ENTRY_IS_PERSISTED_TO_DB = 1000 * 60 * 1 // 
 let allocatedQueues = 0
 let enqueueCounter = 0
 
+// Only get the connection once
+const CONNECTION_NONE = 0
+const CONNECTION_WAIT = 1
+const CONNECTION_READY = 2
+let connectionStatus = CONNECTION_NONE
+
+
 // Connections to REDIS
 let connection_dequeue = null // mostly blocking, waiting on queue
 let connection_enqueue = null
 let connection_admin = null
+
+let redisLua = null
 
 
 
@@ -72,10 +84,20 @@ export class RedisQueue {
     // console.log(`_checkLoaded`)
 
     // Is this connection already active?
-    if (connection_enqueue) {
-      (VERBOSE>1) && console.log(`{already connected to REDIS}`.gray)
+    if (connectionStatus === CONNECTION_READY) {
+      if (VERBOSE>1) console.log(`{already connected to REDIS}`.gray)
+      return
+    } else if  (connectionStatus === CONNECTION_WAIT) {
+      // Someone else is already preparing the connection.
+      if (VERBOSE>1) console.log(`{waiting for REDIS connection}`.gray)
+      while (connectionStatus !== CONNECTION_READY) {
+        await pause(50)
+      }
       return
     }
+
+    // Okay, we'll take on the job of preparing the connection.
+    connectionStatus = CONNECTION_WAIT
     VERBOSE && console.log(`{getting REDIS connection}`.gray)
 
     const host = await juice.string('redis.host', juice.MANDATORY)
@@ -149,6 +171,22 @@ export class RedisQueue {
     connection_dequeue = newRedis
     connection_enqueue = newRedis2
     connection_admin = newRedis3
+
+    // Prepare the LUA scripts
+    redisLua = new RedisLua()
+    // await redisLua.flushPipelineDefinitions()
+    await redisLua.uploadPipelineDefinitions()
+
+    // Ready for action!
+    if (VERBOSE>1) console.log(`{REDIS connection ready}`.gray)
+    connectionStatus = CONNECTION_READY
+  }
+
+  static async getRedisLua() {
+    // console.log(`RedisQueue-ioredis.getRedisLua()`)
+    await RedisQueue._checkLoaded()
+    // console.log(`  redisLua=`, redisLua)
+    return redisLua
   }
 
   /**

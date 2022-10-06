@@ -25,7 +25,7 @@ import { generateErrorByName, registerErrorLibrary } from './lib/errorCodes'
 import errors_datp_EN from './lib/errors-datp-EN'
 import errors_datp_FIL from './lib/errors-datp-FIL'
 import { registerReplyConverter, convertReply } from './ATP/Scheduler2/ReplyConverter'
-import { requiresWebhookReply, RETURN_TX_STATUS_CALLBACK } from './ATP/Scheduler2/returnTxStatusCallback'
+import { requiresWebhookReply, RETURN_TX_STATUS_CALLBACK_ZZZ } from './ATP/Scheduler2/returnTxStatusCallbackZZZ'
 
 const VERBOSE = 0
 
@@ -151,7 +151,7 @@ export async function startTransactionRoute(req, res, next, tenant, transactionT
   const reply = metadata.reply
 
   // Let's see how we should reply - shortpoll (default), longpoll, or webhook (http...)
-  let callback = RETURN_TX_STATUS_CALLBACK
+  let callback = RETURN_TX_STATUS_CALLBACK_ZZZ
 
   // Work out polling and webhook details.
   let pollType = 'short'
@@ -192,7 +192,7 @@ export async function startTransactionRoute(req, res, next, tenant, transactionT
     // Reply by webhook.
     // Note that this does not preclude polling to get the status.
     if (VERBOSE) console.log(`Will reply with web hook to ${metadata.webhook}`)
-    callback = RETURN_TX_STATUS_CALLBACK
+    callback = RETURN_TX_STATUS_CALLBACK_ZZZ
     context.webhook = metadata.webhook
     context.progressReports = !!metadata.progressReports
     if (VERBOSE && context.progressReports) console.log(`Will also send progress reports via webhook`)
@@ -208,7 +208,7 @@ export async function startTransactionRoute(req, res, next, tenant, transactionT
     // We'll retain the response object for a while and not reply to this API call
     // just yet, in the hope that the transaction completes and we can use the
     // response object to send our reply.
-    callback = RETURN_TX_STATUS_CALLBACK
+    callback = RETURN_TX_STATUS_CALLBACK_ZZZ
     context.longpoll = true
 
   } else {

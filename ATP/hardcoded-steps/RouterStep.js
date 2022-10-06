@@ -103,16 +103,20 @@ export class RouterStep extends Step {
     const parentNodeGroup = instance.getNodeGroup() // ZZZZ shouldn't this be the current node?
     const myNodeGroup = schedulerForThisNode.getNodeGroup()
     const myNodeId = schedulerForThisNode.getNodeId()
-    const childStepId = GenerateHash('s')
+    // const childStepId = GenerateHash('s')
 
-    // Where does this pipeline run?
-    const pipelineDetails = await getPipelineVersionInUse(pipelineName)
-    if (ROUTERSTEP_VERBOSE) console.log(`RouterStep.invokeChildPipeline() - pipelineDetails:`, pipelineDetails)
-    if (!pipelineDetails) {
-      throw new Error(`Unknown transaction type ${metadata.transactionType}`)
-    }
-    const childNodeGroup = pipelineDetails.nodeGroup
-    // const childNodeId = null
+    // // Where does this pipeline run?
+    // const pipelineDetails = await getPipelineVersionInUse(pipelineName)
+    // if (ROUTERSTEP_VERBOSE) console.log(`RouterStep.invokeChildPipeline() - pipelineDetails:`, pipelineDetails)
+    // if (!pipelineDetails) {
+    //   throw new Error(`Unknown transaction type ${metadata.transactionType}`)
+    // }
+    // const childNodeGroup = pipelineDetails.nodeGroup
+    // // const childNodeId = null
+
+    const childStepId = await tx.addPipelineStep(parentStepId, 0, pipelineName)
+    await tx.delta(childStepId, { vogIsPipelineChild: true }, 'pipelineStep.invoke()')/// Temporary - remove this
+    await tx.delta(childStepId, { vogAddedBy: 'RouterStep.invoke()' }, 'pipelineStep.invoke()')/// Temporary - remove this
 
     // // If this pipeline runs in a different node group, we'll start it via the group
     // // queue for that nodeGroup. If the pipeline runs in the current node group, we'll
@@ -131,33 +135,64 @@ export class RouterStep extends Step {
     // console.log(`queueToPipelineNode=`, queueToPipelineNode)
 
     const childFullSequence = `${instance.getFullSequence()}.1` // Start sequence at 1
+    const childVogPath = `${instance.getVogPath()},1=R.${pipelineName}` // Start sequence at 1
 
 
     if (ROUTERSTEP_VERBOSE) instance.trace(`Start child pipeline ${pipelineName}`)
     instance.syncLogs()
 
     const workerForShortcut = instance.getWorker()
-    await schedulerForThisNode.schedule_StepStart(tx, childNodeGroup, null, workerForShortcut, {
+    //VOGGY
+    console.log(`---------------------------`)
+    console.log(`VOGGY D - RouterStep.invoke`)
+    console.log(`---------------------------`)
+
+
+    //ZZZZZ Stuff to delete
+    await tx.delta(childStepId, {
+      stepDefinition: pipelineName, // VOGVOGVOG
+    })
+    const event = {
+      eventType: Scheduler2.STEP_START_EVENT,
+      // Need either a pipeline or a nodeGroup
+      yarpLuaPipeline: pipelineName,
       txId,
-      nodeGroup: childNodeGroup,
+      // nodeGroup: childNodeGroup,
       // nodeId: childNodeGroup,
       stepId: childStepId,
+      parentNodeGroup,
       // parentNodeId,
       parentStepId,
       fullSequence: childFullSequence,
-      stepDefinition: pipelineName,
+      vogPath: childVogPath,
+      stepDefinition: pipelineName, // VOGVOGVOG
       metadata: metadata,
       data: childData,
       level: instance.getLevel() + 1,
-      onComplete: {
-        nodeGroup: myNodeGroup,
-        nodeId: myNodeId,
-        callback: CHILD_PIPELINE_COMPLETION_CALLBACK,
-        context: { txId, parentNodeGroup, parentStepId, childStepId }
-      }
-    })
+      // onComplete: {
+      //   nodeGroup: myNodeGroup,
+      //   // nodeId: myNodeId,
+      //   callback: CHILD_PIPELINE_COMPLETION_CALLBACK,
+      //   context: { txId, parentNodeGroup, parentStepId, childStepId }
+      // }
+    }
+    const onComplete = {
+      nodeGroup: myNodeGroup,
+      // nodeId: myNodeId,
+      callback: CHILD_PIPELINE_COMPLETION_CALLBACK,
+      context: { txId, parentNodeGroup, parentStepId, childStepId }
+    }
+
+    // await schedulerForThisNode.schedule_StepStart(tx, childNodeGroup, null, workerForShortcut, {
+    const parentFlowIndex = instance.vog_getFlowIndex()
+    const rv = await schedulerForThisNode.schedule_StepStart(tx,
+      // null, null,
+      workerForShortcut, event, childStepId, onComplete, parentFlowIndex)
+    assert(rv === GO_BACK_AND_RELEASE_WORKER)
 
     // We need to tell the instance that we are returning without calling succeeded(), failed(), etc.
+    // After this step completes, CHILD_PIPELINE_COMPLETION_CALLBACK will be called, and it
+    // will wither start aother step, or call one of the completion functions.
     instance.stepWillNotCallCompletionFunction()
     return GO_BACK_AND_RELEASE_WORKER
   }//- invoke

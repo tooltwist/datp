@@ -23,6 +23,22 @@ import { schedulerForThisNode } from "../.."
 import { DEBUG_DB_ATP_TRANSACTION } from "../../datp-constants"
 import dbupdate from "../../database/dbupdate"
 import me from "../../lib/me"
+import GenerateHash from "../GenerateHash"
+import assert from 'assert'
+import { ThirdPartyAttributeExtensionBuilder } from "yoti"
+
+
+export const TX_STATUS_RUNNING = 'running'
+export const TX_STATUS_QUEUED = 'queued'
+export const TX_STATUS_SUCCESS = 'success'
+export const TX_STATUS_FAILED = 'failed'
+export const TX_STATUS_ABORTED = 'aborted'
+export const TX_STATUS_SLEEPING = 'sleeping'
+export const TX_STATUS_TIMEOUT = 'timeout'
+export const TX_STATUS_INTERNAL_ERROR = 'internal-error'
+
+export const FIELD_FLOW_INDEX = 'i'
+export const FIELD_PARENT_FLOW_INDEX = 'p'
 
 // Debug stuff
 const VERBOSE = 0
@@ -51,6 +67,7 @@ export default class Transaction {
 
   #steps // stepId => Object
   #tx // Object
+  #flow // [ { ts, stepId, input, completionStatus, output }]
 
   // Deltas (changes to this transaction state)
   #deltaCounter
@@ -98,6 +115,7 @@ export default class Transaction {
       status: STEP_RUNNING
     }
     this.#steps = { } // stepId => { }
+    this.#flow = [ ] // Progress through the pipelines / steps
 
     this.#deltaCounter = 0
     this.#deltas = [ ]
@@ -125,6 +143,11 @@ export default class Transaction {
     return this.#status
   }
 
+  // Do not use this. It is exclusively a hack while getting events via a LUA script.
+  _patchInStatus(status) {
+    this.#status = status
+  }
+
   getSequenceOfUpdate() {
     return this.#sequenceOfUpdate
   }
@@ -144,6 +167,285 @@ export default class Transaction {
   getCompletionTime() {
     return this.#completionTime
   }
+
+  // vogGetStep(stepId) {
+  //   let step = this.#steps[stepId]
+  //   if (step === undefined) {
+  //     step = { }
+  //     this.#steps[stepId] = step
+  //   }
+  //   return step
+  // }
+
+  async addInitialStep(pipelineName) {
+    const stepId = GenerateHash('s')
+
+    const fullSequence = this.#txId.substring(3, 9)
+    const vogPath = `${this.#txId.substring(3, 9)}=${pipelineName}`
+
+
+    // const fullSequence = `${parentStep.fullSequence}.${index}` // Start sequence at 1
+    // // const childVogPath = `${pipelineInstance.getVogPath()},1=P.${stepType}` // Start sequence at 1
+    // let childVogPath = `${parentStep.vogPath?parentStep.vogPath:'???vog???'},${index}` // Start sequence at 1
+    // const stepDefinition = this.vog_getStepDefinitionFromParent(parentStepId, index)
+    // console.log(`stepDefinition=`, stepDefinition)
+    // if (stepDefinition && stepDefinition.stepType) {
+    //   childVogPath += `=${stepDefinition.stepType}`
+    // }
+
+    await this.delta(stepId, {
+      vogPath: vogPath,
+      vogPipeline: pipelineName,
+      // vogI: index,
+      // vogP: parentStepId,
+      level: 0,
+      fullSequence,
+    }, 'Transaction.js')
+
+    // console.log(`this.vog_getStepDefinition(${childStepId})=`, this.vog_getStepDefinition(childStepId))
+
+    return stepId
+  }
+
+  /**
+   * Add a child step that is a pipeline.
+   * This may run on a different node or nodeGroup, as it will be queued.
+   * The LUA script plugs in the pipeline definition before the step runs.
+   * 
+   * @param {string} parentStepId 
+   * @param {Integer} index 
+   * @param {string} pipelineName 
+   * @returns 
+   */
+  async addPipelineStep(parentStepId, index, pipelineName) {
+    const childStepId = GenerateHash('s')
+    const parentStep = this.#steps[parentStepId]
+
+    const childFullSequence = `${parentStep.fullSequence}.${index}` // Start sequence at 1
+    let childVogPath = `${parentStep.vogPath?parentStep.vogPath:'???vog???'},${index}` // Start sequence at 1
+    const stepDefinition = this.vog_getStepDefinitionFromParent(parentStepId, index)
+    // console.log(`stepDefinition=`, stepDefinition)
+    if (stepDefinition && stepDefinition.stepType) {
+      childVogPath += `=${stepDefinition.stepType}`
+    }
+
+    await this.delta(childStepId, {
+      vogPath: childVogPath,
+      vogI: index,
+      vogP: parentStepId,
+      vogPipeline: pipelineName,
+      level: parentStep.level + 1,
+      fullSequence: childFullSequence,
+    }, 'Transaction.js')
+
+    // console.log(`this.vog_getStepDefinition(${childStepId})=`, this.vog_getStepDefinition(childStepId))
+
+    return childStepId
+  }
+    
+  async addChildStep(parentStepId, index) {
+// console.log(`VOG addChildStep 5`)
+    const childStepId = GenerateHash('s')
+    // console.log(`VOG addChildStep 6`)
+    // await this.setChildIndex(childStepId, index)
+    // console.log(`VOG addChildStep 7`)
+    // await this.setChildParent(childStepId, parentStepId)
+    // console.log(`VOG addChildStep 8`)
+
+    const parentStep = this.#steps[parentStepId]
+    // console.log(`parentStep=`, parentStep)
+
+
+    const childFullSequence = `${parentStep.fullSequence}.${index}` // Start sequence at 1
+    // const childVogPath = `${pipelineInstance.getVogPath()},1=P.${stepType}` // Start sequence at 1
+    let childVogPath = `${parentStep.vogPath?parentStep.vogPath:'???vog???'},${index}` // Start sequence at 1
+    const stepDefinition = this.vog_getStepDefinitionFromParent(parentStepId, index)
+    // console.log(`stepDefinition=`, stepDefinition)
+    if (stepDefinition && stepDefinition.stepType) {
+      childVogPath += `=${stepDefinition.stepType}`
+    }
+
+    await this.delta(childStepId, {
+      vogPath: childVogPath,
+      vogI: index,
+      vogP: parentStepId,
+      level: parentStep.level + 1,
+      fullSequence: childFullSequence,
+    }, 'Transaction.js')
+
+    // console.log(`this.vog_getStepDefinition(${childStepId})=`, this.vog_getStepDefinition(childStepId))
+
+    return childStepId
+  }
+
+  vog_flowRecordStepScheduled(stepId, input, vogPath, parentIndex, onComplete) {
+    console.log(`vog_flowRecordStartStep(${stepId}, input, ${vogPath}, parentIndex=${parentIndex})`)
+    // console.log(`this.#flow=`, this.#flow)
+
+    const index = this.#flow.length
+    const entry = {
+      i: index
+    }
+    if (typeof(parentIndex) === 'number') {
+      entry.p = parentIndex
+    }
+    entry.vogPath = vogPath
+    entry.ts1 = Date.now()
+    entry.ts2 = 0
+    entry.ts3 = 0
+    entry.stepId = stepId
+    entry.nodeId = null,
+    entry.input = input
+    entry.onComplete = onComplete
+    entry.note = null
+    entry.completionStatus = null
+    entry.output = null
+    console.log(`vog_flowRecordStepScheduled() - new flow entry: ${JSON.stringify(entry,'',2)}`.magenta)
+    this.#flow.push(entry)
+    return this.#flow.length - 1
+  }
+
+  vog_flowRecordStepInvoked(stepId, nodeId) {
+    console.log(`vog_flowRecordStepInvoked()`.red)
+    assert(this.#flow.length >= 1)
+    const latestEntry = this.#flow[this.#flow.length - 1]
+    console.log(`latestEntry=`, latestEntry)
+    assert(latestEntry.stepId === stepId)
+    latestEntry.ts2 = Date.now()
+    latestEntry.nodeId = schedulerForThisNode.getNodeId()
+
+    console.log(`Maybe set the nodeGroup`.red, latestEntry.p)
+    // if (latestEntry.p !== undefined) {
+    //   console.log(`Have parent`.red)
+
+    //   // We have a parent flow entry (e.g. the pipeline containing this step)
+    //   // const parentIndex = latestEntry.p
+
+    //   // Add the node group, if it's different to it's parent
+    //   const thisNodeGroup = schedulerForThisNode.getNodeGroup()
+    //   let parentNodeGroup = thisNodeGroup
+    //   for (let pi = latestEntry.p; typeof(pi)==='number' && this.#flow[pi]; ) {
+    //     const parentFlow = this.#flow[pi]
+    //     if (parentFlow.nodeGroup) {
+    //       parentNodeGroup = parentFlow.nodeGroup
+    //       break
+    //     }
+    //     pi = parentFlow.parentIndex
+    //   }
+    //   console.log(`parentNodeGroup=`, parentNodeGroup)
+    //   if (thisNodeGroup !== parentNodeGroup) {
+    //     entry.nodeGroup = thisNodeGroup
+    //     console.log(`entry=`.red, entry)
+    //   }
+    //   else console.log(`same parent`)
+    // }
+
+    latestEntry.vog_nodeGroup = schedulerForThisNode.getNodeGroup()
+  }
+
+  vog_flowRecordStepSleep(stepId, wakeSwitch, duration) {
+    assert(this.#flow.length >= 1)
+    const latestEntry = this.#flow[this.#flow.length - 1]
+    assert(latestEntry.stepId === stepId)
+    latestEntry.ts3 = Date.now()
+    latestEntry.wakeSwitch = wakeSwitch
+    latestEntry.duration = duration
+  }
+
+  vog_flowRecordStepEnd(flowIndex, completionStatus, note, output) {
+    console.log(`vog_flowRecordStepEnd(${flowIndex}, ${completionStatus}, ${note}, ${output})`.yellow)
+    assert(flowIndex >= 0 && flowIndex < this.#flow.length)
+    const entry = this.#flow[flowIndex]
+    // assert(entry.stepId === stepId)
+    entry.ts3 = Date.now()
+    entry.completionStatus = completionStatus
+    entry.note = note
+    entry.output = output
+    console.log(`entry=`, entry)
+  }
+
+  vog_getFlow() {
+    return this.#flow
+  }
+
+  vog_getFlowRecord(index) {
+    assert(index >= 0 && index < this.#flow.length)
+    return this.#flow[index]
+  }
+
+  vog_getParentFlowIndex(flowIndex) {
+    assert(flowIndex >= 0 && flowIndex < this.#flow.length)
+    return this.#flow[flowIndex][FIELD_PARENT_FLOW_INDEX]
+  }
+
+  async vog_setStepCompletionHandler(stepId, flowIndex, nodeGroup, callback, context={}, completionToken=null) {
+    const step = this.#steps[stepId]
+    assert(step)
+    step.onComplete = {
+      flowIndex,
+      nodeGroup,
+      callback,
+      context,
+      completionToken
+    }
+  }
+
+
+  vog_getStepDefinitionFromParent(parentStepId, childIndex) {
+    // console.log(`vog_getStepDefinitionFromParent(${parentStepId}, ${childIndex})`)
+    assert(parentStepId)
+    assert(typeof(childIndex) === 'number')
+
+    // Get the parent step
+    const parent = this.#steps[parentStepId]
+    assert(parent)
+    // console.log(`parent=`, parent)
+    // assert(parent.vogStepDefinition)
+    const parentDefinition = parent.vogStepDefinition
+    // console.log(`parentDefinition=`, parentDefinition)
+    if (!parentDefinition) {
+      // This will happen in a pipeline step, before it has passed through
+      // the queueing and LUA has patched in the pipeline definition.
+      return null
+    }
+    // console.log(`parentDefinition=`, parentDefinition)
+
+    // Get the step definition
+    // console.log(`childIndex=`, childIndex)
+    // console.log(`parentDefinition.steps.length=`, parentDefinition.steps.length)
+    assert(childIndex >= 0 && childIndex < parentDefinition.steps.length)
+    const childDefinition = parentDefinition.steps[childIndex].definition
+    assert(childDefinition)
+    return childDefinition
+  }
+
+  vog_getStepDefinition(stepId) {
+    const step = this.#steps[stepId]
+    assert(step)
+    if (step.stepDefinition) {
+      return step.stepDefinition.definition
+    }
+    // Get the definition from the parent
+    return this.vog_getStepDefinitionFromParent(step.vogP, step.vogI)
+  }
+
+  JnodeGroupWhereStepRuns(childId) { return this.#steps[childId].nodeGroupWhereStepRuns }
+
+
+  // async setChildIndex(childStepId, stepIndex) {
+  //   // this.vogGetStep(stepId).childStepIndex = stepIndex
+  //   await this.delta(childStepId, {
+  //     vogI: stepIndex,
+  //   }, 'Transaction.js')
+  // }
+
+  // async setChildParent(childStepId, parentStepId) {
+  //   // this.vogGetStep(stepId).vogP = parentStepId
+  //   await this.delta(childStepId, {
+  //     vogP: parentStepId,
+  //   }, 'Transaction.js')
+  // }
+
 
   asObject() {
     return {
@@ -170,6 +472,7 @@ export default class Transaction {
 
       transactionData: this.#tx,
       steps: this.#steps,
+      flow: this.#flow,
 
       // Log entries and deltas go elsewhere
     }
@@ -740,6 +1043,20 @@ export default class Transaction {
     return this.#wakeStepId
   }
 
+  getNodeGroupForStep(stepId) {
+    for (let s = stepId; s; ) {
+      const step = this.stepData(s)
+      if (!step) {
+        throw new Error(`Internal Error: Unknown step [${this.getTxId()}, ${s}]`)
+      }
+      if (step.nodeGroup) {
+        return step.nodeGroup
+      }
+      s = step.parentStepId
+    }
+    throw new Error(`Internal Error: Could not find nodeGroup for step [${this.getTxId()}, ${stepId}]`)
+  }
+
   /**
    *
    * @param {number} pagesize
@@ -966,6 +1283,7 @@ export default class Transaction {
 
     tx.#tx = obj.transactionData
     tx.#steps = obj.steps
+    tx.#flow = obj.flow
 
     return tx
   }

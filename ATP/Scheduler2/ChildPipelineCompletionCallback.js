@@ -12,6 +12,7 @@ import { PIPELINES_VERBOSE } from '../hardcoded-steps/PipelineStep'
 import { schedulerForThisNode } from '../..'
 import dbLogbook from '../../database/dbLogbook'
 import { GO_BACK_AND_RELEASE_WORKER } from './Worker2'
+import Scheduler2 from './Scheduler2'
 
 export const CHILD_PIPELINE_COMPLETION_CALLBACK = 'childPipelineComplete'
 
@@ -20,48 +21,67 @@ export const CHILD_PIPELINE_COMPLETION_CALLBACK = 'childPipelineComplete'
  * to a child pipeline. When the child pipline completes, the RouterStep completes with the
  * status of the child pipeline it invoked.
  */
-export async function childPipelineCompletionCallback (tx, callbackContext, nodeInfo, worker) {
-  if (PIPELINES_VERBOSE) console.log(`==> Callback childPipelineCompletionCallback()`, callbackContext, nodeInfo)
+export async function childPipelineCompletionCallback (tx, flowIndex, nodeInfo, worker) {
+  // if (PIPELINES_VERBOSE)
+  console.log(`==> Callback childPipelineCompletionCallback(flowIndex=${flowIndex})`, nodeInfo)
+
+  assert(typeof(flowIndex) === 'number')
 
   // Get the transaction details
-  const txId = callbackContext.txId
+  const txId = tx.getTxId()
 
-  const childStepId = callbackContext.childStepId
-  if (ROUTERSTEP_VERBOSE) console.log(`FINISHED child ${childStepId}`)
+
+  // Get the flow entry for the step that has just completed
+  const childFlow = tx.vog_getFlowRecord(flowIndex)
+  console.log(`childFlow=`.red, childFlow)
+  const childStepId = childFlow.stepId
   const childStep = tx.stepData(childStepId)
   assert(childStep)
+
+  // const childStepId = callbackContext.childStepId
+  if (ROUTERSTEP_VERBOSE) console.log(`FINISHED child ${childStepId}`)
+  // const childStep = tx.stepData(childStepId)
+  // assert(childStep)
   // console.log(`childStep=`, childStep)
   const childStepFullSequence = childStep.fullSequence
   // console.log(`childStepFullSequence=`, childStepFullSequence)
 
 
-  const parentStepId = callbackContext.parentStepId
+  // Get the flow entry for the pipeline that called this step
+  const parentFlowIndex = tx.vog_getParentFlowIndex(flowIndex)
+  // console.log(`parentFlowIndex=`.red, parentFlowIndex)
+  const parentFlow = tx.vog_getFlowRecord(parentFlowIndex)
+  console.log(`parentFlow=`.red, parentFlow)
+
+  const parentStepId = parentFlow.stepId
   if (ROUTERSTEP_VERBOSE) console.log(`WHICH MEANS FINISHED parent ${parentStepId}`)
   const parentStep = tx.stepData(parentStepId)
   assert(parentStep)
   const parentStepFullSequence = parentStep.fullSequence
   // console.log(`parentStepFullSequence=`, parentStepFullSequence)
+
+  // Prefix to make debug messages nice
   const indent = indentPrefix(parentStep.level)
-  if (ROUTERSTEP_VERBOSE) console.log(indent + `==> Callback childPipelineCompletionCallback() context=`, callbackContext, nodeInfo)
+  // if (ROUTERSTEP_VERBOSE) console.log(indent + `==> Callback childPipelineCompletionCallback() context=`, callbackContext, nodeInfo)
 
   // Tell the transaction we're back from the child pipeline, back to the RouterStep.
-  await tx.delta(null, {
-    currentStepId: callbackContext.parentStepId
-  }, 'childPipelineCompletionCallback()')
+  // await tx.delta(null, {
+  //   currentStepId: callbackContext.parentStepId
+  // }, 'childPipelineCompletionCallback()')
 
 
-  const childStatus = childStep.status
+  const childStatus = childFlow.completionStatus
   assert(childStatus !== STEP_FAILED) // Should not happen. Pipelines either succeed, rollback to success, or abort.
 
-  if (ROUTERSTEP_VERBOSE) {
-    dbLogbook.bulkLogging(txId, parentStepId, [{
-      level: dbLogbook.LOG_LEVEL_TRACE,
-      source: dbLogbook.LOG_SOURCE_SYSTEM,
-      message: `Child pipeline completed with status ${childStatus}`,
-      sequence: childStepFullSequence,
-      ts: Date.now()
-    }])
-  }
+  // if (ROUTERSTEP_VERBOSE) {
+  //   dbLogbook.bulkLogging(txId, parentStepId, [{
+  //     level: dbLogbook.LOG_LEVEL_TRACE,
+  //     source: dbLogbook.LOG_SOURCE_SYSTEM,
+  //     message: `Child pipeline completed with status ${childStatus}`,
+  //     sequence: childStepFullSequence,
+  //     ts: Date.now()
+  //   }])
+  // }
 
   /*
    *  We've finished this pipeline - return the final respone
@@ -75,27 +95,37 @@ export async function childPipelineCompletionCallback (tx, callbackContext, node
     status: childStep.status
   }, 'childPipelineCompletionCallback()')
 
-  if (ROUTERSTEP_VERBOSE) {
-    dbLogbook.bulkLogging(txId, parentStepId, [{
-      level: dbLogbook.LOG_LEVEL_TRACE,
-      source: dbLogbook.LOG_SOURCE_SYSTEM,
-      message: `RouterStep completing with status ${childStep.status}`,
-      sequence: parentStepFullSequence,
-      ts: Date.now()
-    }])
-  }
+  parentFlow.note = childFlow.note
+  parentFlow.completionStatus = childFlow.completionStatus
+  parentFlow.output = childFlow.output
+
+  console.log(`AFTER SETTING THE RESULT, parentFlow=`, parentFlow)
+
+
+  // if (ROUTERSTEP_VERBOSE) {
+  //   dbLogbook.bulkLogging(txId, parentStepId, [{
+  //     level: dbLogbook.LOG_LEVEL_TRACE,
+  //     source: dbLogbook.LOG_SOURCE_SYSTEM,
+  //     message: `RouterStep completing with status ${childStep.status}`,
+  //     sequence: parentStepFullSequence,
+  //     ts: Date.now()
+  //   }])
+  // }
 
   // Send the event back to whoever started this step
-  const parentNodeGroup = parentStep.onComplete.nodeGroup
-  const parentNodeId = parentStep.onComplete.nodeId ? parentStep.onComplete.nodeId : null
+  const parentNodeGroup = parentFlow.onComplete.nodeGroup
+  console.log(`parentNodeGroup=`.red, parentNodeGroup)
 
   const workerForShortcut = worker
-  const rv = await schedulerForThisNode.schedule_StepCompleted(tx, parentNodeGroup, parentNodeId, {
+  const event = {
+    eventType: Scheduler2.STEP_COMPLETED_EVENT,
     txId,
     // parentStepId: '-',
-    stepId: parentStepId,
-    completionToken: parentStep.onComplete.completionToken
-  }, workerForShortcut)
+    // stepId: parentStepId,
+    // completionToken: parentStep.onComplete.completionToken
+    flowIndex: parentFlowIndex,
+  }
+  const rv = await schedulerForThisNode.schedule_StepCompleted(tx, parentNodeGroup, event, workerForShortcut)
   assert(rv === GO_BACK_AND_RELEASE_WORKER)
   return GO_BACK_AND_RELEASE_WORKER
 }//- childPipelineCompletionCallback

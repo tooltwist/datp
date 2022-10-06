@@ -14,7 +14,7 @@ import { PIPELINE_STEP_COMPLETE_CALLBACK } from '../Scheduler2/pipelineStepCompl
 import { schedulerForThisNode } from '../..'
 import { GO_BACK_AND_RELEASE_WORKER } from '../Scheduler2/Worker2'
 
-export const PIPELINES_VERBOSE = 0
+export const PIPELINES_VERBOSE = 2
 
 class Pipeline extends Step {
   #stepIndex
@@ -36,7 +36,10 @@ class Pipeline extends Step {
 
   async invoke(pipelineInstance) {
     assert(pipelineInstance instanceof StepInstance)
-    if (PIPELINES_VERBOSE) pipelineInstance.trace(`>>>>    Pipeline.invoke (${pipelineInstance.getStepId()})  `.black.bgGreen.bold)
+    // if (PIPELINES_VERBOSE)
+    pipelineInstance.trace(`>>>>    Pipeline.invoke (${pipelineInstance.getStepId()})  `.black.bgGreen.bold)
+    console.log(`pipelineInstance.vog_getFlowIndex()=`.magenta, pipelineInstance.vog_getFlowIndex())
+
 
     // console.log(new Error(`IN PipelineStep.invoke()`).stack)
 
@@ -59,8 +62,44 @@ class Pipeline extends Step {
     const pipelineStepId = pipelineInstance.getStepId()
     const childStepIds = [ ]
     for (let i = 0; i < this.#steps.length; i++) {
-      const childStepId = GenerateHash('s')
+      // await tx.delta(childStepId, {
+      //   vogP: pipelineStepId,
+      //   vogI: i,
+      // }, 'pipelineStep.invoke()')
+
+      const childStepId = await tx.addChildStep(pipelineStepId, i)
       childStepIds[i] = childStepId
+      await tx.delta(childStepId, { vogIsPipelineChild: true }, 'pipelineStep.invoke()')/// Temporary - remove this
+      await tx.delta(childStepId, { vogAddedBy: 'PipelineStep.invoke()' }, 'pipelineStep.invoke()')/// Temporary - remove this
+      // await tx.setChildIndex(childStepId, i)
+      // await tx.setChildParent(childStepId, pipelineStepId)
+      // await tx.delta(childStepId, { vogIsPipelineChild: true }, 'pipelineStep.invoke()')/// Temporary - remove this
+
+      // const stepType = this.#steps[0].definition
+      // const stepType = 'yarpvog'
+      // console.log(`stepType=`, stepType)
+
+      // const childFullSequence = `${pipelineInstance.getFullSequence()}.1` // Start sequence at 1
+      // const childVogPath = `${pipelineInstance.getVogPath()},1=P.${stepType}` // Start sequence at 1
+
+      
+      // fullSequence: childFullSequence,
+      // vogPath: childVogPath,
+
+      // metadata: metadata,
+      // data: stepInput,
+      // level: pipelineInstance.getLevel() + 1,
+      // onComplete: {
+      //   nodeGroup: myNodeGroup,
+      //   nodeId: myNodeId,
+      //   callback: PIPELINE_STEP_COMPLETE_CALLBACK,
+      //   context: { txId, parentNodeGroup, parentStepId, childStepId }
+      // }
+
+
+
+      console.log(`Piplinestep: Added Step ${i}=`, tx.stepData(childStepId))
+
     }
     await tx.delta(pipelineStepId, {
       pipelineSteps: this.#steps,
@@ -87,34 +126,59 @@ class Pipeline extends Step {
     const childNodeGroup = myNodeGroup // Step runs in same node as it's pipeline
 
     const childFullSequence = `${pipelineInstance.getFullSequence()}.1` // Start sequence at 1
+    const childVogPath = `${pipelineInstance.getVogPath()},1=P.${childStepDefinition.stepType}` // Start sequence at 1
 
     if (PIPELINES_VERBOSE)  pipelineInstance.trace(`Step #1 - begin`)
     pipelineInstance.syncLogs()
+
+
 
     // The child will run in this node - same as this pipeline.
     // We keep the steps in a pipeline all running on the same node, so they all use
     // the same cached transaction state. We only jump to another node when we are
     // calling a pipline that runs on another node.
     const workerForShortcut = pipelineInstance.getWorker()
-    const rv = await schedulerForThisNode.schedule_StepStart(tx, myNodeGroup, myNodeId, workerForShortcut, {
-      txId,
+    //VOGGY
+    console.log(`-----------------------------`)
+    console.log(`VOGGY B - PipelineStep.invoke`)
+    console.log(`-----------------------------`)
+
+    //ZZZZZ Stuff to delete
+    await tx.delta(childStepId, {
+      stepDefinition: childStepDefinition,
+    })
+
+    const event = {
+      eventType: Scheduler2.STEP_START_EVENT,
+      // Need either a pipeline or a nodeGroup
       nodeGroup: childNodeGroup,
+      txId,
       // nodeId: childNodeGroup,
       stepId: childStepId,
+      parentNodeGroup,
       // parentNodeId,
       parentStepId,
       fullSequence: childFullSequence,
+      vogPath: childVogPath,
       stepDefinition: childStepDefinition,
       metadata: metadata,
       data: stepInput,
       level: pipelineInstance.getLevel() + 1,
-      onComplete: {
-        nodeGroup: myNodeGroup,
-        nodeId: myNodeId,
-        callback: PIPELINE_STEP_COMPLETE_CALLBACK,
-        context: { txId, parentNodeGroup, parentStepId, childStepId }
-      }
-    })
+      // parentFlowIndex: pipelineInstance.vog_getFlowIndex(),
+    }
+    const onComplete = {
+      nodeGroup: myNodeGroup,
+      // nodeId: myNodeId,
+      callback: PIPELINE_STEP_COMPLETE_CALLBACK,
+      context: { txId, parentNodeGroup, parentStepId, childStepId }
+    }
+
+    const parentFlowIndex = pipelineInstance.vog_getFlowIndex()
+    const parentFlow = tx.vog_getFlowRecord(parentFlowIndex)
+    parentFlow.vogYarpYarp = 0
+    const rv = await schedulerForThisNode.schedule_StepStart(tx,
+      // myNodeGroup, myNodeId,
+      workerForShortcut, event, childStepId, onComplete, parentFlowIndex)
     assert(rv === GO_BACK_AND_RELEASE_WORKER)
 
     //ZZZZ Handling of sync steps???
@@ -123,6 +187,8 @@ class Pipeline extends Step {
 
 
     // We need to tell the instance that we are returning without calling succeeded(), failed(), etc.
+    // After this step completes, PIPELINE_STEP_COMPLETE_CALLBACK will be called, and it
+    // will wither start aother step, or call one of the completion functions.
     pipelineInstance.stepWillNotCallCompletionFunction()
     return GO_BACK_AND_RELEASE_WORKER
 

@@ -7,36 +7,42 @@
 import assert from 'assert'
 import XData from '../XData'
 
-export function validateEvent_StepStart(data) {
-  assert (typeof(data.txId) === 'string')
-  assert (typeof(data.stepId) === 'string')
+// export function validateEvent_StepStart(event) {
+//   assert (typeof(event.txId) === 'string')
+//   assert (typeof(event.stepId) === 'string')
 
-  assert (typeof(data.fullSequence) === 'string')
-  assert (typeof(data.stepDefinition) !== 'undefined')
-  assert (typeof(data.data) === 'object')
-  assert ( !(data.data instanceof XData))
-  assert (typeof(data.metadata) === 'object')
-  assert (typeof(data.level) === 'number')
+//   assert (typeof(event.fullSequence) === 'string')
+//   assert (typeof(event.vogPath) === 'string')
+//   assert (typeof(event.stepDefinition) !== 'undefined')
+//   assert (typeof(event.data) === 'object')
+//   assert ( !(event.data instanceof XData))
+//   assert (typeof(event.metadata) === 'object')
+//   assert (typeof(event.level) === 'number')
 
-  // How to reply when complete
-  assert (typeof(data.onComplete) === 'object')
-  assert (typeof(data.onComplete.nodeGroup) === 'string')
-  assert (typeof(data.onComplete.nodeId) === 'string')
-  assert (typeof(data.onComplete.callback) === 'string')
-  assert (typeof(data.onComplete.context) === 'object')
-}
+//   // How to reply when complete
+//   assert (typeof(event.onComplete) === 'object')
+//   assert (typeof(event.onComplete.nodeGroup) === 'string')
+//   assert (typeof(event.onComplete.callback) === 'string')
+//   assert (typeof(event.onComplete.context) === 'object')
+// }
 
-export function validateEvent_StepCompleted(event) {
-  assert(typeof(event) == 'object')
-  assert (typeof(event.txId) === 'string')
-  // assert (typeof(event.parentStepId) === 'string')
-  assert (typeof(event.stepId) === 'string')
-  assert (typeof(event.completionToken) === 'string')
+// export function validateEvent_StepCompleted(event) {
+//   assert(typeof(event) == 'object')
+//   assert (typeof(event.txId) === 'string')
+//   // assert (typeof(event.parentStepId) === 'string')
+//   assert (typeof(event.stepId) === 'string')
+//   // assert (typeof(event.completionToken) === 'string')
 
-  // DO NOT try to reply stuff
-  assert (typeof(event.status) === 'undefined')
-  assert (typeof(event.stepOutput) === 'undefined')
-}
+//   // DO NOT try to reply stuff
+//   assert (typeof(event.status) === 'undefined')
+//   assert (typeof(event.stepOutput) === 'undefined')
+
+//   // How to reply when complete
+//   assert (typeof(event.onComplete) === 'object')
+//   assert (typeof(event.onComplete.nodeGroup) === 'string')
+//   assert (typeof(event.onComplete.callback) === 'string')
+//   assert (typeof(event.onComplete.context) === 'object')
+// }
 
 export function validateEvent_TransactionCompleted(event) {
   assert(typeof(event) == 'object')

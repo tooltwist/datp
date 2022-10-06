@@ -69,7 +69,9 @@ export default class ConsoleLogbook extends LogbookHandler {
         message = JSON.stringify(message, '', 0)
       }
 
-      const sequence = entry.fullSequence ? entry.fullSequence : txId.substring(3, 9)
+      // const sequence = entry.fullSequence ? entry.fullSequence : txId.substring(3, 9)
+      //ZZZZ VOG Use vogPath
+      // const sequence = entry.vogPath ? entry.vogPath : txId.substring(3, 9)
       console.log(`${txId}|${stepId}|${level}|${source}|${sequence}|${message}`)
     }// for
   }

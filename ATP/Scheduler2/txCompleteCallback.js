@@ -9,12 +9,65 @@ import { PIPELINES_VERBOSE } from "../hardcoded-steps/PipelineStep"
 import Scheduler2 from "./Scheduler2"
 import { GO_BACK_AND_RELEASE_WORKER } from "./Worker2"
 import assert from "assert"
+import { RedisQueue } from "./queuing/RedisQueue-ioredis"
 
 
-export const ROOT_STEP_COMPLETE_CALLBACK = `rootStepComplete`
+export const TX_COMPLETE_CALLBACK = `txComplete`
 
-export async function rootStepCompleteCallback (tx, callbackContext, nodeInfo, worker) {
-  if (PIPELINES_VERBOSE) console.log(`==> Callback rootStepCompleteCallback()`, callbackContext, nodeInfo)
+export async function txCompleteCallback (tx, flowIndex, nodeInfo, worker) {
+  // if (PIPELINES_VERBOSE)
+  console.log(`==> Callback txCompleteCallback(flowIndex=${flowIndex})`.magenta, nodeInfo)
+
+  console.log(`tx=`, JSON.stringify(tx.asObject(), '', 2))
+  const flow = tx.vog_getFlowRecord(flowIndex)
+  console.log(`flow=`, flow)
+  const rootStep = tx.stepData(flow.stepId)
+  console.log(`rootStep=`, rootStep)
+
+  
+  // Save this output and status as the transaction's result
+  await tx.delta(null, {
+    status: flow.completionStatus,
+    note: flow.note,
+    transactionOutput: flow.output,
+    "-progressReport": null,
+    completionTime: new Date()
+  }, 'txCompleteCallback()')
+  
+
+  console.log(`
+
+  
+
+  FROM HERE WE NEED TO EITHER SCHEDULE REPLY VIA...
+  
+  - WEBHOOK IF REQUESTED, and
+  
+  - POSSIBLY LONG POLL, VIA PUB/SUB
+  
+  Once these are requested, we've finished processing the transaction.
+  
+  Yay!
+  
+  
+
+  (finished ${Date.now() % 10000})
+  
+  `.magenta)
+
+
+
+  //VOGTX
+  // console.log(`returnTxStatusCallbackZZZ tx=`, JSON.stringify(tx.asObject(), '', 2))
+  const redisLua = await RedisQueue.getRedisLua()
+  await redisLua.transactionCompleted(tx.getTxId(), tx.getStatus())
+
+
+
+
+  return GO_BACK_AND_RELEASE_WORKER
+
+  assert(typeof(flowIndex)==='number')
 
   // Get the details of the root step
   const txData = tx.txData()
@@ -57,6 +110,8 @@ export async function rootStepCompleteCallback (tx, callbackContext, nodeInfo, w
 
   // const queueName = Scheduler2.nodeRegularQueueName(txData.nodeGroup, txData.nodeId)
   // const queueName = Scheduler2.groupQueueName(txData.nodeGroup)
+
+  console.log(`FINAL tx.vog_getFlow()=`, tx.vog_getFlow())
 
   const rv = await schedulerForThisNode.schedule_TransactionCompleted(tx, txInitNodeGroup, txInitNodeId, worker, {
     txId: callbackContext.txId,

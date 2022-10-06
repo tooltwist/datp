@@ -7,8 +7,9 @@
 
 import { pipelineStepCompleteCallback, PIPELINE_STEP_COMPLETE_CALLBACK } from "./pipelineStepCompleteCallback"
 import { childPipelineCompletionCallback, CHILD_PIPELINE_COMPLETION_CALLBACK } from "./ChildPipelineCompletionCallback"
-import { rootStepCompleteCallback, ROOT_STEP_COMPLETE_CALLBACK } from "./rootStepCompleteCallback"
-import { returnTxStatusCallback, RETURN_TX_STATUS_CALLBACK } from "./returnTxStatusCallback"
+import { txCompleteCallback, TX_COMPLETE_CALLBACK } from "./txCompleteCallback"
+// import { rootStepCompleteCallbackZZZ, ROOT_STEP_COMPLETE_CALLBACK_ZZZ } from "./rootStepCompleteCallbackZZZ"
+// import { returnTxStatusCallbackZZZ, RETURN_TX_STATUS_CALLBACK_ZZZ } from "./returnTxStatusCallbackZZZ"
 import assert from "assert"
 import { GO_BACK_AND_RELEASE_WORKER } from "./Worker2"
 
@@ -30,10 +31,12 @@ export default class CallbackRegister {
       CallbackRegister._index = [ ]
 
       // Add a few built-in callbacks
-      CallbackRegister._index[ROOT_STEP_COMPLETE_CALLBACK] = rootStepCompleteCallback
       CallbackRegister._index[PIPELINE_STEP_COMPLETE_CALLBACK] = pipelineStepCompleteCallback
       CallbackRegister._index[CHILD_PIPELINE_COMPLETION_CALLBACK] = childPipelineCompletionCallback
-      CallbackRegister._index[RETURN_TX_STATUS_CALLBACK] = returnTxStatusCallback
+      CallbackRegister._index[TX_COMPLETE_CALLBACK] = txCompleteCallback
+
+      // CallbackRegister._index[ROOT_STEP_COMPLETE_CALLBACK_ZZZ] = rootStepCompleteCallbackZZZ
+      // CallbackRegister._index[RETURN_TX_STATUS_CALLBACK_ZZZ] = returnTxStatusCallbackZZZ
     }
   }
 
@@ -50,9 +53,12 @@ export default class CallbackRegister {
     CallbackRegister._index[name] = func
   }
 
-  static async call(tx, name, context, nodeInfo, worker) {
-    if (VERBOSE) { console.log(`% CallbackRegister.call(${name})`, context, nodeInfo)}
+  static async call(tx, name, flowIndex, nodeInfo, worker) {
+    // if (VERBOSE)
+    console.log(`% CallbackRegister.call(${name})`, flowIndex, nodeInfo)
     this._checkInitialized()
+
+    assert(typeof(flowIndex) === 'number')
 
     const func = CallbackRegister._index[name]
     if (!func) {
@@ -62,7 +68,7 @@ export default class CallbackRegister {
       }
       throw new Error(`Unknown callback [${name}]`)
     }
-    const rv = await func(tx, context, nodeInfo, worker)
+    const rv = await func(tx, flowIndex, nodeInfo, worker)
     // console.log(`name=`, name)
     assert(rv === GO_BACK_AND_RELEASE_WORKER)
     return GO_BACK_AND_RELEASE_WORKER

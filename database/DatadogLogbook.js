@@ -202,6 +202,7 @@ export default class DatadogLogbook extends LogbookHandler {
           source = dbLogbook.LOG_SOURCE_UNKNOWN
       }
       const sequence = entry.fullSequence ? entry.fullSequence : txId.substring(3, 9)
+      //ZZZZ VOG Use vogPath?
 
       // Use JSON as the message if necessary
       let message

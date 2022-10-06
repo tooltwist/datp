@@ -16,10 +16,11 @@ import { GO_BACK_AND_RELEASE_WORKER } from './Worker2'
 import { convertReply } from './ReplyConverter'
 import LongPoll from './LongPoll'
 import dbupdate from '../../database/dbupdate'
+import { RedisQueue } from './queuing/RedisQueue-ioredis'
 
 require('colors')
 
-const VERBOSE = 0
+const VERBOSE = 1
 
 const MIN_WEBHOOK_RETRY = 10
 const RETRY_EXPONENT = 1.4
@@ -30,7 +31,7 @@ export const WEBHOOK_EVENT_TXSTATUS = 'txstatus'
 export const WEBHOOK_EVENT_PROGRESS = 'progressReport'
 
 
-export const RETURN_TX_STATUS_CALLBACK = `returnTxStatus`
+export const RETURN_TX_STATUS_CALLBACK_ZZZ = `returnTxStatus`
 
 /**
  * This callback handles sending a reply to the invoker of a transaction.
@@ -48,28 +49,38 @@ export const RETURN_TX_STATUS_CALLBACK = `returnTxStatus`
  * @param {Worker2} worker Ignored
  * @returns GO_BACK_AND_RELEASE_WORKER
  */
-export async function returnTxStatusCallback (tx, callbackContext, data, worker) {
-  if (VERBOSE) console.log(`==> returnTxStatusCallback()`.magenta, callbackContext, data)
+export async function returnTxStatusCallbackZZZ (tx, flowIndex, data, worker) {
+  if (VERBOSE) console.log(`==> returnTxStatusCallbackZZZ(flowIndex=${flowIndex})`.magenta, data)
 
   // if (VERBOSE) {
   //   console.log(`--------------------------------------------------------`)
-  //   console.log(`returnTxStatusCallback()`)
+  //   console.log(`returnTxStatusCallbackZZZ()`)
   //   console.log(`callbackContext=`, callbackContext)
   //   console.log(`data=`, data)
   // }
   
   // assert(callbackContext.webhook)
+  assert(typeof(flowIndex)==='number')
   assert(data.owner)
   assert(data.txId)
+
+  //YARPLUA
+  // Complete this transaction
+
+  //VOGTX
+  // console.log(`returnTxStatusCallbackZZZ tx=`, JSON.stringify(tx.asObject(), '', 2))
+  const redisLua = await RedisQueue.getRedisLua()
+  await redisLua.transactionCompleted(data.txId, tx.getStatus())
+
 
   // First, see if a long poll is waiting for this transaction.
   const { sent: replyViaLongpoll, cancelWebhook }  = await LongPoll.tryToReply(data.txId)
   // console.log(`replyViaLongpoll=`, replyViaLongpoll)
   // console.log(`cancelWebhook=`, cancelWebhook)
   if (replyViaLongpoll) {
-    if (VERBOSE) console.log(`==> returnTxStatusCallback() - REPLIED BY LONGPOLL`.magenta)
+    if (VERBOSE) console.log(`==> returnTxStatusCallbackZZZ() - REPLIED BY LONGPOLL`.magenta)
   } else {
-    if (VERBOSE) console.log(`==> returnTxStatusCallback() - DID NOT REPLY BY LONGPOLL`.magenta)
+    if (VERBOSE) console.log(`==> returnTxStatusCallbackZZZ() - DID NOT REPLY BY LONGPOLL`.magenta)
   }
 
   // The status has been sent back via a longpoll that was waiting.
@@ -78,15 +89,15 @@ export async function returnTxStatusCallback (tx, callbackContext, data, worker)
   let replyViaWebhook = false
   if (callbackContext.webhook) {
     if (cancelWebhook) {
-      if (VERBOSE) console.log(`==> returnTxStatusCallback() - WEBHOOK NOT REQUIRED`.magenta)
+      if (VERBOSE) console.log(`==> returnTxStatusCallbackZZZ() - WEBHOOK NOT REQUIRED`.magenta)
     } else {
-      if (VERBOSE) console.log(`==> returnTxStatusCallback() - REPLIED BY WEBHOOK`.magenta)
+      if (VERBOSE) console.log(`==> returnTxStatusCallbackZZZ() - REPLIED BY WEBHOOK`.magenta)
       await sendStatusByWebhook(data.owner, data.txId, callbackContext.webhook, WEBHOOK_EVENT_TXSTATUS)
       replyViaWebhook = true
     }
   }
   if (!replyViaLongpoll && !replyViaWebhook) {
-    if (VERBOSE) console.log(`==> returnTxStatusCallback() - NOT REPLYING BY WEBHOOK OR LONGPOLL`.magenta)
+    if (VERBOSE) console.log(`==> returnTxStatusCallbackZZZ() - NOT REPLYING BY WEBHOOK OR LONGPOLL`.magenta)
   }
   return GO_BACK_AND_RELEASE_WORKER
 }

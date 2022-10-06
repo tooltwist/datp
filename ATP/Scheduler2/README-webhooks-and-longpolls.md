@@ -18,7 +18,7 @@ result, provided the transaction completes within the configured timeout.
 If progress reports is also true, the webhook will also be called whenever the _progress report_  value for the transaction changes.
 
 ## Completed Transactions
-Transaction completion, whether success or failure, is reported via the completion handler for the transaction pipeline. The name is `RETURN_TX_STATUS_CALLBACK` and it is handled in `returnTxStatusCallback.js`. The completion handler runs on the same node as the transaction pipeline.
+Transaction completion, whether success or failure, is reported via the completion handler for the transaction pipeline. The name is `RETURN_TX_STATUS_CALLBACK_ZZZ` and it is handled in `returnTxStatusCallbackZZZ.js`. The completion handler runs on the same node as the transaction pipeline.
 
 First it tries to send the ttransaction status to the API client via long poll,
 and will succeed if there is currently an API long polling to get the transaction
