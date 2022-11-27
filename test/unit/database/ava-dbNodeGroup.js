@@ -19,7 +19,7 @@ test.serial('Get node groups', async t => {
   t.is(typeof(first.description), 'string')
   t.is(typeof(first.hostMondat), 'number')
   t.is(typeof(first.serveMondatWebapp), 'number')
-  t.is(typeof(first.numWorkers), 'number')
+  t.is(typeof(first.eventloopWorkers), 'number')
   t.is(typeof(first.eventloopPauseBusy), 'number')
   t.is(typeof(first.eventloopPauseIdle), 'number')
   t.is(typeof(first.eventloopPause), 'number')
@@ -44,7 +44,7 @@ test.serial('Get master node group', async t => {
   t.is(typeof(group.description), 'string')
   t.is(typeof(group.hostMondat), 'number')
   t.is(typeof(group.serveMondatWebapp), 'number')
-  t.is(typeof(group.numWorkers), 'number')
+  t.is(typeof(group.eventloopWorkers), 'number')
   t.is(typeof(group.eventloopPauseBusy), 'number')
   t.is(typeof(group.eventloopPauseIdle), 'number')
   t.is(typeof(group.eventloopPause), 'number')
@@ -76,7 +76,7 @@ test.serial('Insert/update/delete node group', async t => {
     description: DESCRIPTION_1,
     hostMondat: DEFAULT_1,
     serveMondatWebapp: DEFAULT_1,
-    numWorkers: DEFAULT_1,
+    eventloopWorkers: DEFAULT_1,
     eventloopPauseBusy: DEFAULT_1,
     eventloopPauseIdle: DEFAULT_1,
     eventloopPause: DEFAULT_1,
@@ -99,7 +99,7 @@ test.serial('Insert/update/delete node group', async t => {
   let group = await getNodeGroup(nodeGroup)
   t.is(group.hostMondat, DEFAULT_1)
   t.is(group.serveMondatWebapp, DEFAULT_1)
-  t.is(group.numWorkers, DEFAULT_1)
+  t.is(group.eventloopWorkers, DEFAULT_1)
   t.is(group.eventloopPauseBusy, DEFAULT_1)
   t.is(group.eventloopPauseIdle, DEFAULT_1)
   t.is(group.eventloopPause, DEFAULT_1)
@@ -122,7 +122,7 @@ test.serial('Insert/update/delete node group', async t => {
     description: DESCRIPTION_2,
     hostMondat: DEFAULT_2,
     serveMondatWebapp: DEFAULT_2,
-    numWorkers: DEFAULT_2,
+    eventloopWorkers: DEFAULT_2,
     eventloopPauseBusy: DEFAULT_2,
     eventloopPauseIdle: DEFAULT_2,
     eventloopPause: DEFAULT_2,
@@ -145,7 +145,7 @@ test.serial('Insert/update/delete node group', async t => {
   group = await getNodeGroup(nodeGroup)
   t.is(group.hostMondat, DEFAULT_2)
   t.is(group.serveMondatWebapp, DEFAULT_2)
-  t.is(group.numWorkers, DEFAULT_2)
+  t.is(group.eventloopWorkers, DEFAULT_2)
   t.is(group.eventloopPauseBusy, DEFAULT_2)
   t.is(group.eventloopPauseIdle, DEFAULT_2)
   t.is(group.eventloopPause, DEFAULT_2)

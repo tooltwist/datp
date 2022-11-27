@@ -5,7 +5,7 @@
  * the author or owner be liable for any claim or damages.
  */
 import test from 'ava'
-import Transaction from '../../../ATP/Scheduler2/Transaction'
+import TransactionState from '../../../ATP/Scheduler2/TransactionState'
 import createTestTransaction from '../helpers/createTestTransaction'
 
 // https://github.com/avajs/ava/blob/master/docs/01-writing-tests.md
@@ -19,7 +19,7 @@ test.before(async t => {
  *  Check the code is valid
  */
 test.serial('Exists and has unit tests', async t => {
-  t.truthy(Transaction)
+  t.truthy(TransactionState)
 });
 
 
@@ -48,7 +48,7 @@ test.serial('stream - empty', async t => {
 
 
 test.serial('stream - simple tx values', async t => {
-  // const tx = new Transaction(t.context.txId)
+  // const tx = new TransactionState(t.context.txId)
   const { tx, txId } = await createTestTransaction()
   await tx.delta(null, {
     a: 'aaa',
