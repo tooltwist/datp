@@ -52,7 +52,8 @@ export async function myPipelines() {
 }
 
 export async function getPipelineVersionInUse(name) {
-  if (VERBOSE) console.log(`dbPipelines.getPipelineVersionInUse(name=${name})`)
+  // if (VERBOSE)
+  console.trace(`dbPipelines.getPipelineVersionInUse(name=${name})`)
 
   // This should be cached
   let rec = pipelineCache[name]

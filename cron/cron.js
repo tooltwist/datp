@@ -7,32 +7,23 @@
 import { schedulerForThisNode } from ".."
 import { STEP_SLEEPING } from "../ATP/Step"
 import query from "../database/query"
-import juice from "@tooltwist/juice-client"
 import TransactionCache from '../ATP/Scheduler2/txState-level-1'
-import { tryTheWebhook } from "../ATP/Scheduler2/returnTxStatusCallbackZZZ"
 import dbupdate from "../database/dbupdate"
-import { isDevelopmentMode } from "../datp-constants"
 
 export const CRON_INTERVAL = 15 // seconds
-const VERBOSE = 0
-const PERSIST_VERBOSE = 0
-
+const VERBOSE = 1
 
 export default class DatpCron {
 
   #running
-  #persistInterval
-  #lastPersisted
-  #initialPersistMessageDisplayed
 
   constructor() {
     this.#running = false
-    this.#persistInterval = -1
-    this.#lastPersisted = 0
-    this.#initialPersistMessageDisplayed = 0
   }
 
   async start() {
+
+    //
     const eachLoop = async () => {
       if (schedulerForThisNode.shuttingDown()) {
         console.log(`Skipping cron jobs - currently shutting down.`)
@@ -41,14 +32,12 @@ export default class DatpCron {
         // Start them in parallel
         const p1 = schedulerForThisNode.keepAlive()
         const p2 = this.moveScheduledEventsToEventQueue()
-        const p3 = this.retryWebhooks()
-        const p4 = this.persistTransactionStates()
+        // const p3 = this.retryWebhooks()
 
         // Wait till they all finish
         await p1
         await p2
-        await p3
-        await p4
+        // await p3
         this.#running = false
       }
 
@@ -154,70 +143,106 @@ export default class DatpCron {
     }//- next tx
   }
 
-  async retryWebhooks() {
-    if (VERBOSE) console.log(`Cron checking webhooks`)
-    // Find the webhooks ready to be tried again
-    const sql = `
-      SELECT transaction_id, owner, url, event_type, initial_attempt, retry_count, NOW() as now
-      FROM atp_webhook
-      WHERE status = 'outstanding' AND next_attempt < NOW()`
-    const rows = await query(sql)
+  // async retryWebhooks() {
+  //   if (VERBOSE) console.log(`Cron checking webhooks`)
+  //   // Find the webhooks ready to be tried again
+  //   const sql = `
+  //     SELECT transaction_id, owner, url, event_type, initial_attempt, retry_count, NOW() as now
+  //     FROM atp_webhook
+  //     WHERE status = 'outstanding' AND next_attempt < NOW()`
+  //   const rows = await query(sql)
 
-    for (const row of rows) {
-      const owner = row.owner
-      const txId = row.transaction_id
-      const webhookUrl = row.url
-      const eventType = row.event_type
-      const eventTime = row.initial_attempt
-      const retryCount = row.retry_count
-      if (VERBOSE) console.log(`Cron retrying webhook for ${txId}`)
-      await tryTheWebhook(owner, txId, webhookUrl, eventType, eventTime, retryCount)
+  //   for (const row of rows) {
+  //     const owner = row.owner
+  //     const txId = row.transaction_id
+  //     const webhookUrl = row.url
+  //     const eventType = row.event_type
+  //     const eventTime = row.initial_attempt
+  //     const retryCount = row.retry_count
+  //     if (VERBOSE) console.log(`Cron retrying webhook for ${txId}`)
+  //     console.log(`SOOOOLOZZZ 1`)
+  //     await tryTheWebhook(owner, txId, webhookUrl, eventType, eventTime, retryCount)
+  //     console.log(`SOOOOLOZZZ 2`)
 
-      // If we are shutting down now, quit immediately.
-      if (schedulerForThisNode.shuttingDown()) {
-        return
-      }
-    }
-  }
+  //     // If we are shutting down now, quit immediately.
+  //     if (schedulerForThisNode.shuttingDown()) {
+  //       return
+  //     }
+  //   }
+  // }
 
-  async persistTransactionStates () {
+  // async persistTransactionStates (lua, batchSize) {
 
-    if (await isDevelopmentMode()) {
-      if (!this.#initialPersistMessageDisplayed++) {
-        console.log(``)
-        console.log(`DEVELOPMENT MODE: true`)
-        console.log(`Node ${schedulerForThisNode.getNodeId()} will persist transaction states to database as they occur.`)
-      }
-    } else {
+  //   // If we are still persisting the transactions, don't start again!
+  //   if (currentlyArchivingStates || batchSize < 1) {
+  //     return
+  //   }
 
-      // Check we have the config
-      if (this.#persistInterval < 0) {
-        const persistInterval = await juice.integer('datp.statePersistanceInterval', 0)
-        this.#persistInterval = (persistInterval < 0) ? 0 : (persistInterval * 1000) // Convert to seconds
-        if (this.#persistInterval > 0) {
-          if (!this.#initialPersistMessageDisplayed++) {
-            console.log(``)
-            console.log(`DEVELOPMENT MODE: false`)
-            console.log(`Node ${schedulerForThisNode.getNodeId()} will persist transaction states every ${this.#persistInterval/1000} seconds.`)
-          }
-        }
-      }
+  //   // Archive 'batchSize' transaction states.
+  //   currentlyArchivingStates = true
+  //   try {
 
-      // Perhaps persiting is not done by this node?
-      if (this.#persistInterval === 0) {
-        return
-      }
+  //     const nodeId = schedulerForThisNode.getNodeId()
+  //     let persisted = [ ]
+  //     let totalSaved = 0
+  //     for ( ; ; ) {
 
-      // If we haven't persisted for a while, do it now.
-      const now = Date.now()
-      if ((now - this.#lastPersisted) > this.#persistInterval) {
-        // Let's do the persistance
-        if (PERSIST_VERBOSE) console.log(`Persisting transaction states.`)
-        this.#lastPersisted = now
-        await schedulerForThisNode.persistTransactionStatesToLongTermStorage()
-      }
-    }
-  }
+  //       // How many left in the batch?
+  //       const remaining = batchSize - totalSaved
+  //       const num = Math.min(remaining, 100)
+  //       if (num < 1) {
+  //         break
+  //       }
+
+  //       // Notify previously saved transaction states, and get a new batch to persist.
+  //       // Note that the LUA script will designate just one node at a time as allowed
+  //       // to do the archiving. During that period of time all other nodes will be
+  //       // returned an empty list of transaction states when they ask.
+  //       const transactions = await lua.transactionsToArchive(persisted, nodeId, num)
+
+  //       // Archive each transaction's state
+  //       persisted = [ ]
+  //       let cntSaved = 0
+  //       for (const item of transactions) {
+
+  //         if (item[0] === 'transaction') {
+
+  //           // We have the transaction state to save
+  //           const txId = item[1]
+  //           const json = item[2]
+  //           const state = JSON.parse(json)
+  //           // console.log(`PERSIST ${txId}:`, JSON.stringify(state, '', 2))
+
+  //           try {
+  //             await archiveTransactionState(txId, json)
+  //             persisted.push(txId)
+  //             cntSaved++
+  //             totalSaved++
+  //           } catch (e) {
+  //             console.log(`Could not save state of transaction ${txId}`, e)
+  //           }
+  //         } else {
+
+  //           // This item is not a transaction state
+  //           console.log(`Error while getting transactions to archive.`)
+  //           console.log(`item=`, item)
+  //         }
+  //       }//- for
+
+  //       if (cntSaved < 1) {
+  //         break
+  //       }
+  //     }//- for
+
+  //     if (totalSaved > 0) {
+  //       console.log(`Archived ${totalSaved} transaction states`)
+  //     }
+
+  //   } catch (e) {
+  //     console.log(`Error while archiving transaction states`, e)
+  //   }
+  //   currentlyArchivingStates = false
+  // }
 
   isRunning() {
     return this.#running

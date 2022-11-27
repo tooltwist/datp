@@ -15,7 +15,8 @@ export const ROOT_STEP_COMPLETE_CALLBACK_ZZZ = `rootStepComplete`
 
 export async function rootStepCompleteCallbackZZZ (tx, flowIndex, nodeInfo, worker) {
   // if (PIPELINES_VERBOSE)
-  console.log(`==> Callback rootStepCompleteCallbackZZZ(flowIndex=${flowIndex})`, nodeInfo)
+  console.log(`Callback rootStepCompleteCallbackZZZ(flowIndex=${flowIndex})`.brightYellow)
+  assert(false)
 
   assert(typeof(flowIndex)==='number')
 
@@ -29,13 +30,16 @@ export async function rootStepCompleteCallbackZZZ (tx, flowIndex, nodeInfo, work
   const stepStatus = stepData.status
 
   // Save this output and status as the transaction's result
-  await tx.delta(null, {
-    status: stepStatus,
-    note: stepNote,
-    transactionOutput: stepOutput,
-    "-progressReport": null,
-    completionTime: new Date()
-  }, 'rootStepCompleteCallbackZZZ()')
+  // await tx.delta(null, {
+  //   status: stepStatus,
+  //   note: stepNote,
+  //   transactionOutput: stepOutput,
+  //   "-progressReport": null,
+  //   completionTime: new Date()
+  // }, 'rootStepCompleteCallbackZZZ()')
+
+  tx.vog_setToComplete(stepStatus, note, transactionOutput)
+
   
   // Pass control back to the Transaction.
   // This occurs as an event, because the transaction may have been initiated in a different node group.
@@ -63,7 +67,7 @@ export async function rootStepCompleteCallbackZZZ (tx, flowIndex, nodeInfo, work
 
   console.log(`FINAL tx.vog_getFlow()=`, tx.vog_getFlow())
 
-  const rv = await schedulerForThisNode.schedule_TransactionCompleted(tx, txInitNodeGroup, txInitNodeId, worker, {
+  const rv = await schedulerForThisNode.enqueue_TransactionCompleted(tx, txInitNodeGroup, txInitNodeId, worker, {
     txId: callbackContext.txId,
   })
   assert(rv === GO_BACK_AND_RELEASE_WORKER)

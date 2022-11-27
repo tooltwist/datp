@@ -7,15 +7,17 @@
 const { BarrageTester } = require('./datp-barrage')
 
 const URL = 'http://localhost:4000'
-const NUM_TRANSACTIONS = 1000
-const NUM_COLUMNS = 50
+// const NUM_TRANSACTIONS = 1000
+// const NUM_COLUMNS = 50
+const NUM_TRANSACTIONS = 10000
+const NUM_COLUMNS = 200
 
 
 const tester = new BarrageTester({ columns: NUM_COLUMNS })
 
 const autoCannonDefinition = {
   url: URL,
-  connections: 50,
+  connections: 100,
   amount: NUM_TRANSACTIONS,
   requests: [
 
@@ -31,9 +33,9 @@ const autoCannonDefinition = {
         context.externalId = tester.giveMeATest()
         req.body = JSON.stringify({
           metadata: {
-            // reply: 'longpoll',
+            reply: 'shortpoll',
             externalId: context.externalId,
-            webhook: 'http://localhost:3000/webhook',
+            webhook: 'http://localhost:3030/webhook',
             progressReports: false
           }
         })//- stringify

@@ -9,28 +9,29 @@ import TransactionIndexEntry from '../TransactionIndexEntry'
 import XData, { dataFromXDataOrObject } from '../XData'
 import CallbackRegister from './CallbackRegister'
 import { TX_COMPLETE_CALLBACK } from './txCompleteCallback'
-import TransactionCache, { PERSIST_TRANSACTION_STATE } from './txState-level-1'
+import TransactionCache from './txState-level-1'
 import Worker2, { GO_BACK_AND_RELEASE_WORKER } from './Worker2'
 import assert from 'assert'
 import { STEP_QUEUED, STEP_RUNNING, STEP_SUCCESS } from '../Step'
 import { schedulerForThisNode } from '../..'
 import StatsCollector from '../../lib/statsCollector'
-import { DuplicateExternalIdError } from './TransactionPersistance'
 import StepTypeRegister from '../StepTypeRegister'
 import { getNodeGroup } from '../../database/dbNodeGroup'
 import { appVersion, datpVersion, buildTime } from '../../build-version'
-import { validateEvent_TransactionChange, validateEvent_TransactionCompleted } from './eventValidation'
-import { SHORTCUT_STEP_START, SHORTCUT_STEP_COMPLETE, SHORTCUT_TX_COMPLETION, WORKER_CHECK_INTERVAL } from '../../datp-constants'
+import { validateEvent_TransactionChange, EVENT_DEFINITION_STEP_START_SCHEDULED, validateStandardObject, FLOW_DEFINITION, STEP_DEFINITION, DEFINITION_STEP_COMPLETE_EVENT } from './eventValidation'
+import { SHORTCUT_STEP_START, SHORTCUT_STEP_COMPLETE, WORKER_CHECK_INTERVAL } from '../../datp-constants'
 import { DUP_EXTERNAL_ID_DELAY, INCLUDE_STATE_IN_NODE_HOPPING_EVENTS } from '../../datp-constants'
 import { getPipelineVersionInUse } from '../../database/dbPipelines'
 import juice from '@tooltwist/juice-client'
-import Transaction from './Transaction'
+import TransactionState, { F2_PIPELINE, F2_TRANSACTION_CH } from './TransactionState'
 // import dbLogbook from '../../database/dbLogbook'
 import LongPoll from './LongPoll'
 import { MemoryEventQueue } from './MemoryEventQueue'
 import { RedisQueue } from './queuing/RedisQueue-ioredis'
 import me from '../../lib/me'
 import pause from '../../lib/pause'
+import { FLOW_PARANOID, FLOW_VERBOSE } from './queuing/redis-lua'
+import { flow2Msg, flowMsg } from './flowMsg'
 
 // Debug related
 const VERBOSE = 0
@@ -60,8 +61,8 @@ export default class Scheduler2 {
   #nodeExpressQueue
 
   // In-memory queues
-  #regularMemoryQueue
-  #expressMemoryQueue
+  #memoryQueue_incoming
+  #memoryQueue_outgoing
 
   // Worker threads
   #requiredWorkers // int
@@ -120,8 +121,9 @@ export default class Scheduler2 {
 
   // Event types
   static NULL_EVENT = 'no-op'
-  static TRANSACTION_COMPLETED_EVENT = 'tx-completed'
-  static TRANSACTION_CHANGE_EVENT = 'tx-changed'
+  // static TRANSACTION_COMPLETED_EVENT = 'tx-completed'
+  // static TRANSACTION_CHANGE_EVENT = 'tx-changed'
+  static PIPELINE_START_EVENT = 'pipeline-start'
   static STEP_START_EVENT = 'step-start'
   static STEP_COMPLETED_EVENT = 'step-end'
   static LONG_POLL = 'long-poll'
@@ -129,8 +131,8 @@ export default class Scheduler2 {
   // Queue prefixes
   static GROUP_QUEUE_PREFIX = 'group'
   static GROUP_EXPRESS_QUEUE_PREFIX = 'groupOut'
-  static REGULAR_QUEUE_PREFIX = 'node'
-  static EXPRESS_QUEUE_PREFIX = 'express'
+  static REGULAR_QUEUE_PREFIX = 'in'
+  static EXPRESS_QUEUE_PREFIX = 'out'
 
   constructor(groupName, queueName=null, options= { }) {
     if (VERBOSE) console.log(`Scheduler2.constructor(${groupName}, ${queueName})`)
@@ -148,8 +150,8 @@ export default class Scheduler2 {
     this.#nodeRegularQueue = Scheduler2.nodeRegularQueueName(groupName, this.#nodeId)
     this.#nodeExpressQueue = Scheduler2.nodeExpressQueueName(groupName, this.#nodeId)
 
-    this.#regularMemoryQueue = new MemoryEventQueue()
-    this.#expressMemoryQueue = new MemoryEventQueue()
+    this.#memoryQueue_incoming = new MemoryEventQueue()
+    this.#memoryQueue_outgoing = new MemoryEventQueue()
 
     // Allocate some StepWorkers
     this.#workers = [ ]
@@ -203,7 +205,7 @@ export default class Scheduler2 {
    *  This is the main entry point of the scheduler.
    */
   async start() {
-    if (VERBOSE) console.log(`Scheduler2.start(${this.#groupQueue})`)
+    if (FLOW_VERBOSE) console.log(`Scheduler2.start(${this.#groupQueue})`)
 
     if (this.#state === Scheduler2.RUNNING) {
       if (VERBOSE) console.log(`  - already running`)
@@ -278,48 +280,50 @@ export default class Scheduler2 {
 
       // Get events for these workers
       // We read from five queues, in the following priority:
-      //  1. Local memory queue - regular events
-      //  2. Local memory queue - express events
-      //  3. Express REDIS queue for node (replies)
-      //  4. Normal REDIS queue for node (steps)
-      //  5. REDIS Queue for group (incoming transactions)
+      //  1. REDIS Queue for admin (NOTYET)
+      //  2. Local memory queue - outgoing events
+      //  3. Local memory queue - incoming events
+      //  4. REDIS queue for node - outgoing (replies)
+      //  5. REDIS queue for node - incoming (steps)
 
       let eventsStarted = 0
       let countWorker = 0
       if (this.processingEventsFromMemoryQueues()) {
 
         // Read from the express local memory queue first
-        while (workersWaiting.length > 0 && this.#expressMemoryQueue.len() > 0) {
-          // for ( ; countWorker < numberOfAvailableWorkers && this.#expressMemoryQueue.len() > 0; countWorker++) {
-          if (Q_VERBOSE) console.log(` - got event from express memory queue`)
+        while (workersWaiting.length > 0 && this.#memoryQueue_outgoing.len() > 0) {
+
           // Process the event
+          const { txState, event } = this.#memoryQueue_outgoing.next()
+          if (Q_VERBOSE) console.log(`\n\nv-v-v-v-v-v-v-v-v-v-v-v-v-v\nEvent loop got '${event.eventType}' event from `.brightRed + `outgoing memory queue`.brightRed.underline)
+
           // Do NOT wait for it to complete. It will set it's state back to 'waiting' when it's ready.
-          const event = this.#expressMemoryQueue.next()
           const worker = workersWaiting.pop()
           // console.log(`Scheduler2.start: have ${event.eventType} event`)
           worker.setInUse()
           setImmediate(() => {
             // Do not wait. The worker will set itself to INUSE and
             // then back to WAITING again once it is finished.
-            worker.processEvent(event)
+            worker.processEvent(txState, event)
           })
           eventsStarted++
         }
 
         // Now try the regular memory queue
-        while (workersWaiting.length > 0 && this.#regularMemoryQueue.len() > 0) {
-          // for ( ; countWorker < numberOfAvailableWorkers && this.#regularMemoryQueue.len() > 0; countWorker++) {
-          if (Q_VERBOSE) console.log(` - got event from regular memory queue`)
+        while (workersWaiting.length > 0 && this.#memoryQueue_incoming.len() > 0) {
+
           // Process the event
+          const { txState, event } = this.#memoryQueue_incoming.next()
+          if (Q_VERBOSE) console.log(`\n\nv-v-v-v-v-v-v-v-v-v-v-v-v-v\nEvent loop got '${event.eventType}' event from `.brightRed + ` incoming memory queue`.brightRed.underline)
+
           // Do NOT wait for it to complete. It will set it's state back to 'waiting' when it's ready.
-          const event = this.#regularMemoryQueue.next()
           const worker = workersWaiting.pop()
           // console.log(`Scheduler2.start: have ${event.eventType} event`)
           worker.setInUse()
           setImmediate(() => {
             // Do not wait. The worker will set itself to INUSE and
             // then back to WAITING again once it is finished.
-            worker.processEvent(event)
+            worker.processEvent(txState, event)
           })
           eventsStarted++
         }
@@ -332,11 +336,11 @@ export default class Scheduler2 {
           // let requiredEvents = numberOfAvailableWorkers - countWorker
         // if (requiredEvents > 0) {
           const required = workersWaiting.length
-          const eventsFromLua = await redisLua.getEvents(this.#nodeGroup, required)
+          const eventsFromLua = await redisLua.luaDequeue(this.#nodeGroup, required)
           if (eventsFromLua.length > 0) {
           //   console.log(`eventsFromLua=`, JSON.stringify(eventsFromLua, '', 2))
-            if (Q_VERBOSE) console.log(` - got ${eventsFromLua.length} events from LUA queues`)
-            for (const event of eventsFromLua) {
+            if (Q_VERBOSE) console.log(`\n\nv-v-v-v-v-v-v-v-v-v-v-v-v-v\nEvent loop got ${eventsFromLua.length} events from `.brightRed + `LUA queues`.bgBrightRed.black)
+            for (const { txState, event } of eventsFromLua) {
               // console.log(`EVENT FROM LUA =`, event)
               // console.log(`event.txState=`, event.txState.stringify())
 
@@ -346,7 +350,7 @@ export default class Scheduler2 {
               setImmediate(() => {
                 // Do not wait. The worker will set itself to INUSE and
                 // then back to WAITING again once it is finished.
-                worker.processEvent(event)
+                worker.processEvent(txState, event)
               })
               eventsStarted++
     
@@ -357,47 +361,85 @@ export default class Scheduler2 {
 
 
 
+        // VOG REMOVE THIS STUFF !!!!!
+        // // Now we read from the REDIS queues. These can be read from multiple queues in one call.
+        // // const requiredEvents = numberOfAvailableWorkers - countWorker
+        // // if (requiredEvents > 0) {
+        // if (workersWaiting.length > 0) {
+        //   /*
+        //   *  We've emptied the memory queues. Now look at external queues.
+        //   */
+        //   const queues = [
+        //     this.#nodeExpressQueue,
+        //     this.#nodeRegularQueue,
+        //     this.#groupExpressQueue,
+        //     this.#groupQueue
+        //   ]
+        //   const block = false
+        //   // console.log(`${requiredEvents} = ${numberOfAvailableWorkers} - ${countWorker}`)
+        //   const requiredEvents = workersWaiting.length
+        //   const events = await RedisQueue.dequeue(queues, requiredEvents, block)
+        //   // console.log(`events=`, events)
+        //   eventsStarted += events.length
 
-        // Now we read from the REDIS queues. These can be read from multiple queues in one call.
-        // const requiredEvents = numberOfAvailableWorkers - countWorker
-        // if (requiredEvents > 0) {
-        if (workersWaiting.length > 0) {
-          /*
-          *  We've emptied the memory queues. Now look at external queues.
-          */
-          const queues = [
-            this.#nodeExpressQueue,
-            this.#nodeRegularQueue,
-            this.#groupExpressQueue,
-            this.#groupQueue
-          ]
-          const block = false
-          // console.log(`${requiredEvents} = ${numberOfAvailableWorkers} - ${countWorker}`)
-          const requiredEvents = workersWaiting.length
-          const events = await RedisQueue.dequeue(queues, requiredEvents, block)
-          // console.log(`events=`, events)
-          eventsStarted += events.length
 
-          // Pair up the workers and the events
-          for (let i = 0; i < events.length; i++) {
-          // for (let i = 0; countWorker < numberOfAvailableWorkers && i < events.length; i++, countWorker++) {
+        //   if (events.length > 0) {
+        //     console.log(`***********************************************************`)
+        //     console.log(`***********************************************************`)
+        //     console.log(`***********************************************************`)
+        //     console.log(`***********************************************************`)
+        //     console.log(`***********************************************************`)
+        //     console.log(`***********************************************************`)
+        //     console.log(`***********************************************************`)
+        //     console.log(`***********************************************************`)
+        //     console.log(`***********************************************************`)
+        //     console.log(`***********************************************************`)
+        //     console.log(`***********************************************************`)
+        //     console.log(`***********************************************************`)
+        //     console.log(`***********************************************************`)
+        //     console.log(`***********************************************************`)
+        //     console.log(`****                                                   ****`)
+        //     console.log(`****                                                   ****`)
+        //     console.log(`****         Got events from old REDIS queues          ****`)
+        //     console.log(`****                                                   ****`)
+        //     console.log(`****                                                   ****`)
+        //     console.log(`***********************************************************`)
+        //     console.log(`***********************************************************`)
+        //     console.log(`***********************************************************`)
+        //     console.log(`***********************************************************`)
+        //     console.log(`***********************************************************`)
+        //     console.log(`***********************************************************`)
+        //     console.log(`***********************************************************`)
+        //     console.log(`***********************************************************`)
+        //     console.log(`***********************************************************`)
+        //     console.log(`***********************************************************`)
+        //     console.log(`***********************************************************`)
+        //     console.log(`***********************************************************`)
+        //     console.log(`***********************************************************`)
+        //     console.log(`***********************************************************`)
+        //     console.log(`***********************************************************`)
+        //   }
 
-            // Process the event
-            // Do NOT wait for it to complete. It will set it's state back to 'waiting' when it's ready.
-            if (Q_VERBOSE) console.log(` - got event from REDIS queue`)
+        //   // Pair up the workers and the events
+        //   for (let i = 0; i < events.length; i++) {
+        //   // for (let i = 0; countWorker < numberOfAvailableWorkers && i < events.length; i++, countWorker++) {
 
-            const event = events[i]
-            const worker = workersWaiting.pop()
-            // console.log(`Scheduler2.start: have ${event.eventType} event`)
-            worker.setInUse()
-            setImmediate(() => {
-              // Do not wait. The worker will set itself to INUSE and
-              // then back to WAITING again once it is finished.
-              worker.processEvent(event)
-            })
-            eventsStarted++
-          }//- next event
-        }
+        //     // Process the event
+        //     // Do NOT wait for it to complete. It will set it's state back to 'waiting' when it's ready.
+        //     if (Q_VERBOSE) console.log(` - got event from REDIS queue`)
+
+        //     const event = events[i]
+        //     const worker = workersWaiting.pop()
+        //     // console.log(`Scheduler2.start: have ${event.eventType} event`)
+        //     worker.setInUse()
+        //     setImmediate(() => {
+        //       // Do not wait. The worker will set itself to INUSE and
+        //       // then back to WAITING again once it is finished.
+        //       worker.processEvent(event)
+        //     })
+        //     eventsStarted++
+        //   }//- next event
+        // }
       }
 
       // Update our statistics
@@ -440,7 +482,7 @@ export default class Scheduler2 {
     this.#state = Scheduler2.SHUTDOWN_PHASE_1
 
     const me = this
-    const eventsInMemoryQueues = this.#expressMemoryQueue.len() + this.#regularMemoryQueue.len()
+    const eventsInMemoryQueues = this.#memoryQueue_outgoing.len() + this.#memoryQueue_incoming.len()
     const delay = (eventsInMemoryQueues > 0) ? Scheduler2.PHASE_1_DELAY : 0
     setTimeout(async () => { await me.shutdownPhase2() }, delay)
   }//- shutdownPhase1
@@ -457,24 +499,26 @@ export default class Scheduler2 {
     // need to convert it to JSON before the event put in REDIS.
     const nodeGroup = schedulerForThisNode.getNodeGroup()
     const queueName = Scheduler2.groupExpressQueueName(nodeGroup)
-    console.log(`  ${this.#expressMemoryQueue.len()} events in express memory queue.`)
-    while (this.#expressMemoryQueue.len() > 0) {
-      const event = this.#expressMemoryQueue.next()
+    console.log(`  ${this.#memoryQueue_outgoing.len()} events in express memory queue.`)
+    while (this.#memoryQueue_outgoing.len() > 0) {
+      const { txState, event } = this.#memoryQueue_outgoing.next()
       // console.log(`  express event=`, event)
       // console.log(`          1. event.txState=`, event.txState)
       event.txState = await event.txState.stringify()
       // console.log(`          2. event.txState=`, event.txState)
       console.log(`  - moving ${event.eventType} event for ${event.txId}`)
+      xxx = yyy
       await RedisQueue.enqueue(queueName, event)
     }
-    console.log(`  ${this.#regularMemoryQueue.len()} events in regular memory queue.`)
-    while (this.#regularMemoryQueue.len() > 0) {
-      const event = this.#regularMemoryQueue.next()
+    console.log(`  ${this.#memoryQueue_incoming.len()} events in regular memory queue.`)
+    while (this.#memoryQueue_incoming.len() > 0) {
+      const { txState, event } = this.#memoryQueue_incoming.next()
       // console.log(`  express event=`, event)
       // console.log(`          1. event.txState=`, event.txState)
       event.txState = await event.txState.stringify()
       // console.log(`          2. event.txState=`, event.txState)
       console.log(`  - moving ${event.eventType} event for ${event.txId}`)
+      xxx = yyy
       await RedisQueue.enqueue(queueName, event)
     }    
 
@@ -606,7 +650,7 @@ export default class Scheduler2 {
       console.log(`This error is too dangerous to contine. Shutting down now.`)
       process.exit(1)
     }
-    this.#requiredWorkers = group.numWorkers
+    this.#requiredWorkers = group.eventloopWorkers
     this.#eventloopPause = group.eventloopPause
     this.#eventloopPauseBusy = group.eventloopPauseBusy
     this.#eventloopPauseIdle = group.eventloopPauseIdle
@@ -659,14 +703,18 @@ export default class Scheduler2 {
    * @returns
    */
   async startTransaction(input) {
-    assert (typeof(input.metadata) === 'object')
-    assert (typeof(input.metadata.owner) === 'string')
-    assert (typeof(input.metadata.nodeGroup) === 'string')
-    assert (typeof(input.metadata.externalId) === 'string' || input.metadata.externalId === null)
-    assert (typeof(input.metadata.transactionType) === 'string')
-    assert (typeof(input.metadata.onComplete) === 'object')
-    assert (typeof(input.metadata.onComplete.callback) === 'string')
-    assert (typeof(input.metadata.onComplete.context) === 'object')
+    assert(typeof(input.metadata) === 'object')
+    assert(typeof(input.metadata.owner) === 'string')
+    assert(typeof(input.metadata.nodeGroup) === 'string')
+    if (typeof(input.metadata.externalId) !== 'string' && input.metadata.externalId !== null) {
+      console.log(`input=`, input)
+      console.trace(`Invalid input.metadata.externalId`, input.metadata.externalId)
+    }
+    assert(typeof(input.metadata.externalId) === 'string' || input.metadata.externalId === null)
+    assert(typeof(input.metadata.transactionType) === 'string')
+    //VOG512 assert (typeof(input.metadata.onComplete) === 'object')
+    //VOG512 assert (typeof(input.metadata.onComplete.callback) === 'string')
+    //VOG512 assert (typeof(input.metadata.onComplete.context) === 'object')
     if (input.metadata.onChange) {
       assert (typeof(input.metadata.onChange) === 'object')
       assert (typeof(input.metadata.onChange.callback) === 'string')
@@ -674,7 +722,7 @@ export default class Scheduler2 {
     }
     assert (typeof(input.data) === 'object')
 
-    console.log(`  (started ${Date.now() % 10000})`)
+    // console.log(`  (started ${Date.now() % 10000})`)
 
     try {
       const metadata = input.metadata
@@ -683,59 +731,57 @@ export default class Scheduler2 {
       if (VERBOSE > 1 || trace) console.log(input)
       if (VERBOSE||trace) console.log(`*** Scheduler2.startTransaction() - transaction type is ${input.metadata.transactionType}`.bgYellow.black)
 
-      // Sanitize the input data by convering it to JSON and back
+      // Sanitize the input data by converting it to JSON and back
       const initialData = JSON.parse(JSON.stringify(input.data))
 
-      /*
-      *  A 'ping1' test transaction returns by immediately calling the callback function.
-      */
-      if (metadata.transactionType === 'ping1') {
-        const description = 'ping1 - Scheduler2.startTransaction() immediately invoked the callback, without processing'
-        if (VERBOSE||trace) {console.log(description.bgBlue.white)}
-        const fakeTransactionOutput = {
-          status: STEP_SUCCESS,
-          transactionOutput: { foo: 'bar', description }
-        }
-        const tx = await TransactionCache.newTransaction(metadata.owner, metadata.externalId, metadata.transactionType)
-        const worker = null
-        await CallbackRegister.call(tx, metadata.onComplete.callback, 0, fakeTransactionOutput, worker)
-        return
-      }
+      // /*
+      // *  A 'ping1' test transaction returns by immediately calling the callback function.
+      // */
+      // if (metadata.transactionType === 'ping1') {
+      //   const description = 'ping1 - Scheduler2.startTransaction() immediately invoked the callback, without processing'
+      //   if (VERBOSE||trace) {console.log(description.bgBlue.white)}
+      //   const fakeTransactionOutput = {
+      //     status: STEP_SUCCESS,
+      //     transactionOutput: { foo: 'bar', description }
+      //   }
+      //   const tx = await TransactionCache.newTransaction(metadata.owner, metadata.externalId, metadata.transactionType)
+      //   const worker = null
+      //   await CallbackRegister.call(tx, metadata.onComplete.callback, 0, 1, fakeTransactionOutput, worker)
+      //   return
+      // }
 
-      /*
-       *  A 'ping2' test transaction returns via the TRANSACTION_COMPLETE_EVENT
-       */
-      if (metadata.transactionType === 'ping2') {
-        // Bounce back via a normal TRANSACTION_COMPLETE_EVENT
-        const description = 'ping2 - Scheduler2.startTransaction() returning without processing step'
-        if (VERBOSE||trace) console.log(description.bgBlue.white)
+      // /*
+      //  *  A 'ping2' test transaction returns via the TRANSACTION_COMPLETE_EVENT
+      //  */
+      // if (metadata.transactionType === 'ping2') {
+      //   // Bounce back via a normal TRANSACTION_COMPLETE_EVENT
+      //   const description = 'ping2 - Scheduler2.startTransaction() returning without processing step'
+      //   if (VERBOSE||trace) console.log(description.bgBlue.white)
 
-        // Create a new transaction
-        const tx = await TransactionCache.newTransaction(metadata.owner, metadata.externalId, metadata.transactionType)
-        const txId = tx.getTxId()
-        await tx.delta(null, {
-          onComplete: {
-            nodeGroup: schedulerForThisNode.getNodeGroup(),
-            // nodeId: schedulerForThisNode.getNodeId(),
-            callback: metadata.onComplete.callback,
-            context: metadata.onComplete.context
-          },
-          status: STEP_SUCCESS,
-          transactionOutput: { whoopee: 'doo', description }
-        }, 'startTransaction()')
+      //   // Create a new transaction
+      //   const tx = await TransactionCache.newTransaction(metadata.owner, metadata.externalId, metadata.transactionType)
+      //   const txId = tx.getTxId()
+      //   await tx.delta(null, {
+      //     onComplete: {
+      //       nodeGroup: schedulerForThisNode.getNodeGroup(),
+      //       // nodeId: schedulerForThisNode.getNodeId(),
+      //       callback: metadata.onComplete.callback,
+      //       context: metadata.onComplete.context
+      //     },
+      //     status: STEP_SUCCESS,
+      //     transactionOutput: { whoopee: 'doo', description }
+      //   }, 'startTransaction()')
 
-        await PERSIST_TRANSACTION_STATE(tx)
-
-        // console.log(`tx=`, (await tx).toString())
-        const txInitNodeGroup = txData.nodeGroup
-        const txInitNodeId = txData.nodeId
-        // const queueName = Scheduler2.groupQueueName(input.metadata.nodeGroup)
-        const workerForShortcut = null
-        await schedulerForThisNode.schedule_TransactionCompleted(tx, txInitNodeGroup, txInitNodeId, workerForShortcut, {
-          txId,
-        })
-        return
-      }
+      //   // console.log(`tx=`, (await tx).toString())
+      //   const txInitNodeGroup = txData.nodeGroup
+      //   const txInitNodeId = txData.nodeId
+      //   // const queueName = Scheduler2.groupQueueName(input.metadata.nodeGroup)
+      //   const workerForShortcut = null
+      //   await schedulerForThisNode.enqueue_TransactionCompleted(tx, txInitNodeGroup, txInitNodeId, workerForShortcut, {
+      //     txId,
+      //   })
+      //   return
+      // }
 
       // Create a version of the metadata that can be passed to steps
       const metadataCopy = JSON.parse(JSON.stringify(metadata))
@@ -760,20 +806,20 @@ export default class Scheduler2 {
       // const pipelineNodeGroup = pipelineDetails.nodeGroup
       if (VERBOSE||trace) console.log(`Scheduler2.startTransaction() - Start pipeline ${pipelineName}:${pipelineVersion} in node group ${pipelineNodeGroup}.`)
 
-      // If there is an externalId, there is concern that uniqueness cannot be guaranteed by
-      // the database under some circumstances (distributed database nodes, and extremely
-      // close repeated calls). To add an extra layer of protection we'll use a REDIS increment,
-      // with an expiry of thirty seconds. The first INCR call will return 1, the second will
-      // return 2, etc. This will continue until the key is removed after 30 seconds. By that
-      // time the externalId should certainly be stored in the darabase.
-      if (metadata.externalId) {
-        const key = `externalId-${metadata.externalId}-${metadata.owner}`
-        if (await RedisQueue.repeatEventDetection(key, DUP_EXTERNAL_ID_DELAY)) {
-          // A transaction already exists with this externalId
-          console.log(`Scheduler2.startTransaction: detected duplicate externalId via REDIS`)
-          throw new DuplicateExternalIdError()
-        }
-      }
+      // // If there is an externalId, there is concern that uniqueness cannot be guaranteed by
+      // // the database under some circumstances (distributed database nodes, and extremely
+      // // close repeated calls). To add an extra layer of protection we'll use a REDIS increment,
+      // // with an expiry of thirty seconds. The first INCR call will return 1, the second will
+      // // return 2, etc. This will continue until the key is removed after 30 seconds. By that
+      // // time the externalId should certainly be stored in the darabase.
+      // if (metadata.externalId) {
+      //   const key = `externalId-${metadata.externalId}-${metadata.owner}`
+      //   if (await RedisQueue.repeatEventDetection(key, DUP_EXTERNAL_ID_DELAY)) {
+      //     // A transaction already exists with this externalId
+      //     console.log(`Scheduler2.startTransaction: detected duplicate externalId via REDIS`)
+      //     throw new DuplicateExternalIdError()
+      //   }
+      // }
       const myNodeGroup = schedulerForThisNode.getNodeGroup()
       const myNodeId = schedulerForThisNode.getNodeId()
 
@@ -781,33 +827,46 @@ export default class Scheduler2 {
       // Persist the transaction details
       let tx = await TransactionCache.newTransaction(metadata.owner, metadata.externalId, metadata.transactionType)
 
-      const def = {
-        transactionType: metadata.transactionType,
-        // Where the transaction initiated. We must come back here for longpoll.
-        nodeGroup: myNodeGroup,
-        nodeId: myNodeId,
-        // The root pipeline / transactionType.
-        // pipelineName: `${pipelineName}:${pipelineVersion}`,
-        pipelineName,//ZZZZ Is this needed?
-        status: TransactionIndexEntry.RUNNING,//ZZZZ
-        metadata: metadataCopy,
-        transactionInput: initialData,
-        onComplete: {
-          nodeGroup: schedulerForThisNode.getNodeGroup(),
-          // nodeId: schedulerForThisNode.getNodeId(),
-          callback: metadata.onComplete.callback,
-          context: metadata.onComplete.context,
-        }
-      }
+//       const def = {
+//         transactionType: metadata.transactionType,
+//         // Where the transaction initiated. We must come back here for longpoll.
+//         nodeGroup: myNodeGroup,
+//         nodeId: myNodeId,
+//         // The root pipeline / transactionType.
+//         // pipelineName: `${pipelineName}:${pipelineVersion}`,
+//         pipelineName,//ZZZZ Is this needed?
+//         status: TransactionIndexEntry.RUNNING,//ZZZZ
+//         metadata: metadataCopy,
+//         transactionInput: initialData,
+//         zombie: 'startTransaction',
+//         onComplete: {
+//           nodeGroup: schedulerForThisNode.getNodeGroup(),
+//           // nodeId: schedulerForThisNode.getNodeId(),
+// //VOG512           callback: metadata.onComplete.callback,
+// //VOG512           context: metadata.onComplete.context,
+//         }
+//       }
+      tx.vog_setTransactionType(metadata.transactionType)
+      tx.vog_setNodeGroup(myNodeGroup)
+      tx.vog_setNodeId(myNodeId)
+      tx.vog_setPipelineName(pipelineName)
+      tx.vog_setStatusToRunning()
+      tx.vog_setMetadata(metadataCopy)
+      tx.vog_setTransactionInput(initialData)
+      tx.vog_setOnComplete({
+        nodeGroup: schedulerForThisNode.getNodeGroup()
+      })
       if (input.metadata.onChange) {
-        def.onChange = {
+        // def.onChange = {
+        //   callback: input.metadata.onChange.callback,
+        //   context: input.metadata.onChange.context
+        // }
+        tx.vog_setOnChange({
           callback: input.metadata.onChange.callback,
           context: input.metadata.onChange.context
-        }
+        })
       }
-      await tx.delta(null, def, 'Scheduler2.startTransaction()')
-
-      await PERSIST_TRANSACTION_STATE(tx)
+      // await tx.delta(null, def, 'Scheduler2.startTransaction()')
 
 
       // Generate a new ID for this step
@@ -815,7 +874,9 @@ export default class Scheduler2 {
       // const stepId = GenerateHash('s')
 
       const stepId = await tx.addInitialStep(pipelineName)
-      await tx.delta(stepId, { vogAddedBy: 'Scheduler2.startTransaction()' }, 'pipelineStep.invoke()')/// Temporary - remove this
+      await tx.delta(stepId, {
+        vogAddedBy: 'Scheduler2.startTransaction()'
+      }, 'pipelineStep.invoke()')/// Temporary - remove this
 
       // Update our statistics
       this.#transactionsInPastMinute.add(1)
@@ -825,7 +886,7 @@ export default class Scheduler2 {
 
 
 
-console.log(`LKJHUHUHhhhhkjlha   tx.stepData(stepId)=`, tx.stepData(stepId))
+// console.log(`LKJHUHUHhhhhkjlha   tx.stepData(stepId)=`, tx.stepData(stepId))
 
       // console.log(`txId=`, txId)
       const fullSequence = txId.substring(3, 9)
@@ -834,15 +895,16 @@ console.log(`LKJHUHUHhhhhkjlha   tx.stepData(stepId)=`, tx.stepData(stepId))
       const vog_event = {
         eventType: Scheduler2.STEP_START_EVENT,
         // Need either a pipeline or a nodeGroup
-        yarpLuaPipeline: pipelineName,
+        // yarpLuaPipeline: pipelineName,
         txId,
-        stepId,
+        // stepId,
         parentNodeGroup: myNodeGroup,
         // parentNodeId: myNodeId,
-        parentStepId: '',
-        fullSequence,
-        vogPath,
-        stepDefinition: pipelineName,
+        // parentStepId: '',
+        // fullSequence,
+        // vogPath,
+        // _tmpPath: vogPath,
+        // stepDefinition: pipelineName,
         metadata: metadataCopy,
         data: initialData,
         level: 0,
@@ -852,15 +914,17 @@ console.log(`LKJHUHUHhhhhkjlha   tx.stepData(stepId)=`, tx.stepData(stepId))
         nodeGroup: myNodeGroup,
         // nodeId: myNodeId,
         callback: TX_COMPLETE_CALLBACK,
-        context: { txId, stepId },
+//VOG777        context: { txId, stepId },
       }
 
       // Start a step for this pipeline
       const pipelineNodeGroup = 'zzzz'
       //VOGGY
-      console.log(`--------------------------`)
-      console.log(`VOGGY A - startTransaction`)
-      console.log(`--------------------------`)
+      if (FLOW_VERBOSE) {
+        // console.log(`---------------------------`)
+        flow2Msg(tx, `Scheduler2.startTransaction`)
+        // console.log(`---------------------------`)
+      }
 
 
       //ZZZZZ Stuff to delete
@@ -868,16 +932,34 @@ console.log(`LKJHUHUHhhhhkjlha   tx.stepData(stepId)=`, tx.stepData(stepId))
         stepDefinition: pipelineName,
       })
 
+      const { f2i, f2 }  = tx.v2f_setF2Transaction(pipelineName)
+      f2.ts1 = Date.now()
+      f2.ts2 = f2.ts1
+      f2.ts3 = 0
+      f2.metadata = metadataCopy
+      f2.input = initialData
+      const { f2i:pipelineF2i, f2:pipelineF2 } = tx.vf2_addF2child(f2i, F2_PIPELINE, 'Scheduler2.startTransaction')
+      pipelineF2._pipelineName = pipelineName
+      pipelineF2.stepId = stepId
+      pipelineF2.ts1 = Date.now()
+      pipelineF2.ts2 = 0
+      pipelineF2.ts3 = 0
+      // pipelineF2.input = initialData
+      const { f2i: completionHandlerF2i, f2: completionHandlerF2 } = tx.vf2_addF2sibling(f2i, F2_TRANSACTION_CH)
+      completionHandlerF2.nodeGroup = myNodeGroup
+      completionHandlerF2.callback = TX_COMPLETE_CALLBACK
+
+      vog_event.f2i = pipelineF2i
+
       // const onComplete = {
       //   nodeGroup: myNodeGroup,
       //   // nodeId: myNodeId,
       //   callback: ROOT_STEP_COMPLETE_CALLBACK_ZZZ,
       //   context: { txId, stepId },
       // }
-      const flowIndex = null
-      await this.schedule_StepStart(tx,
-        // pipelineNodeGroup, null,
-        workerForShortcut, vog_event, stepId, onComplete, flowIndex)
+      const parentFlowIndex = null
+      const checkExternalIdIsUnique = metadata.externalId ? true : false
+      await this.enqueue_StartPipeline(tx, parentFlowIndex, stepId, vog_event, onComplete, checkExternalIdIsUnique, workerForShortcut)
 
       return tx
     } catch (e) {
@@ -889,8 +971,85 @@ console.log(`LKJHUHUHhhhhkjlha   tx.stepData(stepId)=`, tx.stepData(stepId))
   }//- TRANSACTION_START
 
   /**
+   * 
+   * @param {*} tx 
+   * @param {*} parentFlowIndex 
+   * @param {*} stepId 
+   * @param {*} vog_event 
+   * @param {*} onComplete 
+   * @param {*} checkExternalIdIsUnique 
+   * @param {*} workerForShortcut 
+   * @returns 
+   */
+  async enqueue_StartPipeline(tx, parentFlowIndex, stepId, vog_event, onComplete, checkExternalIdIsUnique, workerForShortcut) {
+
+    if (FLOW_VERBOSE) flowMsg(tx, `>>> enqueue_StartPipeline(parentFlowIndex=${parentFlowIndex})`, parentFlowIndex)
+
+    // Check the event is valid
+    // console.log(`enqueue_StartStep event=`.cyan, vog_event)
+    validateStandardObject('enqueue_StartPipeline() event', vog_event, EVENT_DEFINITION_STEP_START_SCHEDULED)
+
+
+
+    // Are we running a pipeline? If so, the message will be queued via REDIS,
+    // otherwise we'll run it in this same node via the memory queues.
+    const S = tx.stepData(stepId)
+    // console.log(`S=`.bgMagenta, S)
+    const pipelineName = (typeof(S.stepDefinition) === 'string') ? S.stepDefinition : null
+
+    assert(typeof(workerForShortcut) !== 'undefined')
+    assert(typeof(vog_event) === 'object' && vog_event != null)
+    assert(vog_event.eventType === Scheduler2.STEP_START_EVENT)
+    assert (typeof(stepId) === 'string')
+    assert(S.fullSequence)
+    assert(S.vogPath)
+    assert(S.stepDefinition) //RRRR
+  
+    // How to reply when complete
+    assert (typeof(onComplete.nodeGroup) === 'string')
+    assert (typeof(onComplete.callback) === 'string')
+    // assert (typeof(onComplete.context) === 'object')
+  
+    // Add a completionToken to the event, so we can check that the return EVENT is legitimate
+    // const completionToken = GenerateHash('ctok')
+    // onComplete.completionToken = completionToken
+
+    tx.vog_setNextStepId(stepId)
+
+
+    const childFlowIndex = tx.vog_flowRecordStep_scheduled(parentFlowIndex, stepId, vog_event.data, onComplete)
+    vog_event.flowIndex = childFlowIndex
+    // onComplete.flowIndex = flowIndex
+    // console.log(`tx.vog_getFlow()=`, tx.vog_getFlow())
+    // console.log(`stepStart vog_event=`, vog_event)
+
+    if (FLOW_PARANOID) {
+      const s = tx.stepData(stepId)
+      validateStandardObject('enqueue_StartPipeline step (paranoid)', s, STEP_DEFINITION)
+
+      // const f = tx.vog_getFlowRecord(vog_event.flowIndex)
+      // validateStandardObject('enqueue_StartPipeline flow (paranoid)', f, FLOW_DEFINITION)
+    }
+
+
+    // console.log(`tx.asObject()=`, tx.asObject())
+    assert(pipelineName)
+
+    /*
+      *  The step is a pipeline - queue it via REDIS queueing.
+      */
+    if (Q_VERBOSE) console.log(`enqueue_StartPipeline - add event to an incoming REDIS queue`)
+    const nodeGroup = null // Get the nodeGroup from the pipeline definition
+    const redisLua = await RedisQueue.getRedisLua()
+    redisLua.luaEnqueue_pipelineStart(tx, vog_event, pipelineName, checkExternalIdIsUnique, nodeGroup)
+
+    return GO_BACK_AND_RELEASE_WORKER
+  }//- enqueue_StartPipeline
+
+  /**
    * How step replying works
    * ------------------
+   * (This may be an outdated description)
    * In this function we persist these fields to the step:
    *    callback          // A callback name, registered with CallbackRegister.js
    *    callbackContext   // Everything the callback needs to work
@@ -914,49 +1073,54 @@ console.log(`LKJHUHUHhhhhkjlha   tx.stepData(stepId)=`, tx.stepData(stepId))
    * whatever it needs to do. In the case of a pipeline it may run another step
    * or return. If this is the root pipeline, the rootStepCompletionHandler will
    * complete the transaction.
+   * 
+   * 
+   * 
+   * 
+   * 
+   * Before calling this, we need the following set in tx:
+   * - child steps
+   *    - stepId
+   *    - vogP
+   *    - fullSequence
+   *    - stepDefinition
+   *    - nodeGroup, if the step needs to run in a different nodeGroup.
+   * 
+   * - parent step
+   *    - childStepIds (should NOT have 'pipelineSteps' set)
+   * 
+   * - The event must contain:
+   *    - event.stepId
+   *    - event.data (input data)
+   *    - event.metadata
+   * 
+   * - onComplete
+   *    - nodeGroup   (LATER - only if different to the step's nodeGroup)
+   *    - callback
    *
    * @param {string} eventType
    * @param {object} options
    */
-  async schedule_StepStart(tx,
-    // nodeGroupWhereStepRuns, nodeIdWhereStepRunsZZZZ,
-    workerForShortcut, vog_event, stepId, onComplete, parentFlowIndex) {
-    if (VERBOSE) console.log(`\n<<< schedule_StepStart(parentFlowIndex=${parentFlowIndex})`.green)
-    // if (VERBOSE) console.log(`\n<<< schedule_StepStart(${nodeGroupWhereStepRuns})`.green)
-    if (VERBOSE > 1) console.log(`schedule_StepStart event=`, vog_event)
+  async enqueue_StartStep(tx, parentFlowIndex, stepId, vog_event, onComplete, workerForShortcut) {
+
+    if (FLOW_VERBOSE) flowMsg(tx, `>>> enqueue_StartStep(parentFlowIndex=${parentFlowIndex})`, parentFlowIndex)
+
+    // Check the event is valid
+    // console.log(`enqueue_StartStep event=`.cyan, vog_event)
+    validateStandardObject('enqueue_StartStep() event', vog_event, EVENT_DEFINITION_STEP_START_SCHEDULED)
+
+
 
     // Are we running a pipeline? If so, the message will be queued via REDIS,
     // otherwise we'll run it in this same node via the memory queues.
     const S = tx.stepData(stepId)
-    // console.log(`S=`, S)
-    const vogRunningAPipeline = !!S.vogPipeline
-    console.log(`vogRunningAPipeline=`, vogRunningAPipeline)
+    // console.log(`S=`.bgMagenta, S)
+    const pipelineName = (typeof(S.stepDefinition) === 'string') ? S.stepDefinition : null
 
-
-    // const nodeGroupWhereStepRuns = tx.JnodeGroupWhereStepRuns(stepId)
-    // assert(typeof(nodeGroupWhereStepRuns) === 'string')
-    // assert(typeof(nodeIdWhereStepRuns) === 'string' || nodeIdWhereStepRuns === null)
     assert(typeof(workerForShortcut) !== 'undefined')
     assert(typeof(vog_event) === 'object' && vog_event != null)
-
-    // const myNodeGroup = schedulerForThisNode.getNodeGroup()
-    // const myNodeId = schedulerForThisNode.getNodeId()
-    // const yarpLuaPipeline = options.yarpLuaPipeline ? options.yarpLuaPipeline : null
-
-
-    // options = dataFromXDataOrObject(options, 'schedule_StepStart() - options parameter must be XData or object')
-    // validateEvent_StepStart(vog_event)
     assert(vog_event.eventType === Scheduler2.STEP_START_EVENT)
-    assert (typeof(vog_event.txId) === 'string')
-    assert (typeof(vog_event.stepId) === 'string')
-  
-    assert (typeof(vog_event.fullSequence) === 'string')
-    assert (typeof(vog_event.vogPath) === 'string')
-    assert (typeof(vog_event.stepDefinition) !== 'undefined')
-    assert (typeof(vog_event.data) === 'object')
-    assert ( !(vog_event.data instanceof XData))
-    assert (typeof(vog_event.metadata) === 'object')
-    assert (typeof(vog_event.level) === 'number')
+    assert (typeof(stepId) === 'string')
     assert(S.fullSequence)
     assert(S.vogPath)
     assert(S.stepDefinition) //RRRR
@@ -964,128 +1128,42 @@ console.log(`LKJHUHUHhhhhkjlha   tx.stepData(stepId)=`, tx.stepData(stepId))
     // How to reply when complete
     assert (typeof(onComplete.nodeGroup) === 'string')
     assert (typeof(onComplete.callback) === 'string')
-    assert (typeof(onComplete.context) === 'object')
   
     // Add a completionToken to the event, so we can check that the return EVENT is legitimate
     // const completionToken = GenerateHash('ctok')
     // onComplete.completionToken = completionToken
 
-    // Remember the callback details, and do not pass to the step
-    // const tx = await TransactionCache.getTransactionStateZ(options.txId)
-    // console.log(`tx=`, tx)
-    await tx.delta(null, {
-      nextStepId: stepId, //ZZZZZ Choose a better field name
-    }, 'Scheduler2.schedule_StepStart()')
+    tx.vog_setNextStepId(stepId)
 
 
-    // // Add to an event queue
-    // // const queue = await getQueueConnection()
-    // // options.eventType = Scheduler2.STEP_START_EVENT
-    // // console.log(`Adding ${options.eventType} event to queue ${queueName}`.brightGreen)
-    // const event = {
-    //   // Just what we need
-    //   eventType: Scheduler2.STEP_START_EVENT,
-    //   txId: options.txId,
-    //   stepId,
-    //   onComplete,
-    //   // onComplete: options.onComplete,
-    //   // completionToken: options.onComplete.completionToken
-    //   // fromNodeId: this.#nodeId
-    // }
-    const childFlowIndex = tx.vog_flowRecordStepScheduled(stepId, vog_event.data, vog_event.vogPath, parentFlowIndex, onComplete)
+    const childFlowIndex = tx.vog_flowRecordStep_scheduled(parentFlowIndex, stepId, vog_event.data, onComplete)
     vog_event.flowIndex = childFlowIndex
-    // onComplete.flowIndex = flowIndex
-    // console.log(`tx.vog_getFlow()=`, tx.vog_getFlow())
-    console.log(`stepStart vog_event=`, vog_event)
+    if (FLOW_PARANOID) {
+      const s = tx.stepData(stepId)
+      validateStandardObject('enqueue_StartStep step (paranoid)', s, STEP_DEFINITION)
 
-    await tx.delta(stepId, {
-      vogPath: vog_event.vogPath,
-      // Other information about the step
-      // nodeGroup: nodeGroupWhereStepRuns,
-      parentStepId: vog_event.parentStepId, // Is this needed?
-      fullSequence: vog_event.fullSequence,
-      stepDefinition: vog_event.stepDefinition,
-      stepInput: vog_event.data,
-      level: vog_event.level,
-      status: STEP_QUEUED
-    }, 'Scheduler2.schedule_StepStart()')
-    // tx.vog_setStepCompletionHandler(stepId, flowIndex, onComplete.nodeGroup, onComplete.callback, onComplete.context, completionToken)
+      const f = tx.vog_getFlowRecord(vog_event.flowIndex)
+      validateStandardObject('enqueue_StartStep flow (paranoid)', f, FLOW_DEFINITION)
 
-    await PERSIST_TRANSACTION_STATE(tx)
+      // console.log(`f=`, f)
+    }
 
-    // {
-    //   console.log(`schedule_StepStart event=`, event)
-    //   console.log(`schedule_StepStart txState=`, tx.stringify())
-    //   // console.log(`schedule_StepStart txState=`, JSON.stringify(tx.asObject(), '', 2))
-    // }
+    // The step is not a pipeline - it will run on this node.
+    if (SHORTCUT_STEP_START && workerForShortcut !== null) {
 
-    // Update our statistics
-    this.#stepsPastMinute.add(1)
-    this.#stepsPastHour.add(1)
-    this.#enqueuePastMinute.add(1)
-    this.#enqueuePastHour.add(1)
-
-    // console.log(`tx.asObject()=`, tx.asObject())
-    
-    if (!vogRunningAPipeline) {
-    // if (nodeGroupWhereStepRuns === myNodeGroup && nodeIdWhereStepRuns === myNodeId) {
-
-      /*
-       *  The step will runs on this node.
-       */
-      if (SHORTCUT_STEP_START && workerForShortcut !== null) {
-
-        // We won't use a queue - we'll continue to use the current worker.
-        if (Q_VERBOSE) console.log(`YARP stepStart A - bypass queueing`)
-        vog_event.txState = tx
-        // console.log(`schedule_StepStart: vog_event=`, vog_event)
-        const rv = await workerForShortcut.processEvent_StepStart(vog_event)
-        assert(rv === GO_BACK_AND_RELEASE_WORKER)
-      } else {
-
-        // Place the event in this node's dedicated express memory queue.
-        if (Q_VERBOSE) console.log(`YARP stepStart B - adding to local regular memory queue`)
-        vog_event.txState = tx
-        // console.log(`schedule_StepStart: vog_event=`, vog_event)
-        this.#regularMemoryQueue.add(vog_event)
-      }
+      // We won't use a queue - we'll continue to use the current worker.
+      if (FLOW_VERBOSE) console.log(`----- bypass queueing by using re-using current worker`.gray)
+      const rv = await workerForShortcut.processEvent_StepStart(tx, vog_event)
+      assert(rv === GO_BACK_AND_RELEASE_WORKER)
     } else {
 
-      // /*
-      //  *  The step runs in a different group or a different node in this group.
-      //  */
-      // if (nodeGroupWhereStepRuns === myNodeGroup && nodeIdWhereStepRuns !== null) {
-
-      //   // Put the event in a specific node's normal queue.
-      //   const queueName = Scheduler2.nodeRegularQueueName(nodeGroupWhereStepRuns, nodeIdWhereStepRuns)
-      //   if (Q_VERBOSE) console.log(`YARP stepStart C - adding to queue ${queueName}`)
-      //   event.txState = await tx.stringify()
-      //   // console.log(`schedule_StepStart: event=`, event)
-      //   await RedisQueue.enqueue(queueName, event)
-      // } else {
-
-        // Put the event in the node group's queue
-        // const queueName = Scheduler2.groupQueueName(nodeGroupWhereStepRuns)
-        // if (Q_VERBOSE) console.log(`YARP stepStart D - adding to queue ${queueName}`)
-
-        // if (YARPLUA_FOR_STEP_START) {
-          const redisLua = await RedisQueue.getRedisLua()
-          const pipelineName = vogRunningAPipeline ? S.vogPipeline : null
-          // console.log(`\n\nPIPELINE IS ${yarpLuaPipeline}`)
-          vog_event.txState = tx
-          // console.log(`schedule_StepStart: vog_event=`, vog_event)
-          redisLua.enqueue('in', pipelineName, vog_event)
-        // } else {
-        //   vog_event.txState = await tx.stringify()
-        //   // console.log(`schedule_StepStart: vog_event=`, vog_event)
-        //   await RedisQueue.enqueue(queueName, vog_event)
-        // }
-
-      // }
+      // Place the event in this node's input memory queue.
+      if (FLOW_VERBOSE) console.log(`----- incoming memory queue`.gray)
+      this.#memoryQueue_incoming.add(tx, vog_event)
     }
 
     return GO_BACK_AND_RELEASE_WORKER
-  }//- enqueue_StepStart
+  }//- enqueue_StartStep
 
   /**
    * 
@@ -1094,8 +1172,9 @@ console.log(`LKJHUHUHhhhhkjlha   tx.stepData(stepId)=`, tx.stepData(stepId))
    * @param {string} stepId 
    */
   async enqueue_StepRestart(tx, nodeGroup, txId, stepId) {
-    if (VERBOSE_16aug22) console.log(`${me()}: ********** RESTART STEP, ADD TO QUEUE`)
-    if (VERBOSE) console.log(`\n<<< enqueue_StepRestart EVENT(${nodeGroup})`.green)
+    if (FLOW_VERBOSE) flow2Msg(tx, `${me()}: ********** RESTART STEP, ADD TO QUEUE`)
+    // if (VERBOSE)
+    console.log(`\n<<< enqueue_StepRestart EVENT(${nodeGroup})`.green)
     assert(typeof(nodeGroup) === 'string')
     assert(typeof(txId) === 'string')
     assert(typeof(stepId) === 'string')
@@ -1121,20 +1200,22 @@ console.log(`LKJHUHUHhhhhkjlha   tx.stepData(stepId)=`, tx.stepData(stepId))
     }
 
     // Save our changes to the transaction state
-    await tx.delta(null, {
-      status: STEP_RUNNING
-    }, 'Scheduler2.enqueue_StepRestart()')
-    await tx.delta(stepId, {
-      status: STEP_QUEUED
-    }, 'Scheduler2.enqueue_StepRestart()')
-    await PERSIST_TRANSACTION_STATE(tx)
+    // await tx.delta(null, {
+    //   status: STEP_RUNNING
+    // }, 'Scheduler2.enqueue_StepRestart()')
+    tx.vog_setStatusToRunning()
+
+    // await tx.delta(stepId, {
+    //   status: STEP_QUEUED
+    // }, 'Scheduler2.enqueue_StepRestart()')
+    tx.vog_setStepStatus(stepId, STEP_QUEUED)
 
     // Add to the event queue
     // const queue = await getQueueConnection()
     const event = {
       eventType: Scheduler2.STEP_START_EVENT,
       txId,
-      stepId,
+      // stepId,
     }
     event.txState = tx.stringify()
     await RedisQueue.enqueue(queueName, event)
@@ -1159,10 +1240,38 @@ console.log(`LKJHUHUHhhhhkjlha   tx.stepData(stepId)=`, tx.stepData(stepId))
    * @param {string} queueName
    * @param {object} event
    */
-   async schedule_StepCompleted(tx, nodeGroupOfParentZZZZZ, event, workerForShortcut=null) {
-    // if (VERBOSE)
-    console.log(`\n<<< schedule_StepCompleted()`.green, event)
+   async enqueue_StepCompleted(tx, flowIndex, nextF2i, completionToken, workerForShortcut=null) {
+    console.log(`MEGA YARP A`);
+    flow2Msg(tx, 'ALSO MEGA YARP');
+
+    if (FLOW_VERBOSE) flow2Msg(tx, `<<< Zenqueue_StepCompleted(${nextF2i})`.brightBlue + ' ' + tx.vog_flowPath(flowIndex))
+    //if (FLOW_VERBOSE) flowMsg(tx, `<<< enqueue_StepCompleted(${nextF2i})`.brightBlue + ' ' + tx.vog_flowPath(flowIndex))
+    // console.log(`tx=`, tx)
     // console.log(`event=`, event)
+
+    // We send the event to the parent.
+    const parentFlowIndex = tx.vog_getParentFlowIndex(flowIndex)
+    const event = {
+      eventType: Scheduler2.STEP_COMPLETED_EVENT,
+      txId: tx.getTxId(),
+      flowIndex,// deprecate this
+      childFlowIndex: flowIndex,
+      parentFlowIndex,
+      completionToken,
+      f2i: nextF2i,
+    }
+
+    // Update the F2
+    const nextF2 = tx.vf2_getF2(nextF2i)
+    // nextF2._yarp = 'enqueue_StepCompleted'
+    nextF2.ts1 = Date.now()
+
+
+    if (FLOW_PARANOID) {
+      validateStandardObject('enqueue_StepCompleted event', event, DEFINITION_STEP_COMPLETE_EVENT)
+      assert(tx instanceof TransactionState)
+      tx.vog_validateSteps()
+    }
 
     // Validate the event data
     // assert(typeof(nodeGroupOfParent) == 'string')
@@ -1170,7 +1279,7 @@ console.log(`LKJHUHUHhhhhkjlha   tx.stepData(stepId)=`, tx.stepData(stepId))
     assert(typeof(event) == 'object')
     assert(event.eventType === Scheduler2.STEP_COMPLETED_EVENT)
     assert(typeof(event.txId) === 'string')
-    assert(typeof(event.flowIndex) === 'number')
+    // assert(typeof(event.flowIndex) === 'number')
     // assert (typeof(event.parentStepId) === 'string')
     // assert (typeof(event.stepId) === 'string')
     // assert (typeof(event.completionToken) === 'string')
@@ -1183,9 +1292,8 @@ console.log(`LKJHUHUHhhhhkjlha   tx.stepData(stepId)=`, tx.stepData(stepId))
     // completion handler callback.
     // tx.vog_getParentFlowIndex(event.flowIndex)
     const flow = tx.vog_getFlowRecord(event.flowIndex)
-    console.log(`flow=`, flow)
+    // console.log(`flow=`, flow)
     const callbackNodeGroup = flow.onComplete.nodeGroup
-    console.log(`callbackNodeGroup=`, callbackNodeGroup)
   
     // How to reply when complete
     // assert (typeof(event.onComplete) === 'object')
@@ -1197,10 +1305,16 @@ console.log(`LKJHUHUHhhhhkjlha   tx.stepData(stepId)=`, tx.stepData(stepId))
     const myNodeGroup = schedulerForThisNode.getNodeGroup()
     // const myNodeId = schedulerForThisNode.getNodeId()
 
+
     // Add the event to the queue
     // event.fromNodeId = this.#nodeId
 
-    // tx.vog_flowRecordStepEnd(stepId, completionStatus, note, output)
+    // tx.vog_flowRecordStep_complete(stepId, completionStatus, note, output)
+    if (FLOW_PARANOID) {
+      validateStandardObject('enqueue_StepCompleted event', event, DEFINITION_STEP_COMPLETE_EVENT)
+      assert(tx instanceof TransactionState)
+      tx.vog_validateSteps()
+    }
 
     // Can we shortcut the reply, bypassing the queue?
     if (callbackNodeGroup === myNodeGroup) {
@@ -1211,56 +1325,30 @@ console.log(`LKJHUHUHhhhhkjlha   tx.stepData(stepId)=`, tx.stepData(stepId))
       if (SHORTCUT_STEP_COMPLETE && workerForShortcut !== null) {
 
         // Complete the step without queueing, in the current worker thread
-        if (Q_VERBOSE) console.log(`YARP stepCompleted - bypasing queues`)
-        event.txState = tx
-        const rv = await workerForShortcut.processEvent_StepCompleted(event)
+        if (FLOW_VERBOSE) console.log(`----- bypassing queues by using current worker`.gray)
+        // event.txState = tx
+        //console.log(`tx.pretty()=`, tx.pretty())
+        //console.log(`event=`, event)
+        const rv = await workerForShortcut.processEvent_StepCompleted(tx, event)
         assert(rv === GO_BACK_AND_RELEASE_WORKER)
       } else {
 
         // Reply goes in this node's dedicated express queue.
         // queueName = Scheduler2.nodeExpressQueueName(myNodeGroup, myNodeId)
-        if (Q_VERBOSE) console.log(`YARP stepCompleted - adding to local express memory queue`)
-        event.txState = tx
-        this.#expressMemoryQueue.add(event)
+        if (FLOW_VERBOSE) console.log(`----- outgoing memory queue`.gray)
+        this.#memoryQueue_outgoing.add(tx, event)
         // dbLogbook.bulkLogging(event.txId, pipelineStepId, [{ message: `step complete -> express ${queueName}`,  level: dbLogbook.LOG_LEVEL_TRACE, source: dbLogbook.LOG_SOURCE_SYSTEM }])
       }
     } else {
 
-      /*
-       *  The completion callback runs in a different group or a different node in this group.
-       */
-      // console.log(`nodeGroupOfParent=`, nodeGroupOfParent)
-      // console.log(`nodeIdOfParent=`, nodeIdOfParent)
-      // if (nodeGroupOfParent === myNodeGroup && nodeIdOfParent !== null) {
 
-      //   // Send the reply to the specific node's express queue.
-      //   const queueName = Scheduler2.nodeExpressQueueName(nodeGroupOfParent, nodeIdOfParent)
-      //   // if (Q_VERBOSE)
-      //   console.log(`YARP stepCompleted - adding to node queue ${queueName}`)
-      //   event.txState = tx.stringify()
-      //   await RedisQueue.enqueue(queueName, event)
-      //   // dbLogbook.bulkLogging(event.txId, pipelineStepId, [{ message: `step complete -> express ${queueName}`,  level: dbLogbook.LOG_LEVEL_TRACE, source: dbLogbook.LOG_SOURCE_SYSTEM }])
-      // } else {
+        if (Q_VERBOSE) console.log(`StepCompleted - adding to an outgoing REDIS queue`)
 
-        // Put the event in the node group's queue
-        // const queueName = Scheduler2.groupQueueName(nodeGroupOfParent)
-
-
-        /*VOG
-        const queueName = Scheduler2.groupExpressQueueName(nodeGroupOfParent)
-        if (Q_VERBOSE) console.log(`YARP stepCompleted - adding to group queue ${queueName}`)
-        event.txState = tx.stringify()
-        await RedisQueue.enqueue(queueName, event)
-        // dbLogbook.bulkLogging(event.txId, pipelineStepId, [{ message: `step complete -> group ${queueName}`,  level: dbLogbook.LOG_LEVEL_TRACE, source: dbLogbook.LOG_SOURCE_SYSTEM }])
-        VOG*/
-
-
-        const redisLua = await RedisQueue.getRedisLua()
         const pipelineName = null
-        // console.log(`\n\nPIPELINE IS ${yarpLuaPipeline}`)
-        event.txState = tx
-        // console.log(`schedule_StepCompleted: event=`, event)
-        redisLua.enqueue('in', pipelineName, event)
+        const checkExternalIdIsUnique = false
+        const nodeGroup = callbackNodeGroup
+        const redisLua = await RedisQueue.getRedisLua()
+        redisLua.luaEnqueue_pipelineEnd(tx, event, pipelineName, checkExternalIdIsUnique, nodeGroup)
       // }
     }
 
@@ -1272,71 +1360,89 @@ console.log(`LKJHUHUHhhhhkjlha   tx.stepData(stepId)=`, tx.stepData(stepId))
   }//- enqueue_StepCompleted
 
 
-  /**
-   *
-   * @param {string} nodeGroup mandatory
-   * @param {string} nodeId mandatory
-   * @param {object} event
-   */
-  async schedule_TransactionCompleted(tx, txInitNodeGroup, txInitNodeId, workerForShortcut, event) {
-    if (VERBOSE) {
-      console.log(`\n<<< schedule_TransactionCompleted(${txInitNodeGroup}, ${txInitNodeId})`.green, event)
-    }
+  // /**
+  //  *
+  //  * @param {string} nodeGroup mandatory
+  //  * @param {string} nodeId mandatory
+  //  * @param {object} event
+  //  */
+  // async enqueue_TransactionCompleted(tx, txInitNodeGroup, txInitNodeId, workerForShortcut, event) {
+  //   if (FLOW_VERBOSE) {
+  //     console.log(`\n<<< enqueue_TransactionCompleted(${txInitNodeGroup}, ${txInitNodeId})`.brightGreen, event)
+  //   }
 
-    // Validate the event data
-    assert(typeof(txInitNodeGroup) === 'string')
-    assert(typeof(txInitNodeId) === 'string')
-    // assert(typeof(event) === 'object' && event != null)
-    validateEvent_TransactionCompleted(event)
 
-    const myNodeGroup = schedulerForThisNode.getNodeGroup()
-    const myNodeId = schedulerForThisNode.getNodeId()
+  //   console.log(`enqueue_TransactionCompleted - IS THIS USED ANY MORE??????`.bgMagenta)
+  //   console.log(`enqueue_TransactionCompleted - IS THIS USED ANY MORE??????`.bgMagenta)
+  //   console.log(`enqueue_TransactionCompleted - IS THIS USED ANY MORE??????`.bgMagenta)
+  //   console.log(`enqueue_TransactionCompleted - IS THIS USED ANY MORE??????`.bgMagenta)
+  //   console.log(`enqueue_TransactionCompleted - IS THIS USED ANY MORE??????`.bgMagenta)
+  //   console.log(`enqueue_TransactionCompleted - IS THIS USED ANY MORE??????`.bgMagenta)
+  //   console.log(`enqueue_TransactionCompleted - IS THIS USED ANY MORE??????`.bgMagenta)
+  //   console.log(`enqueue_TransactionCompleted - IS THIS USED ANY MORE??????`.bgMagenta)
+  //   console.log(`enqueue_TransactionCompleted - IS THIS USED ANY MORE??????`.bgMagenta)
+  //   console.log(`enqueue_TransactionCompleted - IS THIS USED ANY MORE??????`.bgMagenta)
+  //   console.log(`enqueue_TransactionCompleted - IS THIS USED ANY MORE??????`.bgMagenta)
+  //   console.log(`enqueue_TransactionCompleted - IS THIS USED ANY MORE??????`.bgMagenta)
+  //   console.log(`enqueue_TransactionCompleted - IS THIS USED ANY MORE??????`.bgMagenta)
+  //   console.log(`enqueue_TransactionCompleted - IS THIS USED ANY MORE??????`.bgMagenta)
+  //   console.log(`enqueue_TransactionCompleted - IS THIS USED ANY MORE??????`.bgMagenta)
+  //   console.log(`enqueue_TransactionCompleted - IS THIS USED ANY MORE??????`.bgMagenta)
 
-    // Add to the event queue
-    event.eventType = Scheduler2.TRANSACTION_COMPLETED_EVENT
-    event.fromNodeId = this.#nodeId
+  //   // Validate the event data
+  //   assert(typeof(txInitNodeGroup) === 'string')
+  //   assert(typeof(txInitNodeId) === 'string')
+  //   // assert(typeof(event) === 'object' && event != null)
+  //   validateEvent_TransactionCompleted(event)
 
-    // Can we shortcut the reply, bypassing the queue?
-    if (txInitNodeGroup === myNodeGroup && txInitNodeId === myNodeId) {
+  //   const myNodeGroup = schedulerForThisNode.getNodeGroup()
+  //   const myNodeId = schedulerForThisNode.getNodeId()
 
-      /*
-        *  The step will runs on this node.
-        */
-      if (SHORTCUT_TX_COMPLETION && workerForShortcut !== null) {
+  //   // Add to the event queue
+  //   event.eventType = Scheduler2.TRANSACTION_COMPLETED_EVENT
+  //   event.fromNodeId = this.#nodeId
 
-        // Complete the step without queueing, in the current worker thread
-        // console.log(`Shortcutting TxCompleted !!!!!`)
-        if (Q_VERBOSE) console.log(`YARP transactionCompleted - bypass queues`)
-        event.txState = tx
-        const rv = await workerForShortcut.processEvent_TransactionCompleted(event)
-        assert(rv === GO_BACK_AND_RELEASE_WORKER)
-        // console.log(`TX COMPLETE - BYPASSING QUEUEING`)
-      } else {
+  //   // Can we shortcut the reply, bypassing the queue?
+  //   if (txInitNodeGroup === myNodeGroup && txInitNodeId === myNodeId) {
 
-        // Place the event in this node's dedicated express queue.
-        // queueName = Scheduler2.nodeExpressQueueName(myNodeGroup, myNodeId)
-        if (Q_VERBOSE) console.log(`YARP transactionCompleted - adding to express local memory queue`)
-        event.txState = tx
-        this.#expressMemoryQueue.add(event)
-      }
-    } else {
+  //     /*
+  //       *  The step will runs on this node.
+  //       */
+  //     if (SHORTCUT_TX_COMPLETION && workerForShortcut !== null) {
 
-      // Put the event in a specific node's express queue.
-      // console.log(`TX COMPLETE - SAVING STATE IN REDIS`)
-      // console.log(`schedule_TransactionCompleted: ${event.txId} - queue event to different node`)
-      const queueName = Scheduler2.nodeExpressQueueName(txInitNodeGroup, txInitNodeId)
-      event.txState = tx.stringify()
-      await RedisQueue.enqueue(queueName, event)
-    }
+  //       // Complete the step without queueing, using the current worker thread
+  //       // console.log(`Shortcutting TxCompleted !!!!!`)
+  //       if (Q_VERBOSE) console.log(`Transaction completed - bypass queues by using current worker`.bgRed)
+  //       event.txState = tx
+  //       const rv = await workerForShortcut.processEvent_TransactionCompleted(event)
+  //       assert(rv === GO_BACK_AND_RELEASE_WORKER)
+  //       // console.log(`TX COMPLETE - BYPASSING QUEUEING`)
+  //     } else {
 
-    // Update our statistics
-    this.#transactionsOutPastMinute.add(1)
-    this.#transactionsOutPastHour.add(1)
-    this.#enqueuePastMinute.add(1)
-    this.#enqueuePastHour.add(1)
+  //       // Place the event in this node's outgoing memory queue.
+  //       // queueName = Scheduler2.nodeExpressQueueName(myNodeGroup, myNodeId)
+  //       if (Q_VERBOSE) console.log(`Transaction completed - adding to outgoing local memory queue`.bgRed)
+  //       this.#memoryQueue_outgoing.add(tx, event)
+  //     }
+  //   } else {
 
-    return GO_BACK_AND_RELEASE_WORKER
-  }//- schedule_TransactionCompleted
+  //     // Put the event in a specific node's outgoing queue.
+  //     // console.log(`TX COMPLETE - SAVING STATE IN REDIS`)
+  //     // console.log(`enqueue_TransactionCompleted: ${event.txId} - queue event to different node`)
+  //     if (Q_VERBOSE) console.log(`Transaction completed - adding to an outgoing REDIS queue`.bgRed)
+  //     const queueName = Scheduler2.nodeExpressQueueName(txInitNodeGroup, txInitNodeId)
+  //     event.txState = tx.stringify()
+  //     await RedisQueue.enqueue(queueName, event)
+  //   }
+
+  //   // Update our statistics
+  //   this.#transactionsOutPastMinute.add(1)
+  //   this.#transactionsOutPastHour.add(1)
+  //   this.#enqueuePastMinute.add(1)
+  //   this.#enqueuePastHour.add(1)
+
+  //   return GO_BACK_AND_RELEASE_WORKER
+  // }//- enqueue_TransactionCompleted
 
 
   /**
@@ -1345,8 +1451,8 @@ console.log(`LKJHUHUHhhhhkjlha   tx.stepData(stepId)=`, tx.stepData(stepId))
    * @param {object} event
    */
    async enqueue_TransactionChange(queueName, event) {
-    if (VERBOSE) {
-      console.log(`\n<<< enqueue_TransactionChange(${queueName})`.green, event)
+    if (FLOW_VERBOSE) {
+      console.log(`\n<<< enqueue_TransactionChange(${queueName})`.brightGreen, event)
     }
     if (queueName.startsWith(Scheduler2.GROUP_QUEUE_PREFIX)) {
       console.log(`////////////////////////////////////////////`.magenta)
@@ -1521,8 +1627,8 @@ console.log(`LKJHUHUHhhhhkjlha   tx.stepData(stepId)=`, tx.stepData(stepId))
       events: {
         waiting: 987654321,
         processing: 0,
-        expressMemoryQueue: this.#expressMemoryQueue.len(),
-        regularMemoryQueue: this.#regularMemoryQueue.len(),
+        expressMemoryQueue: this.#memoryQueue_outgoing.len(),
+        regularMemoryQueue: this.#memoryQueue_incoming.len(),
       },
       workers: {
         total: this.#workers.length,
@@ -1628,7 +1734,7 @@ console.log(`LKJHUHUHhhhhkjlha   tx.stepData(stepId)=`, tx.stepData(stepId))
   }
 
   /**
-   * @param {Transaction} transaction 
+   * @param {TransactionState} transaction 
    * @param {number} persistAfter Time before it is written to long term storage (seconds)
    */
   async saveTransactionState_level1(tx) {

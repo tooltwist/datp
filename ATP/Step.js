@@ -10,6 +10,12 @@ import { STEP_TYPE_PIPELINE } from './StepTypeRegister'
 
 const VERBOSE = false
 
+
+/**
+ * Initial state, before use.
+ */
+ export const STEP_INITIAL = 'initial'
+
 /**
  * Step is queued for running
  */

@@ -13,8 +13,11 @@ import GenerateHash from '../GenerateHash'
 import { PIPELINE_STEP_COMPLETE_CALLBACK } from '../Scheduler2/pipelineStepCompleteCallback'
 import { schedulerForThisNode } from '../..'
 import { GO_BACK_AND_RELEASE_WORKER } from '../Scheduler2/Worker2'
+import { FLOW_VERBOSE } from '../Scheduler2/queuing/redis-lua'
+import { flow2Msg, flowMsg } from '../Scheduler2/flowMsg'
+import { F2_PIPELINE_CH, F2_STEP } from '../Scheduler2/TransactionState'
 
-export const PIPELINES_VERBOSE = 2
+export const PIPELINES_VERBOSE = 0
 
 class Pipeline extends Step {
   #stepIndex
@@ -23,7 +26,8 @@ class Pipeline extends Step {
   constructor(definition) {
     super(definition)
     if (PIPELINES_VERBOSE) {
-      console.log(`PipelineStepHandler.constructor(${definition.description})`)
+      console.log(`Pipeline.constructor()`)
+      console.log(`definition.steps=`.magenta, definition.steps)
     }
     this.#stepIndex = definition.steps // { 0:{ id: 0, definition: {...} }, 1:... }
     this.#steps = Object.values(this.#stepIndex).sort((a,b) => {
@@ -36,101 +40,79 @@ class Pipeline extends Step {
 
   async invoke(pipelineInstance) {
     assert(pipelineInstance instanceof StepInstance)
-    // if (PIPELINES_VERBOSE)
-    pipelineInstance.trace(`>>>>    Pipeline.invoke (${pipelineInstance.getStepId()})  `.black.bgGreen.bold)
-    console.log(`pipelineInstance.vog_getFlowIndex()=`.magenta, pipelineInstance.vog_getFlowIndex())
 
+    // This function gets the transaction status object. We want to keep this unpublished
+    // and hard to notice - we don't want developers mucking with the internals of DATP.
+    const txId = pipelineInstance.getTransactionId()//ZZZZ rename
+    const tx = pipelineInstance._7agghtstrajj_37(txId)
 
-    // console.log(new Error(`IN PipelineStep.invoke()`).stack)
+    if (FLOW_VERBOSE) flow2Msg(tx, `>>>>    Pipeline.invoke (${pipelineInstance.getStepId()})  `)
 
     //ZZZZ If there are no steps, return immediately
     if (this.#steps.length < 1) {
       throw new Error(`Pipeline contains no steps [${pipelineInstance.getStepId()}]`)
     }
-
-
-    const indexOfCurrentChildStep = 0
     const childStepDefinition = this.#steps[0].definition
 
-    const txId = pipelineInstance.getTransactionId()//ZZZZ rename
     const stepInput = await pipelineInstance.getTxData().getData()
     const metadata = await pipelineInstance.getMetadata()
 
-    // This function gets the transaction status object. We want to keep this unpublished
-    // and hard to notice - we don't want developers mucking with the internals of DATP.
-    const tx = pipelineInstance._7agghtstrajj_37(txId)
     const pipelineStepId = pipelineInstance.getStepId()
+    const pipelineStep = tx.stepData(pipelineStepId)
     const childStepIds = [ ]
     for (let i = 0; i < this.#steps.length; i++) {
-      // await tx.delta(childStepId, {
-      //   vogP: pipelineStepId,
-      //   vogI: i,
-      // }, 'pipelineStep.invoke()')
-
       const childStepId = await tx.addChildStep(pipelineStepId, i)
       childStepIds[i] = childStepId
-      await tx.delta(childStepId, { vogIsPipelineChild: true }, 'pipelineStep.invoke()')/// Temporary - remove this
+
+      const childStepDefinition = this.#steps[i].definition
+      const childFullSequence = `${pipelineStep.fullSequence}.${i + 1}` // Start sequence at 1
+      const childVogPath = `${pipelineStep.vogPath},${i + 1}=PC.${childStepDefinition.stepType}` // Start sequence at 1
+
+
+
       await tx.delta(childStepId, { vogAddedBy: 'PipelineStep.invoke()' }, 'pipelineStep.invoke()')/// Temporary - remove this
-      // await tx.setChildIndex(childStepId, i)
-      // await tx.setChildParent(childStepId, pipelineStepId)
-      // await tx.delta(childStepId, { vogIsPipelineChild: true }, 'pipelineStep.invoke()')/// Temporary - remove this
+      await tx.delta(childStepId, {
+        stepDefinition: childStepDefinition,
+        fullSequence: childFullSequence,
+        vogPath: childVogPath
+      })
 
-      // const stepType = this.#steps[0].definition
-      // const stepType = 'yarpvog'
-      // console.log(`stepType=`, stepType)
+    }//- next child step
 
-      // const childFullSequence = `${pipelineInstance.getFullSequence()}.1` // Start sequence at 1
-      // const childVogPath = `${pipelineInstance.getVogPath()},1=P.${stepType}` // Start sequence at 1
-
-      
-      // fullSequence: childFullSequence,
-      // vogPath: childVogPath,
-
-      // metadata: metadata,
-      // data: stepInput,
-      // level: pipelineInstance.getLevel() + 1,
-      // onComplete: {
-      //   nodeGroup: myNodeGroup,
-      //   nodeId: myNodeId,
-      //   callback: PIPELINE_STEP_COMPLETE_CALLBACK,
-      //   context: { txId, parentNodeGroup, parentStepId, childStepId }
-      // }
-
-
-
-      console.log(`Piplinestep: Added Step ${i}=`, tx.stepData(childStepId))
-
-    }
     await tx.delta(pipelineStepId, {
+      "-vogStepDefinition": "",
       pipelineSteps: this.#steps,
-      indexOfCurrentChildStep,
+//VOG812      indexOfCurrentChildStep,
       childStepIds,
     }, 'pipelineStep.invoke()')
-    await tx.delta(null, {
-      nextStepId: pipelineStepId,
-    }, 'pipelineStep.invoke()')
+
+    tx.vog_setNextStepId(pipelineStepId)
 
     if (PIPELINES_VERBOSE) {
       console.log(`PipelineStep.initiateChildStep()`)
       console.log(`********************************`)
-      console.log(`Pipeline.initiateChildStep(${indexOfCurrentChildStep})`)
+//VOG812      console.log(`Pipeline.initiateChildStep(${indexOfCurrentChildStep})`)
     }
 
     if (PIPELINES_VERBOSE) console.log(`childStepDefinition`, childStepDefinition)
 
-    const parentStepId = pipelineInstance.getStepId()
     const myNodeGroup = schedulerForThisNode.getNodeGroup()
-    const myNodeId = schedulerForThisNode.getNodeId()
     const parentNodeGroup = pipelineInstance.getNodeGroup()// Shouldn't this just be the current node group?
     const childStepId = childStepIds[0]
-    const childNodeGroup = myNodeGroup // Step runs in same node as it's pipeline
-
-    const childFullSequence = `${pipelineInstance.getFullSequence()}.1` // Start sequence at 1
-    const childVogPath = `${pipelineInstance.getVogPath()},1=P.${childStepDefinition.stepType}` // Start sequence at 1
 
     if (PIPELINES_VERBOSE)  pipelineInstance.trace(`Step #1 - begin`)
     pipelineInstance.syncLogs()
 
+    // Add the first child to f2
+    const f2i = pipelineInstance.vog_getF2i()
+    const { f2i:childF2i, f2:childF2} = tx.vf2_addF2child(f2i, F2_STEP, 'Pipeline.invoke')
+    childF2.stepId = childStepId
+    childF2.ts1 = Date.now()
+    childF2.ts2 = 0
+    childF2.ts3 = 0
+    const { f2:completionHandlerF2 } = tx.vf2_addF2sibling(f2i, F2_PIPELINE_CH)
+    completionHandlerF2.callback = PIPELINE_STEP_COMPLETE_CALLBACK
+    completionHandlerF2.nodeGroup = schedulerForThisNode.getNodeGroup()
 
 
     // The child will run in this node - same as this pipeline.
@@ -139,9 +121,11 @@ class Pipeline extends Step {
     // calling a pipline that runs on another node.
     const workerForShortcut = pipelineInstance.getWorker()
     //VOGGY
-    console.log(`-----------------------------`)
-    console.log(`VOGGY B - PipelineStep.invoke`)
-    console.log(`-----------------------------`)
+    if (FLOW_VERBOSE) {
+      // console.log(`-----------------------------`)
+      flow2Msg(tx, `PipelineStep.invoke`)
+      // console.log(`-----------------------------`)
+    }
 
     //ZZZZZ Stuff to delete
     await tx.delta(childStepId, {
@@ -151,34 +135,35 @@ class Pipeline extends Step {
     const event = {
       eventType: Scheduler2.STEP_START_EVENT,
       // Need either a pipeline or a nodeGroup
-      nodeGroup: childNodeGroup,
+      // nodeGroup: childNodeGroup,
       txId,
       // nodeId: childNodeGroup,
-      stepId: childStepId,
+      // stepId: childStepId,
       parentNodeGroup,
       // parentNodeId,
-      parentStepId,
-      fullSequence: childFullSequence,
-      vogPath: childVogPath,
+      // parentStepId,
+      // fullSequence: childFullSequence,
+      // vogPath: childVogPath,
+
+      //ZZZZZ Why is this here?????
       stepDefinition: childStepDefinition,
       metadata: metadata,
       data: stepInput,
       level: pipelineInstance.getLevel() + 1,
       // parentFlowIndex: pipelineInstance.vog_getFlowIndex(),
+      f2i: childF2i,
     }
     const onComplete = {
       nodeGroup: myNodeGroup,
       // nodeId: myNodeId,
       callback: PIPELINE_STEP_COMPLETE_CALLBACK,
-      context: { txId, parentNodeGroup, parentStepId, childStepId }
+//VOG777      context: { txId, parentNodeGroup, parentStepId, childStepId }
     }
 
     const parentFlowIndex = pipelineInstance.vog_getFlowIndex()
     const parentFlow = tx.vog_getFlowRecord(parentFlowIndex)
-    parentFlow.vogYarpYarp = 0
-    const rv = await schedulerForThisNode.schedule_StepStart(tx,
-      // myNodeGroup, myNodeId,
-      workerForShortcut, event, childStepId, onComplete, parentFlowIndex)
+    parentFlow.vog_currentPipelineStep = 0
+    const rv = await schedulerForThisNode.enqueue_StartStep(tx, parentFlowIndex, childStepId, event, onComplete, workerForShortcut)
     assert(rv === GO_BACK_AND_RELEASE_WORKER)
 
     //ZZZZ Handling of sync steps???

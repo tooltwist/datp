@@ -5,11 +5,13 @@
  * the author or owner be liable for any claim or damages.
  */
 import ATP from '../ATP/ATP'
-import Transaction from '../ATP/Scheduler2/Transaction';
+import TransactionState from '../ATP/Scheduler2/TransactionState';
 import TransactionCache from '../ATP/Scheduler2/txState-level-1';
 import { STEP_ABORTED, STEP_FAILED, STEP_SUCCESS } from '../ATP/Step';
 import errors from 'restify-errors'
-import dbLogbook from '../database/dbLogbook';
+import dbLogbook from '../database/dbLogbook'
+
+const VERBOSE = 0
 
 export async function dumpAllTransactionsV1(req, res, next) {
   console.log(`dumpAllTransactionsV1()`)
@@ -44,20 +46,22 @@ export async function mondatRoute_transactionsV1(req, res, next) {
   const filter = req.query.filter ? req.query.filter : null
   let status = [STEP_SUCCESS, STEP_FAILED, STEP_ABORTED] // Finished transactions
   if (req.query.status) {
-    status = req.query.status.split(',')
+    status = [ ]
+    req.query.status.split(',').forEach(s => { if (s) status.push(s) })
   }
+  const archived = (req.query.archived ? true : false)
 
   // console.log(`pagesize=`, pagesize)
   // console.log(`page=`, page)
   // console.log(`filter=`, filter)
   // console.log(`status=`, status)
-  const txlist = await Transaction.findTransactions(pagesize, offset, filter, status)
+  const txlist = await TransactionState.findTransactions(archived, pagesize, offset, filter, status)
   res.send(txlist)
   return next();
 }
 
 export async function mondatRoute_transactionStatusV1(req, res, next) {
-  // console.log(`mondatRoute_transactionStatusV1()`)
+  if (VERBOSE) console.log(`mondatRoute_transactionStatusV1()`.yellow)
 
   //ZZZZZZZ This should get the transaction summary from the database, and leave the state alone.
 
@@ -73,7 +77,7 @@ export async function mondatRoute_transactionStatusV1(req, res, next) {
   //ZZZZZ
 
   // Get transaction details
-  const txData = tx.txData()
+  const txData = tx.transactionData()
 
   // Create a list of steps
   const ids = tx.stepIds()
@@ -121,3 +125,75 @@ export async function mondatRoute_transactionStatusV1(req, res, next) {
   })
   return next();
 }
+
+export async function mondatRoute_transactionStateV1(req, res, next) {
+  // if (VERBOSE)
+  console.log(`mondatRoute_transactionStateV1()`.yellow)
+
+  //ZZZZZZZ This should get the transaction summary from the database, and leave the state alone.
+
+  const txId = req.params.txId
+  const tx = await TransactionCache.getTransactionState(txId)
+  if (!tx) {
+    console.log(`Transaction state not available: ${txId}`)
+    res.send(new errors.NotFoundError(`Unknown transaction`))
+    return next()
+  }
+  // console.log(`tx=`.brightYellow, tx)
+  res.send(tx.asObject())
+  return next()
+
+  // Check that the current user has access to this transaction
+  //ZZZZZ
+
+  // Return the transaction state
+
+  // const txStateObject 
+  const txData = tx.transactionData()
+
+  // Create a list of steps
+  const ids = tx.stepIds()
+  const steps = [ ]
+  const index = { }
+  for (const stepId of ids) {
+    const stepData = await tx.stepData(stepId)
+    stepData.logs = [ ]
+    steps.push(stepData)
+    index[stepId] = stepData
+  }
+
+  // Load the log entries for this transaction
+  const logEntries = await dbLogbook.getLog(txId)
+  const brokenSteps = new Set() // stepIds we've already complained about
+  for (const entry of logEntries) {
+    if (entry.stepId) {
+      const step = index[entry.stepId]
+      if (step) {
+        step.logs.push(entry)
+        delete entry.stepId
+      } else {
+        //ZZZZZ Write this to the system error log
+        if (!brokenSteps.has(entry.stepId)) {
+          console.log(`INTERNAL ERROR: Found log entry for unknown step in transaction [ ${entry.stepId} in ${txId}]`)
+  console.log(`typeof(entry.stepId)=`, typeof(entry.stepId))
+          brokenSteps.add(entry.stepId)
+        }
+      }
+    } else {
+      // Transaction level log entry
+      //ZZZZZ
+      // console.log(`YARP TX LOG:`, entry)
+    }
+  }
+
+  // Send the reply
+  res.send({
+    status: txData.status,
+    transactionType: txData.transactionType,
+    nodeGroup: txData.nodeGroup,
+    nodeId: txData.nodeId,
+    pipelineName: txData.pipelineName,
+    steps
+  })
+  return next();
+}//- mondatRoute_transactionStateV1

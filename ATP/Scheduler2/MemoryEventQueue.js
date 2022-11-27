@@ -4,6 +4,8 @@
  * rights reserved. No warranty, explicit or implicit, provided. In no event shall
  * the author or owner be liable for any claim or damages.
  */
+import assert from 'assert'
+import TransactionState from "./TransactionState"
 
 /**
  * We'll use a memory queue - add to the end and remove from the front.
@@ -19,23 +21,24 @@ export class MemoryEventQueue {
 
   constructor() {
     this.#start = 0
-    this.#array = []
+    this.#array = [] // Array of { txState, event }
   }
 
-  add(event) {
+  add(txState, event) {
+    assert(txState instanceof TransactionState)
     // assert(event.type)
-    this.#array[this.#array.length] = event
+    this.#array[this.#array.length] = { txState, event }
   }
 
   next() {
     if (this.#start >= this.#array.length) {
       return null;
     }
-    const event = this.#array[this.#start++]
+    const { txState, event } = this.#array[this.#start++]
 
     // Perhaps tidy up the queue
     if (this.#start > 100 && this.#start >= this.#array.length - this.#start) {
-        //move all the elements into the free space at beginning
+        // Move all the elements into the free space at beginning.
         // console.log(`moving from ${this.#start}`)
         let d=0;
         for (let i = this.#start; i < this.#array.length; ++i) {
@@ -44,7 +47,7 @@ export class MemoryEventQueue {
         this.#start = 0
         this.#array.length = d
     }
-    return event
+    return { txState, event }
   }
 
   len () {

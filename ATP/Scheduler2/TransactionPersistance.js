@@ -6,7 +6,7 @@
  */
 import query from "../../database/query";
 import TransactionIndexEntry from "../TransactionIndexEntry";
-import Transaction from "./Transaction";
+import TransactionState from "./TransactionState";
 import { DEBUG_DB_ATP_TRANSACTION, DEBUG_DB_ATP_TRANSACTION_DELTA } from '../../datp-constants'
 import { logger } from '../../lib/pino-deltas'
 import dogapi from 'dogapi'
@@ -26,42 +26,39 @@ let _datadogInitialized = false
 const MAX_DATADOG_JSON_SIZE = 4000
 let _dynamoDB = null
 
-export class DuplicateExternalIdError extends Error {
-  constructor() {
-    super('Transaction with this externalId already exists')
-  }
-}
 
 
 export default class TransactionPersistance {
   /**
    *
-   * @param {Transaction} tx
+   * @param {TransactionState} tx
    */
-  static async saveNewTransaction(tx) {
-    const txId = tx.getTxId()
-    const owner = tx.getOwner()
-    const externalId = tx.getExternalId()
-    const transactionType = tx.getTransactionType()
+  // static async saveNewTransaction(tx) {
+  //   const txId = tx.getTxId()
+  //   const owner = tx.getOwner()
+  //   const externalId = tx.getExternalId()
+  //   const transactionType = tx.getTransactionType()
 
+  //   console.log(`saveNewTransaction(): NOT SAVING TX TO DB`.cyan)
+  //   return
 
-    try {
-      if (DEBUG_DB_ATP_TRANSACTION) console.log(`TX INSERT ${countDbAtpTransactionInsert++}`)
-      const sql = `INSERT INTO atp_transaction2 (transaction_id, owner, external_id, transaction_type, status) VALUES (?,?,?,?,?)`
-      const status = TransactionIndexEntry.RUNNING //ZZZZ YARP2
-      const params = [ txId, owner, externalId, transactionType, status ]
-      await dbupdate(sql, params)
-      // console.log(`result=`, result)
-    } catch (e) {
-      // See if there was a problem with the externalId
-      if (e.code === 'ER_DUP_ENTRY') {
-        // A transaction already exists with this externalId
-        console.log(`TransactionPersistance:DuplicateExternalIdError - detected duplicate externalId during DB insert`)
-        throw new DuplicateExternalIdError()
-      }
-      throw e
-    }
-  }//- saveNewTransaction()
+  //   try {
+  //     if (DEBUG_DB_ATP_TRANSACTION) console.log(`TX INSERT ${countDbAtpTransactionInsert++}`)
+  //     const sql = `INSERT INTO atp_transaction2 (transaction_id, owner, external_id, transaction_type, status) VALUES (?,?,?,?,?)`
+  //     const status = TransactionIndexEntry.RUNNING //ZZZZ YARP2
+  //     const params = [ txId, owner, externalId, transactionType, status ]
+  //     await dbupdate(sql, params)
+  //     // console.log(`result=`, result)
+  //   } catch (e) {
+  //     // See if there was a problem with the externalId
+  //     if (e.code === 'ER_DUP_ENTRY') {
+  //       // A transaction already exists with this externalId
+  //       console.log(`TransactionPersistance:DuplicateExternalIdError - detected duplicate externalId during DB insert`)
+  //       throw new DuplicateExternalIdError()
+  //     }
+  //     throw e
+  //   }
+  // }//- saveNewTransaction()
 
 
   static async deltaDestination() {
@@ -308,7 +305,7 @@ export default class TransactionPersistance {
   /**
    *
    * @param {string} txId Transaction ID
-   * @returns Promise<Transaction>
+   * @returns Promise<TransactionState>
    */
   static async reconstructTransaction_database(txId) {
     if (VERBOSE) console.log(`reconstructTransaction(${txId})`)
@@ -321,7 +318,14 @@ export default class TransactionPersistance {
       // Transaction not found
       return null
     }
-    const tx = new Transaction(txId, rows[0].owner, rows[0].external_id, rows[0].transaction_type)
+    const tx = new TransactionState({
+      txId,
+      owner: rows[0].owner,
+      externalId: rows[0].external_id,
+      transactionData: {
+        transactionType: rows[0].transaction_type
+      }
+    })
 
     // Now add the deltas
     const sql2 = `SELECT * from atp_transaction_delta WHERE transaction_id=? ORDER BY sequence`
@@ -345,7 +349,7 @@ export default class TransactionPersistance {
   /**
    *
    * @param {string} txId Transaction ID
-   * @returns Promise<Transaction>
+   * @returns Promise<TransactionState>
    */
    static async reconstructTransaction_dynamodb(txId) {
     if (VERBOSE) console.log(`reconstructTransaction_dynamodb(${txId})`)
@@ -359,7 +363,14 @@ export default class TransactionPersistance {
       // Transaction not found
       return null
     }
-    const tx = new Transaction(txId, rows[0].owner, rows[0].external_id, rows[0].transaction_type)
+    const tx = new TransactionState({
+      txId,
+      owner: rows[0].owner,
+      externalId: rows[0].external_id,
+      transactionData: {
+        transactionType: rows[0].transaction_type
+      }
+    })
 
     // Now add the deltas
     try {

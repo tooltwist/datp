@@ -6,13 +6,12 @@
  */
 import juice from '@tooltwist/juice-client'
 import assert from 'assert'
-import Transaction from '../Transaction'
+import TransactionState from '../TransactionState'
 import Scheduler2 from '../Scheduler2';
 import { schedulerForThisNode } from '../../..';
-import { saveTransactionState_level2 } from '../txState-level-2';
 import { RedisLua } from './redis-lua';
-import { CloudDirectory } from 'aws-sdk';
 import pause from '../../../lib/pause';
+import { archiveTransactionState } from '../archiving/ArchiveProcessor';
 const Redis = require('ioredis');
 
 // This adds colors to the String class
@@ -655,7 +654,7 @@ export class RedisQueue {
   /**
    * Store a transaction to REDIS.
    * 
-   * @param {Transaction} transaction
+   * @param {TransactionState} transaction
    * @param {persistAfter} duration Time before it is written to long term storage (seconds)
    */
   static async saveTransactionState_level1(transactionState) {
@@ -723,7 +722,7 @@ export class RedisQueue {
 
       // console.log(`json=`, json)
 
-      await saveTransactionState_level2(txId, json)
+      await archiveTransactionState(txId, json)
 
       // try {
       //   /*
@@ -789,7 +788,7 @@ export class RedisQueue {
       // Transaction state not in the REDIS cache
       return null
     } else {
-      return Transaction.transactionStateFromJSON(json)
+      return new TransactionState(json)
     }
   }//- getTransactionState
 

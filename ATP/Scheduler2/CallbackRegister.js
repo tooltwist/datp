@@ -53,12 +53,12 @@ export default class CallbackRegister {
     CallbackRegister._index[name] = func
   }
 
-  static async call(tx, name, flowIndex, nodeInfo, worker) {
-    // if (VERBOSE)
-    console.log(`% CallbackRegister.call(${name})`, flowIndex, nodeInfo)
+  static async call(tx, name, flowIndex, f2i, nodeInfo, worker) {
+    if (VERBOSE) console.log(`% CallbackRegister.call(${name}, f2i=${f2i})`, flowIndex, nodeInfo)
     this._checkInitialized()
 
     assert(typeof(flowIndex) === 'number')
+    assert(typeof(f2i) === 'number')
 
     const func = CallbackRegister._index[name]
     if (!func) {
@@ -68,7 +68,7 @@ export default class CallbackRegister {
       }
       throw new Error(`Unknown callback [${name}]`)
     }
-    const rv = await func(tx, flowIndex, nodeInfo, worker)
+    const rv = await func(tx, flowIndex, f2i, nodeInfo, worker)
     // console.log(`name=`, name)
     assert(rv === GO_BACK_AND_RELEASE_WORKER)
     return GO_BACK_AND_RELEASE_WORKER

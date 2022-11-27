@@ -13,6 +13,9 @@ import { schedulerForThisNode } from '../..'
 import dbLogbook from '../../database/dbLogbook'
 import { GO_BACK_AND_RELEASE_WORKER } from './Worker2'
 import Scheduler2 from './Scheduler2'
+import { FLOW_PARANOID, FLOW_VERBOSE } from './queuing/redis-lua'
+import { STEP_DEFINITION, validateStandardObject } from './eventValidation'
+import { flow2Msg, flowMsg } from './flowMsg'
 
 export const CHILD_PIPELINE_COMPLETION_CALLBACK = 'childPipelineComplete'
 
@@ -21,9 +24,8 @@ export const CHILD_PIPELINE_COMPLETION_CALLBACK = 'childPipelineComplete'
  * to a child pipeline. When the child pipline completes, the RouterStep completes with the
  * status of the child pipeline it invoked.
  */
-export async function childPipelineCompletionCallback (tx, flowIndex, nodeInfo, worker) {
-  // if (PIPELINES_VERBOSE)
-  console.log(`==> Callback childPipelineCompletionCallback(flowIndex=${flowIndex})`, nodeInfo)
+export async function childPipelineCompletionCallback (tx, flowIndex, f2i, nodeInfo, worker) {
+  if (FLOW_VERBOSE) flow2Msg(tx, `Callback childPipelineCompletionCallback(flowIndex=${flowIndex})`, f2i)
 
   assert(typeof(flowIndex) === 'number')
 
@@ -33,10 +35,12 @@ export async function childPipelineCompletionCallback (tx, flowIndex, nodeInfo, 
 
   // Get the flow entry for the step that has just completed
   const childFlow = tx.vog_getFlowRecord(flowIndex)
-  console.log(`childFlow=`.red, childFlow)
+  // console.log(`childFlow=`.red, childFlow)
   const childStepId = childFlow.stepId
   const childStep = tx.stepData(childStepId)
-  assert(childStep)
+  if (FLOW_PARANOID) {
+    validateStandardObject('childPipelineCompletionCallback childStep', childStep, STEP_DEFINITION)
+  }
 
   // const childStepId = callbackContext.childStepId
   if (ROUTERSTEP_VERBOSE) console.log(`FINISHED child ${childStepId}`)
@@ -51,13 +55,16 @@ export async function childPipelineCompletionCallback (tx, flowIndex, nodeInfo, 
   const parentFlowIndex = tx.vog_getParentFlowIndex(flowIndex)
   // console.log(`parentFlowIndex=`.red, parentFlowIndex)
   const parentFlow = tx.vog_getFlowRecord(parentFlowIndex)
-  console.log(`parentFlow=`.red, parentFlow)
+  // console.log(`parentFlow=`.red, parentFlow)
 
   const parentStepId = parentFlow.stepId
   if (ROUTERSTEP_VERBOSE) console.log(`WHICH MEANS FINISHED parent ${parentStepId}`)
   const parentStep = tx.stepData(parentStepId)
   assert(parentStep)
-  const parentStepFullSequence = parentStep.fullSequence
+  if (FLOW_PARANOID) {
+    validateStandardObject('childPipelineCompletionCallback parentStep 1', parentStep, STEP_DEFINITION)
+  }
+  // const parentStepFullSequence = parentStep.fullSequence
   // console.log(`parentStepFullSequence=`, parentStepFullSequence)
 
   // Prefix to make debug messages nice
@@ -86,20 +93,24 @@ export async function childPipelineCompletionCallback (tx, flowIndex, nodeInfo, 
   /*
    *  We've finished this pipeline - return the final respone
    */
-  if (ROUTERSTEP_VERBOSE) console.log(indent + `<<<<    ROUTERSTEP'S PIPELINE HAS COMPLETED ${parentStepId}  `.black.bgGreen.bold)
+  if (FLOW_VERBOSE) flow2Msg(tx, indent + `<<<<    ROUTERSTEP'S PIPELINE HAS COMPLETED ${parentStepId}`, f2i)
 
-  // Save the child status and output as our own
+  // Save the child status as our own
   await tx.delta(parentStepId, {
-    stepOutput: childStep.stepOutput,
-    note: childStep.note,
-    status: childStep.status
+  //   stepOutput: childFlow.output,
+  //   note: childFlow.note,
+    status: childFlow.completionStatus
   }, 'childPipelineCompletionCallback()')
+  if (FLOW_PARANOID) {
+    validateStandardObject('childPipelineCompletionCallback parentStep 2', parentStep, STEP_DEFINITION)
+  }
+
 
   parentFlow.note = childFlow.note
   parentFlow.completionStatus = childFlow.completionStatus
   parentFlow.output = childFlow.output
 
-  console.log(`AFTER SETTING THE RESULT, parentFlow=`, parentFlow)
+  // console.log(`AFTER SETTING THE RESULT, parentFlow=`, parentFlow)
 
 
   // if (ROUTERSTEP_VERBOSE) {
@@ -114,18 +125,28 @@ export async function childPipelineCompletionCallback (tx, flowIndex, nodeInfo, 
 
   // Send the event back to whoever started this step
   const parentNodeGroup = parentFlow.onComplete.nodeGroup
-  console.log(`parentNodeGroup=`.red, parentNodeGroup)
+  // console.log(`parentNodeGroup=`.red, parentNodeGroup)
 
+  // Update the RouterStep F2
+  const myF2 = tx.vf2_getF2(f2i)
+  assert(myF2)
+  const pipelineF2 = tx.vf2_getF2(myF2.s) // sibling
+  assert(pipelineF2)
+  pipelineF2.ts3 = Date.now()
+  // pipelineF2._yarp3 = 'chldPipelineCompleteCallback'
+
+  // const event = {
+  //   eventType: Scheduler2.STEP_COMPLETED_EVENT,
+  //   txId,
+  //   // parentStepId: '-',
+  //   // stepId: parentStepId,
+  //   // completionToken: parentStep.onComplete.completionToken
+  //   flowIndex: parentFlowIndex,
+  // }
+  const nextF2i = f2i + 1
+  const completionToken = null
   const workerForShortcut = worker
-  const event = {
-    eventType: Scheduler2.STEP_COMPLETED_EVENT,
-    txId,
-    // parentStepId: '-',
-    // stepId: parentStepId,
-    // completionToken: parentStep.onComplete.completionToken
-    flowIndex: parentFlowIndex,
-  }
-  const rv = await schedulerForThisNode.schedule_StepCompleted(tx, parentNodeGroup, event, workerForShortcut)
+  const rv = await schedulerForThisNode.enqueue_StepCompleted(tx, parentFlowIndex, nextF2i, completionToken, workerForShortcut)
   assert(rv === GO_BACK_AND_RELEASE_WORKER)
   return GO_BACK_AND_RELEASE_WORKER
 }//- childPipelineCompletionCallback

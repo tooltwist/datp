@@ -17,15 +17,15 @@ export const DEEP_SLEEP_SECONDS = 2 * 60 // seconds
 
 
 // Debugging database access
-export const DEBUG_DB_ATP_TRANSACTION = 10
+export const DEBUG_DB_ATP_TRANSACTION = 0
 export const DEBUG_DB_ATP_TRANSACTION_DELTA = 0
 export const DEBUG_DB_ATP_LOGBOOK = 0
 
 
 // Options to bypass queueing if an event occurs on the same node.
-export const SHORTCUT_STEP_START = false
-export const SHORTCUT_STEP_COMPLETE = false
-export const SHORTCUT_TX_COMPLETION = false
+export const SHORTCUT_STEP_START = true
+export const SHORTCUT_STEP_COMPLETE = true
+// export const SHORTCUT_TX_COMPLETION = false
 
 // Check for steps/workers taking longer than X seconds
 // (0 = no check, needs to be greater than DEEP_SLEEP_SECONDS)

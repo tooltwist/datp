@@ -6,8 +6,9 @@
  */
 import dbupdate from "../../database/dbupdate"
 import query from "../../database/query"
+import { RedisQueue } from "./queuing/RedisQueue-ioredis"
 import { convertReply } from "./ReplyConverter"
-import Transaction from "./Transaction"
+import TransactionState from "./TransactionState"
 
 const LONGPOLL_TIMEOUT = 15
 
@@ -38,7 +39,7 @@ export default class LongPoll {
    * @param {number} duration How many seconds we hold on to the response object before replying.
    */
   static async returnTxStatusAfterDelayWithPotentialEarlyReply(tenant, txId, response, next, cancelWebhook=false, duration=LONGPOLL_TIMEOUT) {
-    if (VERBOSE) console.log(`LongPoll:returnTxStatusAfterDelayWithPotentialEarlyReply(tenant=${tenant}, txId=${txId}, response, next, cancelWebhook=${cancelWebhook}, duration=${duration}`)
+    // if (VERBOSE) console.log(`LongPoll:returnTxStatusAfterDelayWithPotentialEarlyReply(tenant=${tenant}, txId=${txId}, response, next, cancelWebhook=${cancelWebhook}, duration=${duration}`)
 
     // Remove this after a while
     const timer = setTimeout(async () => {
@@ -46,7 +47,9 @@ export default class LongPoll {
       // Use the responswe to return the current transaction status
       delete LongPoll.index[txId]
 
-      let summary = await Transaction.getSummary(tenant, txId)
+      // console.log(`- long poll timeout`)
+
+      let summary = await TransactionState.getSummary(tenant, txId)
       if (VERBOSE) console.log(`LongPoll:returnTxStatusAfterDelayWithPotentialEarlyReply - reply after timeout`, summary)
 
       // Convert the reply as required by the app.
@@ -86,48 +89,71 @@ export default class LongPoll {
       clearTimeout(entry.timer)
       delete LongPoll.index[txId]
 
-      // Remember that the reply has been sent
-      if (VERBOSE) console.log(`LongPoll:tryToReply - set response_acknowledge_time`)
-      const sql = `UPDATE atp_transaction2 SET response_acknowledge_time = NOW() WHERE transaction_id=? AND response_acknowledge_time IS NULL`
-      const params = [ txId ]
-      const result = await dbupdate(sql, params)
-      // console.log(`result=`, result)
+      // // Remember that the reply has been sent
+      // if (VERBOSE) console.log(`LongPoll:tryToReply - set response_acknowledge_time`)
+      // const sql = `UPDATE atp_transaction2 SET response_acknowledge_time = NOW() WHERE transaction_id=? AND response_acknowledge_time IS NULL`
+      // const params = [ txId ]
+      // const result = await dbupdate(sql, params)
+      // // console.log(`result=`, result)
+
+
+      // We can assume the transaction state is still in Lua, because something
+      // recently changed the transaction status, and that is why we are here.
+      const redisLua = await RedisQueue.getRedisLua()
+      const markAsCompleted = true
+      const cancelWebhook = !!entry.cancelWebhook
+      const result2 = await redisLua.getState(txId, markAsCompleted, cancelWebhook)
+      const txState = result2.txState
+      const txStateObject = txState.asObject()
+      const summary2 = {
+        "metadata": {
+          "owner": txStateObject.owner,
+          "txId": txStateObject.txId,
+          "externalId": txStateObject.externalId ? txStateObject.externalId : null,
+          "transactionType": txStateObject.transactionData.transactionType,
+          "status": txStateObject.transactionData.status,
+          "sequenceOfUpdate": txStateObject.delta,
+          "completionTime": txStateObject.transactionData.completionTime,
+          "lastUpdated": txStateObject.transactionData.lastUpdated,
+          "notifiedTime": txStateObject.transactionData.notifiedTime
+        },
+        "progressReport": txStateObject.progressReport,
+        "data": txStateObject.transactionData.transactionOutput
+      }
 
       // Send the reply
-      let summary = await Transaction.getSummary(entry.tenant, txId)
+      let summary = summary2
       if (VERBOSE) {
-        const json = JSON.stringify(summary, '', 2)
-        if (json.length > 500) json = json.substring(0, 500)
-        console.log(`LongPoll:tryToReply - send summary`, json)
+        let json = JSON.stringify(summary, '', 2)
+        if (json.length > 500) json = json.substring(0, 500) + ' [truncated]'
+        // console.log(`LongPoll:tryToReply - send summary`, json)
       }
 
       // Convert the reply as required by the app.
-      // ReplyConverter
-      // console.log(`ReplyConverter 4`)
       const { httpStatus, reply } = convertReply(summary)
       entry.response.send(httpStatus, reply)
       entry.next()
 
-      // Perhaps cancel any pending webhook. This should only happen
-      // when the longpoll is for the transaction initiation request
-      // and a webhook reply has been requested.
-      if (entry.cancelWebhook) {
-        const sql2 = `
-          UPDATE atp_webhook
-          SET status='complete', next_attempt = NULL, message=?
-          WHERE transaction_id=?`
-        const message = JSON.stringify({
-          message: `Replied via long poll in transaction initiation API call`
-        })
-        const params2 = [ message, txId ]
-        // console.log(`sql2=`, sql2)
-        // console.log(`params2=`, params2)
-        const result2 = await query(sql2, params2)
-        // console.log(`result2=`, result2)
-        if (result2.affectedRows > 0) {
-          console.log(`Webhook cancelled for transaction ${txId}.`)
-        }
-      }
+      // // Perhaps cancel any pending webhook. This should only happen
+      // // when the longpoll is for the transaction initiation request
+      // // and a webhook reply has been requested.
+      // if (entry.cancelWebhook) {
+      //   const sql2 = `
+      //     UPDATE atp_webhook
+      //     SET status='complete', next_attempt = NULL, message=?
+      //     WHERE transaction_id=?`
+      //   const message = JSON.stringify({
+      //     message: `Replied via long poll in transaction initiation API call`
+      //   })
+      //   const params2 = [ message, txId ]
+      //   // console.log(`sql2=`, sql2)
+      //   // console.log(`params2=`, params2)
+      //   const result2 = await query(sql2, params2)
+      //   // console.log(`result2=`, result2)
+      //   if (result2.affectedRows > 0) {
+      //     console.log(`Webhook cancelled for transaction ${txId}.`)
+      //   }
+      // }
 
       return { sent: true, cancelWebhook: entry.cancelWebhook }
     }

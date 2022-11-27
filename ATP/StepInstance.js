@@ -9,18 +9,21 @@ import Step, { STEP_ABORTED, STEP_FAILED, STEP_INTERNAL_ERROR, STEP_RUNNING, STE
 import dbPipelines from "../database/dbPipelines"
 import XData, { dataFromXDataOrObject } from "./XData"
 import { STEP_TYPE_PIPELINE } from './StepTypeRegister'
-import { PERSIST_TRANSACTION_STATE } from "./Scheduler2/txState-level-1";
 import indentPrefix from '../lib/indentPrefix'
 import assert from 'assert'
-import Transaction from './Scheduler2/Transaction'
+import TransactionState from './Scheduler2/TransactionState'
 import { schedulerForThisNode } from '..'
 import dbLogbook from '../database/dbLogbook'
 import { DEEP_SLEEP_SECONDS, isDevelopmentMode } from '../datp-constants'
 import isEqual  from 'lodash.isequal'
 import { GO_BACK_AND_RELEASE_WORKER } from './Scheduler2/Worker2'
-import { requiresWebhookProgressReports, sendStatusByWebhook, WEBHOOK_EVENT_PROGRESS } from './Scheduler2/returnTxStatusCallbackZZZ'
+import { sendStatusByWebhook, WEBHOOK_EVENT_PROGRESS } from './Scheduler2/returnTxStatusCallbackZZZ'
 import me from '../lib/me'
 import Scheduler2 from './Scheduler2/Scheduler2'
+import { DEFINITION_MATERIALIZE_STEP_EVENT, FLOW_DEFINITION, STEP_DEFINITION, validateStandardObject } from './Scheduler2/eventValidation'
+import { FLOW_VERBOSE } from './Scheduler2/queuing/redis-lua'
+import { requiresWebhookProgressReports } from './Scheduler2/webhooks/tryTheWebhook'
+import { flow2Msg, flowMsg } from './Scheduler2/flowMsg'
 
 const VERBOSE = 0
 const VERBOSE_16aug22 = 0
@@ -51,6 +54,7 @@ export default class StepInstance {
   #level
   #indent
   #flowIndex
+  #f2i
 
   // What to do after the step completes {nodeId, completionToken}
   #onComplete
@@ -75,6 +79,7 @@ export default class StepInstance {
     // Debug stuff
     this.#level = 0
     this.#flowIndex = -1
+    this.#f2i = -1
     this.#fullSequence = ''
     this.#vogPath = ''
     // Step completion handling
@@ -101,64 +106,54 @@ export default class StepInstance {
   }
 
 
-  async materialize(event, tx, worker) {
-    console.log(``)
-    console.log(`StepInstance.materialize event=`, event)
+  async materialize(tx, event, worker) {
+    // console.log(``)
+    // console.log(`StepInstance.materialize event=`, event)
     // console.log(`  typeof(tx)=`, typeof(tx))
 
-    assert(tx instanceof Transaction)
+    assert(tx instanceof TransactionState)
+
+    validateStandardObject('materialize(), event', event, DEFINITION_MATERIALIZE_STEP_EVENT)
 
     this.#worker = worker
     this.#transactionState = tx
     // console.log(`tx.getTxId()=`, tx.getTxId())
 
-    const txData = tx.txData()
+    // const txData = tx.txData()
     // console.log(`txData=`, txData)
-    const stepData = tx.stepData(event.stepId)
-    // console.log(`stepData=`, stepData)
+    const flow = tx.vog_getFlowRecord(event.flowIndex)
+    validateStandardObject('materialize(), flow', flow, FLOW_DEFINITION)
 
-    assert (typeof(event.txId) === 'string')
-    assert (typeof(event.nodeGroup) === 'string')
-    assert (typeof(event.nodeId) === 'string')
-    assert (typeof(event.stepId) === 'string')
-    // assert (typeof(event.parentNodeId) === 'string')
-    assert (typeof(stepData.parentStepId) === 'string')
+    let parentFlow = null
+    const parentFlowIndex = tx.vog_getParentFlowIndex(event.flowIndex)
+    if (parentFlowIndex >= 0) {
+      parentFlow = tx.vog_getFlowRecord(parentFlowIndex)
+      validateStandardObject('materialize(), parentFlow', parentFlow, FLOW_DEFINITION)
+      this.#parentStepId = parentFlow.stepId
+    }
+
+    const stepData = tx.stepData(flow.stepId)
+    // console.log(`materialize() stepData=`.red, stepData)
+
+    validateStandardObject('materialize() step', stepData, STEP_DEFINITION)
+
     assert (typeof(stepData.fullSequence) === 'string')
     assert (typeof(stepData.vogPath) === 'string')
     assert (typeof(stepData.stepDefinition) !== 'undefined')
-    assert (typeof(stepData.stepInput) === 'object')
-    assert (typeof(txData.metadata) === 'object')
+    assert (typeof(stepData.stepInput) === 'undefined')
     assert (typeof(stepData.level) === 'number')
-    assert (typeof(event.flowIndex) === 'number')
 
-    // assert (typeof(event.onComplete) === 'object')
-    // assert (typeof(event.onComplete.nodeGroup) === 'string')
-    // assert (typeof(event.onComplete.completionToken) === 'string')
-
-    // const txData = tx.txData()
-    this.#parentStepId = stepData.parentStepId
-
-
-    // console.log(``)
-    // console.log(`StepInstance.materialize()`)
-    // console.log(`event.data=`, event.data)
-
-    // this.pipeId = GenerateHash('pipe')
-    // this.data = { }
-    // this.pipelineStack = [ ]
-
+    const metadata = tx.vog_getMetadata()
 
     this.#txId = event.txId
     this.#nodeGroup = event.nodeGroup
     this.#nodeId = event.nodeId
-    this.#stepId = event.stepId
-    // this.#parentNodeId = event.parentNodeId
-    this.#parentStepId = stepData.parentStepId
-    //this.#stepDefinition set below
-    this.#txdata = new XData(stepData.stepInput)
-    this.#metadata = txData.metadata
+    this.#stepId = flow.stepId //ZZZ Remove this
+    this.#txdata = new XData(event.data)
+    this.#metadata = metadata
     this.#level = stepData.level
     this.#flowIndex = event.flowIndex
+    this.#f2i = event.f2i
     this.#fullSequence = stepData.fullSequence
     this.#vogPath = stepData.vogPath
 
@@ -178,50 +173,13 @@ export default class StepInstance {
     // Prepare an indent string to prepend to messages
     this.#indent = indentPrefix(this.#level)
 
+    // const f2 = tx.vf2_getF2(this.#f2i)
+    // f2.ts2 = Date.now()
 
     /*
      *  Load the definition of the step (which is probably a pipeline)
      */
-    // console.log(`typeof(event.definition)=`, typeof(event.definition))
-    let jsonDefinition
-    switch (typeof(stepData.stepDefinition)) {
-      case 'string':
-        //ZZZ This is possibly obsolete, now that pipeline definitions are fetch by LUA
-        // console.log(`Loading definition for ${event.stepDefinition}`)
-        // jsonDefinition = fs.readFileSync(`./pipeline-definitions/${event.stepDefinition}.json`)
-        // const arr = stepData.stepDefinition.split(':')
-        // let pipelineName = arr[0]
-        // let version = (arr.length > 0) ? arr[1] : null
-        const pipelineName = stepData.stepDefinition
-        const pipeline = await dbPipelines.getPipelineVersionInUse(pipelineName)
-        // if (list.length < 1) {
-        //   throw new Error(`Unknown pipeline (${stepData.stepDefinition})`)
-        // }
-        // const pipeline = list[list.length - 1]
-
-        //ZZZZ Check that it is active
-        const description = pipeline.description
-        jsonDefinition = pipeline.stepsJson
-        const steps = JSON.parse(jsonDefinition)
-        // console.log(`jsonDefinition=`, jsonDefinition)
-
-        this.#stepDefinition = {
-          stepType: STEP_TYPE_PIPELINE,
-          description,
-          steps,
-        }
-        // console.log(`this.#stepDefinition=`, this.#stepDefinition)
-        break
-
-    case 'object':
-      // console.log(`already have definition`)
-      this.#stepDefinition = stepData.stepDefinition
-      jsonDefinition = JSON.stringify(this.#stepDefinition, '', 2)
-      break
-
-    default:
-      throw new Error(`Invalid value for parameter stepDefinition (${typeof(stepData.stepDefinition)})`)
-    }
+    this.#stepDefinition = stepData.stepDefinition
 
     // Instantiate the step object
     const stepType = this.#stepDefinition.stepType
@@ -229,17 +187,15 @@ export default class StepInstance {
     if (!(this.stepObject instanceof Step)) {
       throw Error(`Factory for ${stepType} did not return a step`)
     }
-
-    // console.log(`END OF MATRIALIZE, txdata IS ${this.#txdata.getJson()}`.magenta)
   }//- materialize
 
   // This function gets the transaction state object. We want to keep this unpublished
   // and hard to notice - we don't want developers mucking with the internals of DATP.
   _7agghtstrajj_37(txId) {
     if (this.#transactionState.getTxId() !== txId) {
-      console.log(`Serious Error: Getting transaction that is not my transaction!!!!`)
-      console.log(`this.#transactionState.txId =`, this.#transactionState.getTxId() )
-      console.log(`txId=`, txId)
+      console.log(`Serious Error: Getting transaction that is not my transaction!!!!`.red)
+      console.log(`this.#transactionState.txId=`, this.#transactionState.getTxId() )
+      console.trace(`txId=`, txId)
     }
     return this.#transactionState
   }
@@ -322,6 +278,10 @@ export default class StepInstance {
     return this.#flowIndex
   }
 
+  vog_getF2i() {
+    return this.#f2i
+  }
+
   getVogPath() {
     return this.#vogPath
   }
@@ -378,6 +338,8 @@ export default class StepInstance {
    */
   async succeeded(note, stepOutput) {
     if (VERBOSE) console.log(`StepInstance.succeeded(note=${note}, ${typeof stepOutput})`, stepOutput)
+    const tx = this.#transactionState
+    if (FLOW_VERBOSE) flow2Msg(tx, `<<< stepInstance.succeeded()`)
     this.#waitingForCompletionFunction = false
 
     const myStepOutput = this._sanitizedOutput(stepOutput)
@@ -389,7 +351,6 @@ export default class StepInstance {
     await this.syncLogs()
 
     // Quick sanity check - make sure this step is actually running, and has not already exited.
-    const tx = this.#transactionState
     const stepData = tx.stepData(this.#stepId)
     if (stepData.status !== STEP_RUNNING) {
       //ZZZ Write to the log
@@ -401,51 +362,39 @@ export default class StepInstance {
     // Persist the result and new status
     await tx.delta(this.#stepId, {
       status: STEP_SUCCESS,
-      note,
-      stepOutput: myStepOutput
+      // note,
+      // stepOutput: myStepOutput
     }, 'stepInstance.succeeded()')
 
-    tx.vog_flowRecordStepEnd(this.#flowIndex, STEP_SUCCESS, note, myStepOutput)
+    tx.vog_flowRecordStep_complete(this.#flowIndex, STEP_SUCCESS, note, myStepOutput)
 
-    // // Tell the parent we've completed.
-    // // If the parent is in the node group of this node, then we assume that
-    // // it was invoked from within this node.
-    // // We keep the steps all running on the same node as their pipellines, so they all
-    // // use the same cached transaction. We only jump to another node when we are calling a
-    // // pipline that runs on another node.
-    // const myNodeGroup = schedulerForThisNode.getNodeGroup()
-    // const myNodeId = schedulerForThisNode.getNodeId()
-    // let queueName
-    // if (parentNodeGroup === myNodeGroup) {
-    //   // Use this node's personal express queue
-    //   queueName = Scheduler2.nodeRegularQueueName(myNodeGroup, myNodeId)
-    // } else {
-    //   // Use this group queue for the different node group
-    //   queueName = Scheduler2.groupQueueName(myNodeGroup)
-    // }
-    // const rv = await schedulerForThisNode.enqueue_StepCompletedZZ(queueName, {
-
-    console.log(`-------------------\nStepInstance.succeeded: this.#flowIndex=`, this.#flowIndex)
     const flow = tx.vog_getFlowRecord(this.#flowIndex)
-    // console.log(`flow=`, flow)
-    // console.log(`flow.onComplete=`, flow.onComplete)
 
     // We need to run the completion handler in the parent's nodeGroup
-    const parentFlow = tx.vog_getFlowRecord(flow.p)
+    const parentFlowIndex = flow.p
+    const parentFlow = tx.vog_getFlowRecord(parentFlowIndex)
     // console.log(`parentFlow=`, parentFlow)
     const parentNodeGroup = parentFlow.vog_nodeGroup
-    console.log(`parentFlow=`, parentFlow)
+    // console.log(`parentFlow=`, parentFlow)
 
+    // Update flow2
+    console.log(`this.#f2i=`.bgMagenta, this.#f2i)
+    const f2 = tx.vf2_getF2(this.#f2i)
+    f2.status = STEP_SUCCESS
+    f2.note = note
+    f2.output = stepOutput
+    f2.ts3 = Date.now()
+    console.log(`f2=`, f2)
+
+    // const event = {
+    //   eventType: Scheduler2.STEP_COMPLETED_EVENT,
+    //   txId: this.#txId,
+    //   flowIndex: this.#flowIndex
+    // }
+    const nextF2i = this.#f2i + 1
+    const completionToken = null
     const workerForShortcut = this.#worker
-    const event = {
-      eventType: Scheduler2.STEP_COMPLETED_EVENT,
-      txId: this.#txId,
-      // stepId: this.#stepId,
-      // onComplete: flow.onComplete,
-      // completionToken: this.#onComplete.completionToken,
-      flowIndex: this.#flowIndex
-    }
-    const rv = await schedulerForThisNode.schedule_StepCompleted(tx, parentNodeGroup, event, workerForShortcut)
+    const rv = await schedulerForThisNode.enqueue_StepCompleted(tx, this.#flowIndex, nextF2i, completionToken, workerForShortcut)
     assert(rv === GO_BACK_AND_RELEASE_WORKER)
     return GO_BACK_AND_RELEASE_WORKER
   }
@@ -457,6 +406,8 @@ export default class StepInstance {
    */
   async aborted(note, stepOutput) {
     if (VERBOSE) console.log(`StepInstance.aborted(note=${note}, ${typeof stepOutput})`, stepOutput)
+    const tx = this.#transactionState
+    if (FLOW_VERBOSE) flow2Msg(tx, `<<< stepInstance.aborted()`)
     this.#waitingForCompletionFunction = false
 
     // Sync any buffered logs
@@ -467,7 +418,6 @@ export default class StepInstance {
     if (VERBOSE) console.log(`aborted: step out is `.magenta, myStepOutput)
 
     // Quick sanity check - make sure this step is actually running, and has not already exited.
-    const tx = this.#transactionState
     const stepData = tx.stepData(this.#stepId)
     if (stepData.status !== STEP_RUNNING) {
       //ZZZ Write to the log
@@ -479,22 +429,32 @@ export default class StepInstance {
     // Persist the result and new status
     await tx.delta(this.#stepId, {
       status: STEP_ABORTED,
-      note,
-      stepOutput: myStepOutput
+      // note,
+      // stepOutput: myStepOutput
     }, 'stepInstance.aborted()')
 
-    tx.vog_flowRecordStepEnd(this.#flowIndex, STEP_ABORTED, note, myStepOutput)
+    tx.vog_flowRecordStep_complete(this.#flowIndex, STEP_ABORTED, note, myStepOutput)
+
+    // Update flow2
+    console.log(`this.#f2i=`.bgRed, this.#f2i)
+    const f2 = tx.vf2_getF2(this.#f2i)
+    f2.status = STEP_ABORTED
+    f2.note = note
+    f2.output = stepOutput
+    f2.ts3 = Date.now()
+    console.log(`f2=`.bgRed, f2)
 
     // Tell the parent we've completed.
     // const queueName = Scheduler2.groupQueueName(this.#onComplete.nodeGroup)
-    const parentNodeGroup = this.#onComplete.nodeGroup
+    // const event = {
+    //   eventType: Scheduler2.STEP_COMPLETED_EVENT,
+    //   txId: this.#txId,
+    //   flowIndex: this.#flowIndex
+    // }
+    const nextF2i = this.#f2i + 1
     const workerForShortcut = this.#worker
-    const rv = await schedulerForThisNode.schedule_StepCompleted(tx, parentNodeGroup, {
-    // const rv = await schedulerForThisNode.enqueue_StepCompletedZZ(queueName, {
-      txId: this.#txId,
-      stepId: this.#stepId,
-      completionToken: this.#onComplete.completionToken,
-    }, workerForShortcut)
+    const completionToken = null
+    const rv = await schedulerForThisNode.enqueue_StepCompleted(tx, this.#flowIndex, nextF2i, completionToken, workerForShortcut)
     assert(rv === GO_BACK_AND_RELEASE_WORKER)
     return GO_BACK_AND_RELEASE_WORKER
   }
@@ -506,6 +466,8 @@ export default class StepInstance {
    */
   async failed(note, stepOutput) {
     if (VERBOSE) console.log(`Step failed (note=${note}, ${typeof stepOutput})`, stepOutput)
+    const tx = this.#transactionState
+    if (FLOW_VERBOSE) flow2Msg(tx, `<<< stepInstance.failed()`)
     this.#waitingForCompletionFunction = false
 
     // Sync any buffered logs
@@ -523,7 +485,6 @@ export default class StepInstance {
     if (VERBOSE) console.log(`failed: step out is `.magenta, myStepOutput)
 
     // Quick sanity check - make sure this step is actually running, and has not already exited.
-    const tx = this.#transactionState
     // console.log(`tx=`, tx)
     const stepData = tx.stepData(this.#stepId)
     if (stepData.status !== STEP_RUNNING) {
@@ -539,23 +500,32 @@ export default class StepInstance {
     // }, 'stepInstance.failed()')
     await tx.delta(this.#stepId, {
       status: STEP_FAILED,
-      note,
-      stepOutput: myStepOutput
+      // note,
+      // stepOutput: myStepOutput
     }, 'stepInstance.failed()')
 
-    tx.vog_flowRecordStepEnd(this.#flowIndex, STEP_FAILED, note, myStepOutput)
+    tx.vog_flowRecordStep_complete(this.#flowIndex, STEP_FAILED, note, myStepOutput)
+
+    // Update flow2
+    console.log(`this.#f2i=`.bgRed, this.#f2i)
+    const f2 = tx.vf2_getF2(this.#f2i)
+    f2.status = STEP_FAILED
+    f2.note = note
+    f2.output = stepOutput
+    f2.ts3 = Date.now()
+    console.log(`f2=`.bgRed, f2)
 
     // Tell the parent we've completed.
     // console.log(`replying to `, this.#onComplete)
-    const parentNodeGroup = this.#onComplete.nodeGroup
+    // const event = {
+    //   eventType: Scheduler2.STEP_COMPLETED_EVENT,
+    //   txId: this.#txId,
+    //   flowIndex: this.#flowIndex
+    // }
+    const nextF2i = this.#f2i + 1
+    const completionToken = null
     const workerForShortcut = this.#worker
-    const rv = await schedulerForThisNode.schedule_StepCompleted(tx, parentNodeGroup, {
-    // const queueName = Scheduler2.groupQueueName(this.#onComplete.nodeGroup)
-    // const rv = await schedulerForThisNode.enqueue_StepCompletedZZ(queueName, {
-      txId: this.#txId,
-      stepId: this.#stepId,
-      completionToken: this.#onComplete.completionToken,
-    }, workerForShortcut)
+    const rv = await schedulerForThisNode.enqueue_StepCompleted(tx, this.#flowIndex, nextF2i, completionToken, workerForShortcut)
     assert(rv === GO_BACK_AND_RELEASE_WORKER)
     return GO_BACK_AND_RELEASE_WORKER
   }
@@ -567,6 +537,8 @@ export default class StepInstance {
    */
   async badDefinition(msg) {
     console.log(`StepInstance.badDefinition(${msg})`)
+    const tx = this.#transactionState
+    if (FLOW_VERBOSE) flow2Msg(`<<< stepInstance.badDefinition()`)
     this.#waitingForCompletionFunction = false
 
     // Sync any buffered logs
@@ -590,26 +562,35 @@ export default class StepInstance {
     }
 
     // Save the step status
-    const tx = this.#transactionState
     const note = `Internal error: bad pipeline definition. Please notify system administrator.`
     await tx.delta(this.#stepId, {
       status: STEP_INTERNAL_ERROR,
-      note,
-      stepOutput: data
+      // note,
+      // stepOutput: data
     }, 'stepInstance.badDefinition()')
 
-    tx.vog_flowRecordStepEnd(this.#flowIndex, STEP_INTERNAL_ERROR, note, data)
+    tx.vog_flowRecordStep_complete(this.#flowIndex, STEP_INTERNAL_ERROR, note, data)
+
+    // Update flow2
+    console.log(`this.#f2i=`.bgRed, this.#f2i)
+    const f2 = tx.vf2_getF2(this.#f2i)
+    f2.status = STEP_INTERNAL_ERROR
+    f2.note = note
+    f2.output = data
+    f2.ts3 = Date.now()
+    console.log(`f2=`.bgRed, f2)
 
     // Tell the parent we've completed.
-    const parentNodeGroup = this.#onComplete.nodeGroup
+    // const event = {
+    //   eventType: Scheduler2.STEP_COMPLETED_EVENT,
+    //   txId: this.#txId,
+    //   flowIndex: this.#flowIndex,
+    //   // completionToken: this.#onComplete.completionToken,
+    // }
+    const nextF2i = this.#f2i + 1
+    const completionToken = null
     const workerForShortcut = this.getWorker()
-    const rv = await schedulerForThisNode.schedule_StepCompleted(tx, parentNodeGroup, {
-    // const queueName = Scheduler2.groupQueueName(this.#onComplete.nodeGroup)
-    // const rv = await schedulerForThisNode.enqueue_StepCompletedZZ(queueName, {
-      txId: this.#txId,
-      stepId: this.#stepId,
-      completionToken: this.#onComplete.completionToken,
-    }, workerForShortcut)
+    const rv = await schedulerForThisNode.enqueue_StepCompleted(tx, this.#flowIndex, nextF2i, completionToken, workerForShortcut)
     assert(rv === GO_BACK_AND_RELEASE_WORKER)
     return GO_BACK_AND_RELEASE_WORKER
   }
@@ -621,6 +602,8 @@ export default class StepInstance {
    */
   async exceptionInStep(message, e) {
     console.log(this.#indent + `StepInstance.exceptionInStep(${message})`, e)
+    const tx = this.#transactionState
+    if (FLOW_VERBOSE) flow2Msg(tx, `<<< stepInstance.exceptionInStep()`)
     this.#waitingForCompletionFunction = false
 
     // Sync any buffered logs
@@ -661,26 +644,35 @@ export default class StepInstance {
     }
 
     // Update the status
-    const tx = this.#transactionState
     const note = `Internal error: exception in step. Please notify system administrator.`
     await tx.delta(this.#stepId, {
       status: STEP_INTERNAL_ERROR,
-      note,
-      stepOutput: data
+      // note,
+      // stepOutput: data
     }, 'stepInstance.exceptionInStep()')
 
-    tx.vog_flowRecordStepEnd(this.#flowIndex, STEP_INTERNAL_ERROR, note, data)
+    tx.vog_flowRecordStep_complete(this.#flowIndex, STEP_INTERNAL_ERROR, note, data)
+
+    // Update flow2
+    console.log(`this.#f2i=`.bgRed, this.#f2i)
+    const f2 = tx.vf2_getF2(this.#f2i)
+    f2.status = STEP_INTERNAL_ERROR
+    f2.note = note
+    f2.output = data
+    f2.ts3 = Date.now()
+    console.log(`f2=`.bgRed, f2)
 
     // Tell the parent we've completed.
-    const parentNodeGroup = this.#onComplete.nodeGroup
+    // const event = {
+    //   eventType: Scheduler2.STEP_COMPLETED_EVENT,
+    //   txId: this.#txId,
+    //   flowIndex: this.#flowIndex,
+    //   // completionToken: this.#onComplete.completionToken,
+    // }
+    const nextF2i = this.#f2i + 1
+    const completionToken = null
     const workerForShortcut = this.getWorker()
-    const rv = await schedulerForThisNode.schedule_StepCompleted(tx, parentNodeGroup, {
-    // const queueName = Scheduler2.groupQueueName(this.#onComplete.nodeGroup)
-    // const rv = await schedulerForThisNode.enqueue_StepCompletedZZ(queueName, {
-      txId: this.#txId,
-      stepId: this.#stepId,
-      completionToken: this.#onComplete.completionToken,
-    }, workerForShortcut)
+    const rv = await schedulerForThisNode.enqueue_StepCompleted(tx, this.#flowIndex, nextF2i, completionToken, workerForShortcut)
     assert(rv === GO_BACK_AND_RELEASE_WORKER)
     return GO_BACK_AND_RELEASE_WORKER
   }
@@ -710,9 +702,10 @@ export default class StepInstance {
       // console.log(`Progress report has not changed`)
     } else {
       // Progress report has changed
-      await tx.delta(null, {
-        progressReport: object
-      }, 'stepInstance.progressReport()')
+      // await tx.delta(null, {
+      //   progressReport: object
+      // }, 'stepInstance.progressReport()')
+      tx.vog_setProgressReport(object)
   
       // If this transaction requires progress reports via webhooks, start that now.
       if (requiresWebhookProgressReports(this.#metadata)) {
@@ -747,29 +740,30 @@ export default class StepInstance {
     // Update the transaction status
     const tx = this.#transactionState
     if (VERBOSE_16aug22) tx.xoxYarp('retryLater', this.#stepId)
-    await tx.delta(null, {
-      status: STEP_SLEEPING,
-      wakeSwitch: nameOfSwitch,
-      sleepDuration: sleepDuration,
-      wakeStepId: this.#stepId
-    }, 'stepInstance.retryLater()')
+    // await tx.delta(null, {
+    //   status: STEP_SLEEPING,
+    //   wakeSwitch: nameOfSwitch,
+    //   sleepDuration: sleepDuration,
+    //   wakeStepId: this.#stepId
+    // }, 'stepInstance.retryLater()')
+
+    tx.vog_setStatusToSleeping(nameOfSwitch, sleepDuration, this.#stepId)
+
     await tx.delta(this.#stepId, {
       status: STEP_SLEEPING,
     }, 'stepInstance.retryLater()')
-    tx.vog_flowRecordStepSleep(this.#stepId, STEP_SLEEPING, wakeSwitch, sleepDuration)
+    tx.vog_flowRecordStep_sleep(this.#stepId, STEP_SLEEPING, wakeSwitch, sleepDuration)
 
-    // During development, the server is often restarted during a sleep.
-    // At this point in the code the wake time has been written to the database,
-    // but the transaction state is only in local memory. Upon restart the cron
-    // process will see the wake request, but the transaction state is not
-    // available. Normally we only persist the transaction state for a long
-    // sleep, but in this paranoid mode we'll save it to REDIS immediately.
-    if (isDevelopmentMode()) {
-      await PERSIST_TRANSACTION_STATE(tx)
-    }
-
-
-    // sleepDuration = 15
+    // Update flow2
+    //ZZZZZ
+    console.log(`this.#f2i=`.bgRed, this.#f2i)
+    console.log(`f2 not updated`.bgRed.white)
+    // const f2 = tx.vf2_getF2(this.#f2i)
+    // f2.status = STEP_FAILED
+    // f2.note = note
+    // f2.output = stepOutput
+    // f2.ts3 = Date.now()
+    // console.log(`f2=`.bgRed, f2)
 
     const nodeGroup = this.#nodeGroup
     const txId = this.#txId
@@ -802,14 +796,14 @@ export default class StepInstance {
   async getSwitch(name) {
     if (VERBOSE) console.log(`StepInstance.getSwitch(${name})`)
     const tx = this.#transactionState
-    const value = await Transaction.getSwitch(tx.getOwner(), this.#txId, name)
+    const value = await TransactionState.getSwitch(tx.getOwner(), this.#txId, name)
     return value
   }
 
   async setSwitch(name, value) {
     if (VERBOSE) console.log(`StepInstance.getSwitch(${name})`)
     const tx = this.#transactionState
-    await Transaction.setSwitch(tx.getOwner(), this.#txId, name, value, false)
+    await TransactionState.setSwitch(tx.getOwner(), this.#txId, name, value, false)
   }
 
   async getRetryCounter() {

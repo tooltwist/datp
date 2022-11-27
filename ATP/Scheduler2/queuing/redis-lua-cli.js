@@ -1,3 +1,4 @@
+import { archiveTransactionState } from '../archiving/ArchiveProcessor'
 import {RedisLua} from './redis-lua'
 
 function needArgs(num) {
@@ -23,7 +24,8 @@ async function main() {
       needArgs(5)
       const nodeGroup = process.argv[3]
       const txId = process.argv[4]
-      await lua.enqueue(queueName, 'test-pipeline', {
+      const txState = { }
+      const event = {
         eventType: 'start-pipeline',
         nodeGroup,
         state: {
@@ -32,7 +34,9 @@ async function main() {
           metadata: { webhook: 'http://localhost:3000/webhook' },
           data: { some: 'stuff' }
         }
-      })
+      }
+      const checkExternalIdIsUnique = false
+      await lua.luaEnqueue(queueName, txState, event, 'test-pipeline', checkExternalIdIsUnique, null)
       break
 
     case 'pull':
@@ -45,7 +49,7 @@ async function main() {
           num = tmp
         }
       }
-      const events = await lua.getEvents(nodeGroup2, num)
+      const events = await lua.luaDequeue(nodeGroup2, num)
       console.log(events)
       break
 
@@ -53,16 +57,16 @@ async function main() {
       needArgs(4)
       const txId2 = process.argv[3]
       const state = await lua.getState(txId2)
-      console.log(`state=`, state)
+      // console.log(`state=`, state)
       break
       
-    case 'complete':
-      needArgs(5)
-      const txId3 = process.argv[3]
-      const status3 = process.argv[4]
-      const result3 = await lua.transactionCompleted(txId3, status3)
-      console.log(`result3=`, result3)
-      break
+    // case 'complete':
+    //   needArgs(5)
+    //   const txId3 = process.argv[3]
+    //   const status3 = process.argv[4]
+    //   const result3 = await lua.luaTransactionCompleted(txId3, status3)
+    //   console.log(`result3=`, result3)
+    //   break
 
     case 'keys':
       const keys = await lua.keys('*')
@@ -87,7 +91,37 @@ async function main() {
       const txId5 = process.argv[3]
       await lua.notify(txId5)
       break
-  
+      
+    case 'archive':
+      needArgs(3)
+      // const txId3 = process.argv[3]
+      // const status3 = process.argv[4]
+      const persisted = [ ]
+      const nodeId = 'me'
+      const numRequired = 50
+      const result5 = await lua.transactionsToArchive(persisted, nodeId, numRequired)
+
+      for (const item of result5) {
+        if (item[0] === 'transaction') {
+          const txId = item[1]
+          const json = item[2]
+          const state = JSON.parse(json)
+          console.log(`PERSIST ${txId}:`, JSON.stringify(state, '', 2))
+
+          try {
+            await archiveTransactionState(txId, json)
+            persisted.push(txId)
+          } catch (e) {
+            console.log(`Could not save state of transaction ${txId}`, e)
+          }
+        }
+      }
+      // Remove the states from REDIS
+      const result6 = await lua.transactionsToArchive(persisted, nodeId, 0)
+      console.log(`result6=`, result6)
+
+      break
+    
     default:
       console.log(`Unknown command [${cmd}]`)
       return 1

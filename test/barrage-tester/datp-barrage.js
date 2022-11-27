@@ -30,9 +30,15 @@ const STATUS_SLEEPING = 6
 const STATUS_COMPLETE = 7
 const STATUS_ERROR = 8
 const STATUS_UNKNOWN = 8
+const STATUS_ERROR_THEN_REPLY = 9
+
+const PORT = 3030
+
 
 module.exports.BarrageTester = class BarrageTester {
   #autocannonDefinition
+  // If we have fewer than 'connections' tests, we need to reduce 'connections'
+  #preferredConnections
   #numTests
   #tests // [ { started, status }, ...]
   #columns
@@ -43,6 +49,7 @@ module.exports.BarrageTester = class BarrageTester {
 
   constructor(options) {
     this.#autocannonDefinition = null
+    this.#preferredConnections = 50
     this.#tests = [ ]
     this.#columns = options.columns ? options.columns : 100
     // this.#running = false
@@ -61,6 +68,7 @@ module.exports.BarrageTester = class BarrageTester {
       STATUS_SLEEPING,
       STATUS_COMPLETE,
       STATUS_ERROR,
+      STATUS_ERROR_THEN_REPLY,
       STATUS_UNKNOWN
     }
   }
@@ -72,6 +80,7 @@ module.exports.BarrageTester = class BarrageTester {
       autocannonDefinition.amount = 500
     }
     this.#numTests = autocannonDefinition.amount
+    this.#preferredConnections = autocannonDefinition.connections
     // console.log(`this.#numTests=`, this.#numTests)
     this.initializeTests()
 
@@ -83,10 +92,8 @@ module.exports.BarrageTester = class BarrageTester {
     this.startWebhookServer()
   }
   
+  // Start the express server used for webhooks
   startWebhookServer() {
-
-    // Start the express server used for webhooks
-    const port = 3000
 
     // We don't care where the webhook comes from.
     app.use(cors());
@@ -99,22 +106,25 @@ module.exports.BarrageTester = class BarrageTester {
     app.post('/webhook', (req, res) => {
       // console.log(`POST req.body=`, req.body)
       if (!req.body) {
-        res.setStatus(500)
+        res.status(500)
         res.send('Missing req.body')
+        return
       }
       if (!req.body.metadata) {
-        res.setStatus(500)
+        res.status(500)
         res.send('Missing req.body.metadata')
+        return
       }
       if (!req.body.metadata.externalId) {
-        res.setStatus(500)
+        res.status(500)
         res.send('Missing req.body.metadata.externalId')
+        return
       }
       const externalId = req.body.metadata.externalId
       me.setStatusByExternalId(externalId, STATUS_COMPLETE)
       res.send('POST Webhook completed')
     });
-    app.listen(port)
+    app.listen(PORT)
   }
 
   initializeTests() {
@@ -206,9 +216,13 @@ module.exports.BarrageTester = class BarrageTester {
       this.displayTest(i)
     }
     this.cursorToBottom()
+
+    this.#autocannonDefinition.connections = Math.min(this.#preferredConnections, this.#autocannonDefinition.amount)
+
     console.log(`  transactions: ${this.#autocannonDefinition.amount}`)
     console.log(`   connections: ${this.#autocannonDefinition.connections}`)
     console.log(`           url: ${this.#autocannonDefinition.url}`)
+    console.log(`       webhook: http://localhost:${PORT}/webhook`)
 
     // this.cursorToTop()
   }//- display all tests
@@ -254,13 +268,21 @@ module.exports.BarrageTester = class BarrageTester {
         // console.log(csi.cursorPosition(y, x).bgCyan.escape('✔'))
         console.log(csi.cursorPosition(y, x).bgGreen.white.escape('✔'))
         break
-      
+
       case STATUS_ERROR:
         // console.log(csi.cursorPosition(y, x).bgRed.white.bold.escape('✖'))
         // console.log(csi.cursorPosition(y, x).bgRed.white.bold.escape('✖'))
         console.log(csi.cursorPosition(y, x).red.escape('✖'))
         break
-    
+
+      case STATUS_UNKNOWN:
+        console.log(csi.cursorPosition(y, x).red.escape('?'))
+        break
+        
+      case STATUS_ERROR_THEN_REPLY:
+        console.log(csi.cursorPosition(y, x).yellow.escape('✖'))
+        break
+          
       default:
         // See https://www.npmjs.com/package/ansi-escape
         console.log(csi.cursorPosition(y, x).bold.escape('?'))
@@ -283,7 +305,12 @@ module.exports.BarrageTester = class BarrageTester {
     if (testNo < 0) {
       return false
     }
-    this.#tests[testNo].status = status
+    const existingStatus = this.#tests[testNo].status
+    if (existingStatus === STATUS_ERROR) {
+      this.#tests[testNo].status = STATUS_ERROR_THEN_REPLY
+    } else {
+      this.#tests[testNo].status = status
+    }
     this.displayTest(testNo)
     this.cursorToTop()
     return true
@@ -304,7 +331,7 @@ module.exports.BarrageTester = class BarrageTester {
     const num = parseInt(args)
     if (isNaN(num)) {
       console.log(`usage: ` + csi.bold.escape('c <number>'))
-    } else if (num < 5 || num > 500) {
+    } else if (num < 5 || num > 800) {
       console.log(`Invalid number of columns`)
     } else {
       this.clearPage()
@@ -342,6 +369,12 @@ module.exports.BarrageTester = class BarrageTester {
 
   cursorToBottom() {
     const y = Math.floor(this.#numTests / this.#columns) + 4
+    console.log(csi.cursorPosition(y, 1).eraseDisplayEnd.escape(''))
+    // console.log(`y=`, y)
+  }
+
+  cursorBelowBottom() {
+    const y = Math.floor(this.#numTests / this.#columns) + 4 + 10
     console.log(csi.cursorPosition(y, 1).eraseDisplayEnd.escape(''))
     // console.log(`y=`, y)
   }
@@ -464,6 +497,7 @@ module.exports.BarrageTester = class BarrageTester {
             break
         }
       } else {
+        this.cursorBelowBottom()
         console.log(`ERROR STARTING TRANSACTION:`)
         console.log(`reply is null`)
         console.log(`body=`, body)
@@ -478,7 +512,9 @@ module.exports.BarrageTester = class BarrageTester {
         // this.setStatusByExternalId(context.externalId, STATUS_COMPLETE)
       }
     } else {
-      // console.log(`ERROR GETTING STATUS:`)
+      this.cursorBelowBottom()
+      console.log(`\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n`)
+      console.log(`STATUS IS NOT 200:`)
       console.log(`status=`, status)
       console.log(`body=`, body)
       console.log(`context=`, context)

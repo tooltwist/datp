@@ -7,21 +7,20 @@
 import query from '../../database/query'
 import GenerateHash from '../GenerateHash'
 import XData from '../XData'
-import Transaction from './Transaction'
+import TransactionState from './TransactionState'
 import TransactionPersistance from './TransactionPersistance'
 import assert from 'assert'
 import { schedulerForThisNode } from '../..'
-import pause from '../../lib/pause'
 import { isDevelopmentMode } from '../../datp-constants'
-import { saveTransactionState_level2 } from './txState-level-2'
 import me from '../../lib/me'
-// import { objectsAreTheSame } from '../../lib/objectDiff'
+import { RedisQueue } from './queuing/RedisQueue-ioredis'
+import { archiveTransactionState } from './archiving/ArchiveProcessor'
 
 // const PERSIST_FAST_DURATION = 10 // Almost immediately
 // const PERSIST_REGULAR_DURATION = 120 // Two minutes
 
 const USE_YARPLUA_PERSISTANCE = true
-const VERBOSE = 1
+const VERBOSE = 0
 
 class TransactionCache {
   #cacheId // To check we only have one cache!
@@ -43,11 +42,18 @@ class TransactionCache {
 
     // Create the initial transaction
     const txId = GenerateHash('tx')
-    const tx = new Transaction(txId, owner, externalId, transactionType)
+    const tx = new TransactionState({
+      txId,
+      owner,
+      externalId,
+      transactionData: {
+        transactionType
+      }
+    })
     // this.#cache.set(txId, tx)
 
     // Persist this transaction
-    await TransactionPersistance.saveNewTransaction(tx)
+    // await TransactionPersistance.saveNewTransaction(tx)
     return tx
   }
 
@@ -57,10 +63,11 @@ class TransactionCache {
    * @param {string} txId
    * @param {boolean} loadIfNecessary If true, load the memory from persistant
    * storage, if it is there
-   * @returns {Promise<Transaction>} A Transaction if it is found, or null if it is not in the cache,
+   * @returns {Promise<TransactionState>} A Transaction if it is found, or null if it is not in the cache,
    * and is also not in persistant storage if loadIfNecessary is true.
    */
   async getTransactionState(txId, loadIfNecessary = true, saveInLocalMemoryCache = true) {
+    // console.log(`getTransactionState(txId=${txId}, loadIfNecessary=${loadIfNecessary}, saveInLocalMemoryCache=${saveInLocalMemoryCache})`)
     assert(typeof(txId) === 'string')
     assert(typeof(loadIfNecessary) === 'boolean')
     assert(typeof(saveInLocalMemoryCache) === 'boolean')
@@ -77,28 +84,50 @@ class TransactionCache {
     //   return null
     // }
 
+    // console.log(`--------  --------  --------  --------  --------  --------  --------  --------  --------  --------  --------  --------  -------- `)
+    // console.log(``)
+    // console.log(`getTransactionState(txId=${txId}, loadIfNecessary=${loadIfNecessary}, saveInLocalMemoryCache=${saveInLocalMemoryCache})`)
+
     // Not in our in-memory cache
     // Try loading the transaction from our global (REDIS) cache
     if (VERBOSE) console.log(`${me()}: TransactionCache.getTransactionState(${txId}): try to fetch from REDIS`)
     // await pause(20)//ZZZZZZ Hack to give REDIS time to sync or flush or whatever...
-    const tx1 = await schedulerForThisNode.getTransactionStateFromREDIS(txId)
+    // const tx1 = await schedulerForThisNode.getTransactionStateFromREDIS(txId)
 
-    // Compare to the transaction reconstructed from deltas
-    // const tx2 = await TransactionPersistance.reconstructTransaction(txId)
-    // const obj1 = tx1.asObject()
-    // const obj2 = tx2.asObject()
-    // const same = objectsAreTheSame(obj1, obj2)
-    // console.log(`same=`, same)
+    const redisLua = await RedisQueue.getRedisLua()
+    const reply = await redisLua.getState(txId)
+    if (reply) {
+      const tx1 = reply.txState
 
 
-    if (tx1) {
-      // Found in the REDIS cache
-      // if (saveInLocalMemoryCache) {
-      //   this.#cache.set(txId, tx1)
-      // }
-      // YARP248
-      // console.log(`${schedulerForThisNode.getNodeId()}: yarp loaded ${txId} from REDIS (${tx1.getDeltaCounter()})`)
-      return tx1
+      // console.log(``)
+      // console.log(``)
+      // console.log(``)
+      // console.log(``)
+      // console.log(`tx1=`, tx1)
+      // console.log(`tx1=`, typeof tx1)
+      // console.log(`tx1=`, JSON.stringify(tx1.asObject(), '', 2))
+      // console.log(``)
+      // console.log(``)
+      // console.log(``)
+      // console.log(``)
+  
+      // Compare to the transaction reconstructed from deltas
+      // const tx2 = await TransactionPersistance.reconstructTransaction(txId)
+      // const obj1 = tx1.asObject()
+      // const obj2 = tx2.asObject()
+      // const same = objectsAreTheSame(obj1, obj2)
+      // console.log(`same=`, same)
+
+      if (tx1) {
+        // Found in the REDIS cache
+        // if (saveInLocalMemoryCache) {
+        //   this.#cache.set(txId, tx1)
+        // }
+        // YARP248
+        // console.log(`${schedulerForThisNode.getNodeId()}: yarp loaded ${txId} from REDIS (${tx1.getDeltaCounter()})`)
+        return tx1
+      }
     }
 
     // Not found in the global (REDIS) cache.
@@ -115,10 +144,7 @@ class TransactionCache {
       if (VERBOSE) console.log(`${me()}: Transaction state was found in the database`)
       const json = rows[0].json
       try {
-        const tx2 = Transaction.transactionStateFromJSON(json)
-        // if (saveInLocalMemoryCache) {
-        //   this.#cache.set(txId, tx2)
-        // }
+        const tx2 = new TransactionState(json)
         return tx2
       } catch (e) {
         // Serious error - notify the administrator
@@ -152,7 +178,7 @@ class TransactionCache {
    * @param {string} txId
    * @param {boolean} loadIfNecessary If true, load the memory from persistant
    * storage, if it is there
-   * @returns {Promise<Transaction>} A Transaction if it is found, or null if it is not in the cache,
+   * @returns {Promise<TransactionState>} A Transaction if it is found, or null if it is not in the cache,
    * and is also not in persistant storage if loadIfNecessary is true.
    */
   async findTransactionByExternalId(owner, externalId, loadIfNecessary = true) {
@@ -175,24 +201,3 @@ class TransactionCache {
 }
 
 export default TransactionCache = new TransactionCache()
-
-
-
-export async function PERSIST_TRANSACTION_STATE(tx) {
-  if (USE_YARPLUA_PERSISTANCE) return
-  if (VERBOSE) console.log(`${me()}: TransactionCache.PERSIST_TRANSACTION_STATE(${tx.txId})`)
-
-
-  if (await isDevelopmentMode()) {
-
-    // In development mode, we'll write to the database immediately.
-    const txId = tx.getTxId()
-    const json = tx.stringify()
-    saveTransactionState_level2(txId, json)
-  } else {
-
-    // Save the transaction state in REDIS, and schedule it to be
-    // saved to long term storage (and removal from REDIS).
-    await schedulerForThisNode.saveTransactionState_level1(tx)
-  }
-}

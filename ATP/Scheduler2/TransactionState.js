@@ -14,7 +14,8 @@ import {
   STEP_ABORTED,
   STEP_SLEEPING,
   STEP_TIMEOUT,
-  STEP_INTERNAL_ERROR
+  STEP_INTERNAL_ERROR,
+  STEP_INITIAL
 } from "../Step"
 import XData from "../XData"
 import TransactionPersistance from "./TransactionPersistance"
@@ -25,7 +26,9 @@ import dbupdate from "../../database/dbupdate"
 import me from "../../lib/me"
 import GenerateHash from "../GenerateHash"
 import assert from 'assert'
-import { ThirdPartyAttributeExtensionBuilder } from "yoti"
+import TransactionCache from "./txState-level-1"
+import { STEP_DEFINITION, validateStandardObject } from "./eventValidation"
+import { RedisQueue } from "./queuing/RedisQueue-ioredis"
 
 
 export const TX_STATUS_RUNNING = 'running'
@@ -40,34 +43,22 @@ export const TX_STATUS_INTERNAL_ERROR = 'internal-error'
 export const FIELD_FLOW_INDEX = 'i'
 export const FIELD_PARENT_FLOW_INDEX = 'p'
 
+export const F2_TRANSACTION = 'TX_START'
+export const F2_TRANSACTION_CH = 'TX_PIPELINE_COMPLETE'
+export const F2_STEP = 'STEP'
+export const F2_PIPELINE = 'PIPELINE_START'
+export const F2_PIPELINE_CH = 'PIPELINE_STEP_COMPLETE'
+
+
 // Debug stuff
 const VERBOSE = 0
+const SUPPRESS = true
 require('colors')
 
 let countTxCoreUpdate = 0
 
-export default class Transaction {
-  #txId
-  #owner
-  #externalId
-  #transactionType
-  #status
-  #sequenceOfUpdate
-  #progressReport
-  #transactionOutput
-  #completionTime
-
-  // Sleep related stuff
-  #sleepingSince
-  #sleepCounter
-  #wakeTime
-  #wakeSwitch
-  #wakeNodeGroup
-  #wakeStepId
-
-  #steps // stepId => Object
-  #tx // Object
-  #flow // [ { ts, stepId, input, completionStatus, output }]
+export default class TransactionState {
+  #me // The trransactio object
 
   // Deltas (changes to this transaction state)
   #deltaCounter
@@ -78,78 +69,96 @@ export default class Transaction {
   #processingDelta
 
   /**
-   *
-   * @param {String} txId Transaction ID
-   * @param {XData} definition Mandatory, immutable parameters for a transaction
+   *  Instantiate the transaction state object
+   * @param {XData} json Object or JSON
    */
-  constructor(txId, owner, externalId, transactionType) {
-    // console.log(`Transaction.constructor(${txId}, ${owner}, ${externalId}, ${transactionType})`)
+  constructor(json) {
+    // console.log(`TransactionState.constructor()`, json)
 
-    // Check the parameters
-    if (typeof(txId) !== 'string') { throw new Error(`Invalid parameter [txId]`) }
-    if (typeof(owner) !== 'string') { throw new Error(`Invalid parameter [owner]`) }
-    if (externalId!==null && typeof(externalId) !== 'string') { throw new Error(`Invalid parameter [externalId]`) }
-    if (typeof(transactionType) !== 'string') { throw new Error(`Invalid parameter [transactionType]`) }
+    const obj = (typeof(json) === 'string') ? JSON.parse(json) : json
 
     // Core transaction information
-    this.#txId = txId
-    this.#owner = owner
-    this.#externalId = externalId
-    this.#transactionType = transactionType
-    this.#status = STEP_RUNNING
-    this.#sequenceOfUpdate = 0
-    this.#progressReport = {}
-    this.#transactionOutput = {}
-    this.#completionTime = null
+    this.#me = {
+      owner: obj.owner,
+      txId: obj.txId,
+      externalId: obj.externalId,
+      webhook: obj.webhook ? obj.webhook : { },
+      
+      progressReport: obj.progressReport ? obj.progressReport : null,
 
-    // Sleep-related fields
-    this.#sleepCounter = 0
-    this.#sleepingSince = null
-    this.#wakeTime = null
-    this.#wakeSwitch = null
-    this.#wakeNodeGroup = null
-    this.#wakeStepId = null
-
-    // Initialise the places where we store transaction and step data
-    this.#tx = {
-      status: STEP_RUNNING
+      steps: obj.steps ? obj.steps : { }, // stepId => { }
+      flow: obj.flow ? obj.flow : [ ], // Progress through the pipelines / steps
+      f2: obj.f2 ? obj.f2 : [ ],
     }
-    this.#steps = { } // stepId => { }
-    this.#flow = [ ] // Progress through the pipelines / steps
 
+    // transactionData
+    if (obj.transactionData) {
+      this.#me.transactionData = obj.transactionData
+    } else {
+      this.#me.transactionData = {
+        transactionType: obj.transactionType,
+        status: STEP_RUNNING,
+        completionTime: 0,
+        lastUpdated: 0,
+        notifiedTime: 0,
+        transactionInput: {},
+        transactionOutput: {},
+        metadata: { }
+      }//- transactionData
+    }
+
+    // retry
+    if (obj.retry) {
+      this.#me.retry = obj.retry
+    } else {
+      this.#me.retry = {
+        sleepingSince: 0,
+        sleepCounter: 0,
+        wakeTime: 0,
+        wakeSwitch: null,
+        wakeNodeGroup: null,
+        //wakeStepId: null //ZZZZ Shouldn't we just use flowIndex???
+      }
+    }
+
+    // Counters (are these used?)
+    this.#me.deltaCounter = obj.deltaCounter ? obj.deltaCounter : 0
+    this.#me.sequenceOfUpdate = obj.sequenceOfUpdate ? obj.sequenceOfUpdate : 0
+
+
+    // Obsolete ZZZZZ
     this.#deltaCounter = 0
     this.#deltas = [ ]
-
     this.#processingDelta = false
-  }
+  }//- constructor
 
   getTxId() {
-    return this.#txId
+    return this.#me.txId
   }
 
   getExternalId() {
-    return this.#externalId
+    return this.#me.externalId
   }
 
   getOwner() {
-    return this.#owner
+    return this.#me.owner
   }
 
   getTransactionType() {
-    return this.#transactionType
+    return this.#me.transactionData.transactionType
   }
 
   getStatus() {
-    return this.#status
+    return this.#me.transactionData.status
   }
 
   // Do not use this. It is exclusively a hack while getting events via a LUA script.
   _patchInStatus(status) {
-    this.#status = status
+    this.#me.transactionData.status = status
   }
 
   getSequenceOfUpdate() {
-    return this.#sequenceOfUpdate
+    return this.#me.sequenceOfUpdate
   }
 
   getDeltaCounter() {
@@ -157,22 +166,29 @@ export default class Transaction {
   }
 
   getProgressReport() {
-    return this.#progressReport
+    return this.#me.progressReport
   }
 
   getTransactionOutput() {
-    return this.#transactionOutput
+    return this.#me.transactionData.transactionOutput
+  }
+
+  getTransactionOutputAsJSON() {
+    if (this.#me.transactionData.transactionOutput) {
+      return JSON.stringify(this.#me.transactionData.transactionOutput)
+    }
+    return null    
   }
 
   getCompletionTime() {
-    return this.#completionTime
+    return this.#me.transactionData.completionTime
   }
 
   // vogGetStep(stepId) {
-  //   let step = this.#steps[stepId]
+  //   let step = this.#me.steps[stepId]
   //   if (step === undefined) {
   //     step = { }
-  //     this.#steps[stepId] = step
+  //     this.#me.steps[stepId] = step
   //   }
   //   return step
   // }
@@ -180,26 +196,20 @@ export default class Transaction {
   async addInitialStep(pipelineName) {
     const stepId = GenerateHash('s')
 
-    const fullSequence = this.#txId.substring(3, 9)
-    const vogPath = `${this.#txId.substring(3, 9)}=${pipelineName}`
-
-
-    // const fullSequence = `${parentStep.fullSequence}.${index}` // Start sequence at 1
-    // // const childVogPath = `${pipelineInstance.getVogPath()},1=P.${stepType}` // Start sequence at 1
-    // let childVogPath = `${parentStep.vogPath?parentStep.vogPath:'???vog???'},${index}` // Start sequence at 1
-    // const stepDefinition = this.vog_getStepDefinitionFromParent(parentStepId, index)
-    // console.log(`stepDefinition=`, stepDefinition)
-    // if (stepDefinition && stepDefinition.stepType) {
-    //   childVogPath += `=${stepDefinition.stepType}`
-    // }
+    const fullSequence = this.#me.txId.substring(3, 9)
+    const vogPath = `${this.#me.txId.substring(3, 9)}=${pipelineName}`
 
     await this.delta(stepId, {
       vogPath: vogPath,
-      vogPipeline: pipelineName,
+      vogI: 0,
+      vogP: null,
+      // vogPipeline: pipelineName,
+      stepDefinition: pipelineName,
       // vogI: index,
       // vogP: parentStepId,
       level: 0,
       fullSequence,
+      status: STEP_INITIAL,
     }, 'Transaction.js')
 
     // console.log(`this.vog_getStepDefinition(${childStepId})=`, this.vog_getStepDefinition(childStepId))
@@ -219,7 +229,7 @@ export default class Transaction {
    */
   async addPipelineStep(parentStepId, index, pipelineName) {
     const childStepId = GenerateHash('s')
-    const parentStep = this.#steps[parentStepId]
+    const parentStep = this.#me.steps[parentStepId]
 
     const childFullSequence = `${parentStep.fullSequence}.${index}` // Start sequence at 1
     let childVogPath = `${parentStep.vogPath?parentStep.vogPath:'???vog???'},${index}` // Start sequence at 1
@@ -233,9 +243,10 @@ export default class Transaction {
       vogPath: childVogPath,
       vogI: index,
       vogP: parentStepId,
-      vogPipeline: pipelineName,
+      // vogPipeline: pipelineName,
       level: parentStep.level + 1,
       fullSequence: childFullSequence,
+      status: STEP_INITIAL,
     }, 'Transaction.js')
 
     // console.log(`this.vog_getStepDefinition(${childStepId})=`, this.vog_getStepDefinition(childStepId))
@@ -244,17 +255,15 @@ export default class Transaction {
   }
     
   async addChildStep(parentStepId, index) {
-// console.log(`VOG addChildStep 5`)
     const childStepId = GenerateHash('s')
-    // console.log(`VOG addChildStep 6`)
     // await this.setChildIndex(childStepId, index)
-    // console.log(`VOG addChildStep 7`)
     // await this.setChildParent(childStepId, parentStepId)
-    // console.log(`VOG addChildStep 8`)
 
-    const parentStep = this.#steps[parentStepId]
+    // console.log(`parentStepId=`, parentStepId)
+    const parentStep = this.#me.steps[parentStepId]
     // console.log(`parentStep=`, parentStep)
 
+    validateStandardObject('addChildStep() parent step', parentStep, STEP_DEFINITION)
 
     const childFullSequence = `${parentStep.fullSequence}.${index}` // Start sequence at 1
     // const childVogPath = `${pipelineInstance.getVogPath()},1=P.${stepType}` // Start sequence at 1
@@ -271,6 +280,7 @@ export default class Transaction {
       vogP: parentStepId,
       level: parentStep.level + 1,
       fullSequence: childFullSequence,
+      status: STEP_INITIAL,
     }, 'Transaction.js')
 
     // console.log(`this.vog_getStepDefinition(${childStepId})=`, this.vog_getStepDefinition(childStepId))
@@ -278,18 +288,22 @@ export default class Transaction {
     return childStepId
   }
 
-  vog_flowRecordStepScheduled(stepId, input, vogPath, parentIndex, onComplete) {
-    console.log(`vog_flowRecordStartStep(${stepId}, input, ${vogPath}, parentIndex=${parentIndex})`)
-    // console.log(`this.#flow=`, this.#flow)
+  vog_flowRecordStep_scheduled(parentIndex, stepId, input, onComplete) {
+    if (VERBOSE) console.log(`vog_flowRecordStep_scheduled(parentIndex=${parentIndex}, ${stepId}, input, onComplete)`)
+    // console.log(`this.#me.flow=`, this.#me.flow)
 
-    const index = this.#flow.length
+    const step = this.stepData(stepId)
+    assert(step)
+
+    const index = this.#me.flow.length
     const entry = {
       i: index
     }
     if (typeof(parentIndex) === 'number') {
       entry.p = parentIndex
     }
-    entry.vogPath = vogPath
+    // entry.vogPath = vogPath
+    entry._tmpPath = step.vogPath
     entry.ts1 = Date.now()
     entry.ts2 = 0
     entry.ts3 = 0
@@ -300,95 +314,275 @@ export default class Transaction {
     entry.note = null
     entry.completionStatus = null
     entry.output = null
-    console.log(`vog_flowRecordStepScheduled() - new flow entry: ${JSON.stringify(entry,'',2)}`.magenta)
-    this.#flow.push(entry)
-    return this.#flow.length - 1
+    // console.log(`vog_flowRecordStep_scheduled() - new flow entry: ${JSON.stringify(entry,'',2)}`.magenta)
+    this.#me.flow.push(entry)
+    return this.#me.flow.length - 1
   }
 
-  vog_flowRecordStepInvoked(stepId, nodeId) {
-    console.log(`vog_flowRecordStepInvoked()`.red)
-    assert(this.#flow.length >= 1)
-    const latestEntry = this.#flow[this.#flow.length - 1]
-    console.log(`latestEntry=`, latestEntry)
+  vog_flowRecordStep_invoked(stepId, nodeId) {
+    // console.log(`vog_flowRecordStep_invoked()`.red)
+    assert(this.#me.flow.length >= 1)
+    const latestEntry = this.#me.flow[this.#me.flow.length - 1]
+    // console.log(`latestEntry=`, latestEntry)
     assert(latestEntry.stepId === stepId)
     latestEntry.ts2 = Date.now()
     latestEntry.nodeId = schedulerForThisNode.getNodeId()
-
-    console.log(`Maybe set the nodeGroup`.red, latestEntry.p)
-    // if (latestEntry.p !== undefined) {
-    //   console.log(`Have parent`.red)
-
-    //   // We have a parent flow entry (e.g. the pipeline containing this step)
-    //   // const parentIndex = latestEntry.p
-
-    //   // Add the node group, if it's different to it's parent
-    //   const thisNodeGroup = schedulerForThisNode.getNodeGroup()
-    //   let parentNodeGroup = thisNodeGroup
-    //   for (let pi = latestEntry.p; typeof(pi)==='number' && this.#flow[pi]; ) {
-    //     const parentFlow = this.#flow[pi]
-    //     if (parentFlow.nodeGroup) {
-    //       parentNodeGroup = parentFlow.nodeGroup
-    //       break
-    //     }
-    //     pi = parentFlow.parentIndex
-    //   }
-    //   console.log(`parentNodeGroup=`, parentNodeGroup)
-    //   if (thisNodeGroup !== parentNodeGroup) {
-    //     entry.nodeGroup = thisNodeGroup
-    //     console.log(`entry=`.red, entry)
-    //   }
-    //   else console.log(`same parent`)
-    // }
-
     latestEntry.vog_nodeGroup = schedulerForThisNode.getNodeGroup()
   }
 
-  vog_flowRecordStepSleep(stepId, wakeSwitch, duration) {
-    assert(this.#flow.length >= 1)
-    const latestEntry = this.#flow[this.#flow.length - 1]
+  vog_flowRecordStep_sleep(stepId, wakeSwitch, duration) {
+    assert(this.#me.flow.length >= 1)
+    const latestEntry = this.#me.flow[this.#me.flow.length - 1]
     assert(latestEntry.stepId === stepId)
     latestEntry.ts3 = Date.now()
     latestEntry.wakeSwitch = wakeSwitch
     latestEntry.duration = duration
   }
 
-  vog_flowRecordStepEnd(flowIndex, completionStatus, note, output) {
-    console.log(`vog_flowRecordStepEnd(${flowIndex}, ${completionStatus}, ${note}, ${output})`.yellow)
-    assert(flowIndex >= 0 && flowIndex < this.#flow.length)
-    const entry = this.#flow[flowIndex]
+  vog_flowRecordStep_complete(flowIndex, completionStatus, note, output) {
+    // console.log(`vog_flowRecordStep_complete(${flowIndex}, ${completionStatus}, ${note}, ${output})`.brightYellow)
+    assert(flowIndex >= 0 && flowIndex < this.#me.flow.length)
+    const entry = this.#me.flow[flowIndex]
     // assert(entry.stepId === stepId)
     entry.ts3 = Date.now()
     entry.completionStatus = completionStatus
     entry.note = note
     entry.output = output
-    console.log(`entry=`, entry)
+    // console.log(`entry=`, entry)
   }
 
   vog_getFlow() {
-    return this.#flow
+    return this.#me.flow
+  }
+
+  vog_getFlowLength() {
+    return this.#me.flow.length
   }
 
   vog_getFlowRecord(index) {
-    assert(index >= 0 && index < this.#flow.length)
-    return this.#flow[index]
+    if (index < 0) {
+      index = this.#me.flow.length - 1
+    }
+    assert(index >= 0 && index < this.#me.flow.length)
+    return this.#me.flow[index]
+  }
+
+  v2f_setF2Transaction(pipelineName, metadata, input) {
+    assert(this.#me.f2.length === 0)
+    const entry = {
+      description: this.vf2_typeDescription(F2_TRANSACTION),
+      t:F2_TRANSACTION,
+      l:0,
+      p: -1,
+      transactionType: pipelineName,
+      // metadata,
+      // input,
+      ts1: Date.now(),
+      ts2: 0,
+      ts3: 0
+    }
+    this.#me.f2.push(entry)
+    return { f2i: 0, f2: entry }
+  }
+
+  vf2_addF2sibling(f2i, type) {
+    console.log(`vf2_addF2sibling(${f2i}, ${type})`)
+    assert(f2i >= 0 && f2i < this.#me.f2.length)
+    const thisF2 = this.#me.f2[f2i]
+    // console.log(`thisF2=`, thisF2)
+
+    // If this F2 record has a sibling itself, we'll use the same one.
+    const siblingF2i = thisF2.s ? thisF2.s : f2i
+
+    // Skip over any children
+    let newPos = f2i + 1
+    while (newPos < this.#me.f2.length && this.#me.f2[newPos].p === f2i) {
+      newPos++
+    }
+    console.log(`newPos=`, newPos)
+    const newF2 = {
+      description: this.vf2_typeDescription(type),
+      t: type,
+      // p: parent.p,
+      l: thisF2.l,
+      s: siblingF2i,
+      ts1: Date.now(),
+      ts2: 0,
+      ts3: 0
+    }
+    this.#me.f2.splice(newPos, 0, newF2)
+    return { f2i: newPos, f2: newF2 }
+  }
+
+  vf2_addF2child(parentF2i, type, addedBy) {
+    assert(parentF2i >= 0 && parentF2i < this.#me.f2.length)
+    const parent = this.#me.f2[parentF2i]
+
+    // Skip over any children
+    let childF2i = parentF2i + 1
+    while (childF2i < this.#me.f2.length && this.#me.f2[childF2i].p === parentF2i) {
+      childF2i++
+    }
+    const childF2 = {
+      description: this.vf2_typeDescription(type),
+      t: type,
+      p: parentF2i,
+      l: parent.l + 1,
+      ts1: Date.now(),
+      ts2: 0,
+      ts3: 0
+    }
+    childF2._by = addedBy
+
+    this.#me.f2.splice(childF2i, 0, childF2)
+    return { f2i: childF2i, f2: childF2 }
+  }
+
+  vf2_typeDescription(type) {
+    switch (type) {
+      case F2_TRANSACTION:
+        return 'Start transaction'
+      case F2_TRANSACTION_CH:
+        return 'Transaction after pipeline'
+      case F2_PIPELINE:
+        return 'Start pipeline'
+      case F2_PIPELINE_CH:
+        return 'Pipeline after step'
+      case F2_STEP:
+        return 'Run step'
+      default:
+        return `Unknown type ${type}`
+    }
+  }
+
+  vf2_getF2Length() {
+    return this.#me.f2.length
+  }
+
+  vf2_getF2(f2i) {
+    assert(f2i >= 0 && f2i < this.#me.f2.length)
+    return this.#me.f2[f2i]
+  }
+
+  vog_getStepRecord(index) {
+    // console.log(`this.#me.steps=`, this.#me.steps)
+    return this.#me.steps[index]
+  }
+
+  vf2_getStatus(index) {
+    assert(index >= 0 && index < this.#me.f2.length)
+    for ( ; index > 0; index--) {
+      const f2 = this.#me.f2[index]
+      if (typeof(f2.status) !== 'undefined') {
+        console.log(`f2@${index}.status=`, f2.status)
+        return f2.status
+      }
+    }
+    throw new Error(`Internal error: could not get status of f2 [${index}]`)
+  }
+
+  vf2_getNote(index) {
+    assert(index >= 0 && index < this.#me.f2.length)
+    for ( ; index > 0; index--) {
+      const f2 = this.#me.f2[index]
+      if (typeof(f2.note) !== 'undefined') {
+        console.log(`f2@${index}.note=`, f2.note)
+        return f2.note
+      }
+    }
+    throw new Error(`Internal error: could not get status of f2 [${index}]`)
+  }
+
+  vf2_getOutput(index) {
+    assert(index >= 0 && index < this.#me.f2.length)
+    for ( ; index > 0; index--) {
+      const f2 = this.#me.f2[index]
+      if (typeof(f2.output) !== 'undefined') {
+        console.log(`f2@${index}.output=`, f2.output)
+        return f2.output
+      }
+    }
+    throw new Error(`Internal error: could not get status of f2 [${index}]`)
+  }
+
+  vog_flowPath(index) {
+    assert(index >= 0 && index < this.#me.flow.length)
+    const flow = this.#me.flow[index]
+    const step = this.#me.steps[flow.stepId]
+    return step.vogPath
   }
 
   vog_getParentFlowIndex(flowIndex) {
-    assert(flowIndex >= 0 && flowIndex < this.#flow.length)
-    return this.#flow[flowIndex][FIELD_PARENT_FLOW_INDEX]
+    assert(flowIndex >= 0 && flowIndex < this.#me.flow.length)
+    const pIndex = this.#me.flow[flowIndex][FIELD_PARENT_FLOW_INDEX]
+    return (pIndex === undefined) ? -1 : pIndex
   }
 
-  async vog_setStepCompletionHandler(stepId, flowIndex, nodeGroup, callback, context={}, completionToken=null) {
-    const step = this.#steps[stepId]
-    assert(step)
-    step.onComplete = {
-      flowIndex,
-      nodeGroup,
-      callback,
-      context,
-      completionToken
-    }
+  vog_getMetadata() {
+    assert(typeof(this.#me.transactionData.metadata) === 'object')
+    const metadata = this.#me.transactionData.metadata
+    return metadata
   }
+
+
+  vog_setProgressReport(object) {
+    this.#me.progressReport = object
+  }
+
+  vog_setStatusToSleeping(wakeSwitch, sleepDuration, stepId) {
+    this.#me.transactionData.status = STEP_SLEEPING
+    this.#me.retry.wakeSwitch = wakeSwitch
+    if (!SUPPRESS) console.log(`vog_setStatusToSleeping() - Not sure what to do with the sleepDuration`.magenta)
+    this.#me.retry.wakeStepId = wakeStepId
+  }
+
+  vog_setNextStepId(stepId) {
+    if (!SUPPRESS) console.log(`vog_setNextStepId() - Not sure what to do with the nextStepId`.magenta)
+  }
+
+  vog_setTransactionType(transactionType) {
+    this.#me.transactionData.transactionType = transactionType
+  }
+
+  vog_setNodeGroup(nodeGroup) {
+    if (!SUPPRESS) console.log(`vog_setNodeGroup() - Not sure what to do with the node group`.magenta)
+  }
+  vog_setNodeId(nodeId) {
+    if (!SUPPRESS) console.log(`vog_setNodeId() - Not sure what to do with the nodeId`.magenta)
+  }
+  vog_setPipelineName(pipelineName) {
+    if (!SUPPRESS) console.log(`vog_setNodeId() - Not sure what to do with the nodeId`.magenta)
+  }
+  vog_setStatusToQueued() {
+    this.#me.transactionData.status = TX_STATUS_QUEUED
+  }
+  vog_setStatusToRunning() {
+    this.#me.transactionData.status = TX_STATUS_RUNNING
+  }
+  vog_setMetadata(metadata) {
+    assert(typeof(metadata) === 'object')
+    this.#me.transactionData.metadata = metadata
+  }
+  vog_setTransactionInput(initialData) {
+    this.#me.transactionData.transactionInput = initialData
+  }
+  vog_setOnComplete(context) {
+    this.#me.onComplete = context
+  }
+  vog_setOnChange(context) {
+    this.#me.onChange = context
+  }
+
+  vog_setToComplete(statusOfFinalStep, note, transactionOutput) {
+    this.#me.transactionData.status = statusOfFinalStep
+    this.#me.transactionData.transactionOutput = transactionOutput
+    this.#me.transactionData.completionNote = note
+    const now = Date.now()
+    this.#me.transactionData.completionTime = now
+    this.#me.transactionData.lastUpdated = now
+    this.#me.progressReport = null
+  }
+
 
 
   vog_getStepDefinitionFromParent(parentStepId, childIndex) {
@@ -397,7 +591,7 @@ export default class Transaction {
     assert(typeof(childIndex) === 'number')
 
     // Get the parent step
-    const parent = this.#steps[parentStepId]
+    const parent = this.#me.steps[parentStepId]
     assert(parent)
     // console.log(`parent=`, parent)
     // assert(parent.vogStepDefinition)
@@ -420,7 +614,7 @@ export default class Transaction {
   }
 
   vog_getStepDefinition(stepId) {
-    const step = this.#steps[stepId]
+    const step = this.#me.steps[stepId]
     assert(step)
     if (step.stepDefinition) {
       return step.stepDefinition.definition
@@ -429,7 +623,48 @@ export default class Transaction {
     return this.vog_getStepDefinitionFromParent(step.vogP, step.vogI)
   }
 
-  JnodeGroupWhereStepRuns(childId) { return this.#steps[childId].nodeGroupWhereStepRuns }
+  vog_getWebhook() {
+    if (this.#me.transactionData && this.#me.transactionData.metadata.webhook) {
+      return this.#me.transactionData.metadata.webhook
+    }
+    return null
+  }
+
+
+  vog_validateSteps() {
+    let errors = 0
+    for (const stepId in this.#me.steps) {
+      try {
+        const step = this.#me.steps[stepId]
+        validateStandardObject('vog.validateSteps()', step, STEP_DEFINITION)
+      } catch (e) {
+        errors++
+      }
+    }
+    if (errors) {
+      throw new Error(`Internal error in step definitions`)
+    }
+  }
+
+  async vog_setStepCompletionHandler(stepId, flowIndex, nodeGroup, callback, context={}, completionToken=null) {
+    const step = this.#me.steps[stepId]
+    assert(step)
+    step.onComplete = {
+      flowIndex,
+      nodeGroup,
+      callback,
+      context,
+      completionToken
+    }
+  }
+  
+  vog_setStepStatus(stepId, status) {
+    const step = this.#me.steps[stepId]
+    assert(step)
+    step.status = status
+  }
+
+  JnodeGroupWhereStepRuns(childId) { return this.#me.steps[childId].nodeGroupWhereStepRuns }
 
 
   // async setChildIndex(childStepId, stepIndex) {
@@ -448,34 +683,7 @@ export default class Transaction {
 
 
   asObject() {
-    return {
-      txId: this.#txId,
-      owner: this.#owner,
-      externalId: this.#externalId,
-      transactionType: this.#transactionType,
-
-      status: this.#status,
-      sequenceOfUpdate: this.#sequenceOfUpdate,
-      progressReport: this.#progressReport,
-      transactionOutput: this.#transactionOutput,
-      completionTime: this.#completionTime,
-    
-      // Sleep related stuff
-      sleepingSince: this.#sleepingSince,
-      sleepCounter: this.#sleepCounter,
-      wakeTime: this.#wakeTime,
-      wakeSwitch: this.#wakeSwitch,
-      wakeNodeGroup: this.#wakeNodeGroup,
-      wakeStepId: this.#wakeStepId,
-
-      deltaCounter: this.#deltaCounter,
-
-      transactionData: this.#tx,
-      steps: this.#steps,
-      flow: this.#flow,
-
-      // Log entries and deltas go elsewhere
-    }
+    return this.#me
   }
 
   /**
@@ -488,16 +696,16 @@ export default class Transaction {
     return JSON.stringify(this.asObject(), '', pretty ? 2 : 0)
   }
 
-  txData() {
-    return this.#tx
-  }
+  // txData() {
+  //   return this.#me
+  // }
 
   transactionData() {
-    return this.#tx
+    return this.#me.transactionData
   }
 
   stepData(stepId) {
-    const d = this.#steps[stepId]
+    const d = this.#me.steps[stepId]
     if (d) {
       return d
     }
@@ -555,10 +763,10 @@ export default class Transaction {
             // These are temporary ststuses that do not impact sleeping values
             case STEP_QUEUED:
             case STEP_RUNNING:
-              if (this.#status !== data.status) {
+              if (this.#me.transactionData.status !== data.status) {
                 if (VERBOSE) console.log(`Setting transaction status to ${data.status}`)
                 coreValuesChanged = true
-                this.#status = data.status
+                this.#me.transactionData.status = data.status
               }
               break
 
@@ -568,46 +776,46 @@ export default class Transaction {
             case STEP_ABORTED:
             case STEP_TIMEOUT:
             case STEP_INTERNAL_ERROR:
-              if (this.#status !== data.status) {
+              if (this.#me.transactionData.status !== data.status) {
                 if (VERBOSE) console.log(`Setting transaction status to ${data.status}`)
                 coreValuesChanged = true
-                this.#status = data.status
+                this.#me.transactionData.status = data.status
               }
               // We are no longer in a sleep loop
-              if (this.#sleepCounter!==0 || this.#sleepingSince!==null || this.#wakeTime!==null || this.#wakeSwitch!==null) {
+              if (this.#me.retry.counter!==0 || this.#me.retry.sleepingSince!==null || this.#me.retry.wakeTime!==null || this.#me.retry.wakeSwitch!==null) {
                 coreValuesChanged = true
-                this.#sleepCounter = 0
-                this.#sleepingSince = null
-                this.#wakeTime = null
-                this.#wakeSwitch = null
-                this.#wakeNodeGroup = null
-                this.#wakeStepId = null
+                this.#me.retry.counter = 0
+                this.#me.retry.sleepingSince = null
+                this.#me.retry.wakeTime = null
+                this.#me.retry.wakeSwitch = null
+                this.#me.retry.wakeNodeGroup = null
+                this.#me.retry.wakeStepId = null
                 if (VERBOSE) console.log(`Resetting sleep values`)
               }
               break
 
             case STEP_SLEEPING:
-              if (this.#status !== data.status) {
+              if (this.#me.transactionData.status !== data.status) {
                 // Was not already in sleep mode
                 if (VERBOSE) console.log(`Setting transaction status to ${data.status}`)
                 coreValuesChanged = true
-                this.#status = data.status
-                if (this.#sleepingSince === null) {
+                this.#me.transactionData.status = data.status
+                if (this.#me.retry.sleepingSince === null) {
                   if (VERBOSE) console.log(`Initializing sleep fields`)
-                  this.#sleepCounter = 1
-                  this.#sleepingSince = new Date()
-                  this.#wakeNodeGroup = schedulerForThisNode.getNodeGroup()
-                  this.#wakeStepId = data.wakeStepId
+                  this.#me.retry.counter = 1
+                  this.#me.retry.sleepingSince = new Date()
+                  this.#me.retry.wakeNodeGroup = schedulerForThisNode.getNodeGroup()
+                  this.#me.retry.wakeStepId = data.wakeStepId
                 } else {
                   if (VERBOSE) console.log(`Incrementing sleep counter`)
-                  this.#sleepCounter++
+                  this.#me.retry.counter++
                 }
               }
-              // if (typeof(data.wakeTime) !== 'undefined' && this.#wakeTime !== data.wakeTime) {
+              // if (typeof(data.wakeTime) !== 'undefined' && this.#me.retry.wakeTime !== data.wakeTime) {
               //   if (VERBOSE) console.log(`Setting wakeTime to ${data.wakeTime}`)
               //   if (data.wakeTime === null || data.wakeTime instanceof Date) {
               //     coreValuesChanged = true
-              //     this.#wakeTime = data.wakeTime
+              //     this.#me.retry.wakeTime = data.wakeTime
               //   } else {
               //     throw new Error('Invalid data.wakeTime')
               //   }
@@ -625,21 +833,21 @@ export default class Transaction {
                 } else {
                   throw new Error('Invalid data.sleepDuration')
                 }
-                if (this.#wakeTime !== newWakeTime) {
+                if (this.#me.retry.wakeTime !== newWakeTime) {
                   if (VERBOSE) console.log(`Setting wakeTime to +${newWakeTime}`)
                   coreValuesChanged = true
-                  this.#wakeTime = newWakeTime
-                  this.#wakeNodeGroup = schedulerForThisNode.getNodeGroup()
-                  this.#wakeStepId = data.wakeStepId
+                  this.#me.retry.wakeTime = newWakeTime
+                  this.#me.retry.wakeNodeGroup = schedulerForThisNode.getNodeGroup()
+                  this.#me.retry.wakeStepId = data.wakeStepId
                 }
               }
-              if (typeof(data.wakeSwitch) !== 'undefined' && this.#wakeSwitch !== data.wakeSwitch) {
+              if (typeof(data.wakeSwitch) !== 'undefined' && this.#me.retry.wakeSwitch !== data.wakeSwitch) {
                 if (VERBOSE) console.log(`Setting wakeSwitch to ${data.wakeSwitch}`)
                 if (data.wakeSwitch === null || typeof(data.wakeSwitch) === 'string') {
                   coreValuesChanged = true
-                  this.#wakeSwitch = data.wakeSwitch
-                  this.#wakeNodeGroup = schedulerForThisNode.getNodeGroup()
-                  this.#wakeStepId = data.wakeStepId
+                  this.#me.retry.wakeSwitch = data.wakeSwitch
+                  this.#me.retry.wakeNodeGroup = schedulerForThisNode.getNodeGroup()
+                  this.#me.retry.wakeStepId = data.wakeStepId
                 } else {
                   throw new Error('Invalid data.wakeSwitch')
                 }
@@ -653,42 +861,42 @@ export default class Transaction {
         if (typeof(data['-progressReport']) !== 'undefined') {
           // Progress report being deleted
           coreValuesChanged = true
-          this.#progressReport = null
-        } else if (typeof(data.progressReport) !== 'undefined' && this.#progressReport !== data.progressReport) {
+          this.#me.progressReport = null
+        } else if (typeof(data.progressReport) !== 'undefined' && this.#me.progressReport !== data.progressReport) {
           if (VERBOSE) console.log(`Setting transaction progressReport to ${data.progressReport}`)
           if (data.progressReport !== null && typeof(data.progressReport) !== 'object') {
             throw new Error('data.progressReport must be an object')
           }
           coreValuesChanged = true
-          this.#progressReport = data.progressReport
+          this.#me.progressReport = data.progressReport
         }
-        if (typeof(data.transactionOutput) !== 'undefined' && this.#transactionOutput !== data.transactionOutput) {
+        if (typeof(data.transactionOutput) !== 'undefined' && this.#me.transactionData.transactionOutput !== data.transactionOutput) {
           if (VERBOSE) console.log(`Setting transactionOutput to ${data.transactionOutput}`)
           if (typeof(data.transactionOutput) !== 'object') {
             throw new Error('data.transactionOutput must be an object')
           }
           coreValuesChanged = true
-          this.#transactionOutput = data.transactionOutput
+          this.#me.transactionData.transactionOutput = data.transactionOutput
         }
-        if (typeof(data.completionTime) !== 'undefined' && this.#completionTime !== data.completionTime) {
+        if (typeof(data.completionTime) !== 'undefined' && this.#me.transactionData.completionTime !== data.completionTime) {
           if (VERBOSE) console.log(`Setting transaction completionTime to ${data.completionTime}`)
           if (data.completionTime !== null && !(data.completionTime instanceof Date)) {
             throw new Error('data.completionTime parameter must be of type Date')
           }
           coreValuesChanged = true
-          this.#completionTime = data.completionTime
+          this.#me.transactionData.completionTime = data.completionTime
         }
 
-                    // if (this.#status === STEP_SLEEPING) {
+                    // if (this.#me.transactionData.status === STEP_SLEEPING) {
             //   if (this.)
 
-            // } else if (this.#status === STEP_ || this.#status === STEP_SLEEPING)
+            // } else if (this.#me.transactionData.status === STEP_ || this.#me.transactionData.status === STEP_SLEEPING)
 
 
         // If the core values were changed, update the database
         if (coreValuesChanged) {
-          if (DEBUG_DB_ATP_TRANSACTION) console.log(`TX UPDATE ${countTxCoreUpdate++}`)
-          this.#sequenceOfUpdate = this.#deltaCounter
+          if (DEBUG_DB_ATP_TRANSACTION) console.log(`TX UPDATE ${countTxCoreUpdate++}`.cyan)
+          this.#me.sequenceOfUpdate = this.#deltaCounter
           if (!replayingPastDeltas) {
             let sql = `UPDATE atp_transaction2 SET
               status=?,
@@ -704,25 +912,25 @@ export default class Transaction {
               wake_step_id=?`
 
 //ZZZZ Check that the transaction hasn't been updated by someone else.
-            //  AND sequence_of_update=?   [ this.#sequenceOfUpdate ]
-            const transactionOutputJSON = this.#transactionOutput ? JSON.stringify(this.#transactionOutput) : null
-            const progressReportJSON = this.#progressReport ? JSON.stringify(this.#progressReport) : null
+            //  AND sequence_of_update=?   [ this.#me.sequenceOfUpdate ]
+            const transactionOutputJSON = this.#me.transactionData.transactionOutput ? JSON.stringify(this.#me.transactionData.transactionOutput) : null
+            const progressReportJSON = this.#me.progressReport ? JSON.stringify(this.#me.progressReport) : null
             const params = [
-              this.#status,
+              this.#me.transactionData.status,
               progressReportJSON,
               transactionOutputJSON,
-              this.#completionTime,
+              this.#me.transactionData.completionTime,
               this.#deltaCounter,
-              this.#sleepCounter,
-              this.#sleepingSince,
-              this.#wakeTime,
-              this.#wakeSwitch,
-              this.#wakeNodeGroup,
-              this.#wakeStepId
+              this.#me.retry.counter,
+              this.#me.retry.sleepingSince,
+              this.#me.retry.wakeTime,
+              this.#me.retry.wakeSwitch,
+              this.#me.retry.wakeNodeGroup,
+              this.#me.retry.wakeStepId
             ]
             sql += ` WHERE transaction_id=? AND owner=?`
-            params.push(this.#txId)
-            params.push(this.#owner)
+            params.push(this.#me.txId)
+            params.push(this.#me.owner)
             // console.log(`sql=`, sql)
             // console.log(`params=`, params)
             const response = await dbupdate(sql, params)
@@ -736,13 +944,13 @@ export default class Transaction {
             }
 
             // Notify any event handler
-            // console.log(`this.#tx=`, this.#tx)
-            if (this.#tx.onChange) {
-              const queueName = Scheduler2.groupQueueName(this.#tx.nodeGroup)
+            // console.log(`this.#me=`, this.#me)
+            if (this.#me.onChange) {
+              const queueName = Scheduler2.groupQueueName(this.#me.nodeGroup)
               if (VERBOSE) console.log(`Adding a TRANSACTION_CHANGE_EVENT to queue ${queueName}`)
               await schedulerForThisNode.enqueue_TransactionChange(queueName, {
-                owner: this.#owner,
-                txId: this.#txId
+                owner: this.#me.owner,
+                txId: this.#me.txId
               })
             }
           }//- !replayingPastDeltas
@@ -759,26 +967,26 @@ export default class Transaction {
       this.#deltas.push(obj)
       if (!replayingPastDeltas) {
         // Save the delta to the database
-        await TransactionPersistance.persistDelta(this.#owner, this.#txId, obj)
+        await TransactionPersistance.persistDelta(this.#me.owner, this.#me.txId, obj)
       }
 
       // Update this in-memory transaction object
       if (stepId) {
         // We are updating a step
-        let step = this.#steps[stepId]
+        let step = this.#me.steps[stepId]
         if (step === undefined) {
           step = { }
-          this.#steps[stepId] = step
+          this.#me.steps[stepId] = step
         }
         deepCopy(data, step)
       } else {
         // We are updating the transaction
 // console.log(`*** Before deep copy:`)
 // console.log(`data=`, data)
-// console.log(`this.#tx=`, this.#tx)
-        deepCopy(data, this.#tx)
+// console.log(`this.#me=`, this.#me)
+        deepCopy(data, this.#me)
 // console.log(`*** After deep copy:`)
-// console.log(`this.#tx=`, this.#tx)
+// console.log(`this.#me=`, this.#me)
       }
       this.#processingDelta = false
     } catch (e) {
@@ -789,69 +997,49 @@ export default class Transaction {
 
 
   static async getSummary(owner, txId) {
+    // console.log(`-----------------------------------------------------------------------------------`)
     // console.log(`getSummary(${owner}, ${txId})`)
 
-    const sql = `SELECT
-      owner,
-      transaction_id AS txId,
-      external_id AS externalId,
-      transaction_type AS transactionType,
-      status,
-      sequence_of_update AS sequenceOfUpdate,
-      progress_report AS progressReport,
-      transaction_output AS transactionOutput,
-      completion_time AS completionTime,
-      last_updated AS lastUpdated,
-      response_acknowledge_time AS notifiedTime
-      FROM atp_transaction2
-      WHERE owner=? AND transaction_id=?`
-    const params = [ owner, txId ]
-    // console.log(`sql=`, sql)
-    // console.log(`params=`, params)
-    const rows = await query(sql, params)
-    // console.log(`rows=`, rows)
-    if (rows.length < 1) {
+    // Get the transaction state
+    const txState = await TransactionCache.getTransactionState(txId)
+
+    // console.log(`txState=`, txState)
+    if (txState === null) {
       return null
     }
-    const row = rows[0]
-    const transactionOutput = row.transactionOutput
-    const progressReport = row.progressReport
-    const summary = {
-      metadata: row,
-      progressReport
-    }
-    delete summary.metadata.transactionOutput
-    delete summary.metadata.progressReport
-    try { summary.progressReport = JSON.parse(progressReport) } catch (e) { /* We'll stick with the JSON string */ }
-    if (
-      row.status === STEP_SUCCESS
-      || row.status === STEP_FAILED
-      || row.status === STEP_ABORTED
-      || row.status === STEP_INTERNAL_ERROR
-      || row.status === STEP_TIMEOUT
-    ) {
-      // Step has completed
-      try {
-        if (!transactionOutput) transactionOutput = '{ }'
-        // console.log(`transactionOutput=`, transactionOutput)
-        summary.data = JSON.parse(transactionOutput)
-        // console.log(`summary.data=`, summary.data)
-      } catch (e) {
-        summary.data = transactionOutput
-      }
-    } else {
-      // Step is still in progress
-      // try {
-      //   if (!progressReport) progressReport = '{ }'
-      //   summary.progressReport = JSON.parse(progressReport)
-      // } catch (e) {
-      //   summary.progressReport = progressReport
-      // }
-    }
-    // console.log(`summary=`, summary)
 
-    return summary
+    return txState.summaryFromState()
   }
+
+  summaryFromState() {
+    // if (VERBOSE) console.log(`Transaction state: ${JSON.stringify(txStateObject, '', 2)}]`.yellow)
+
+    let status = this.#me.transactionData.status
+    if (status === TX_STATUS_QUEUED) {
+      // Don't reveal the inner workings of DATP
+      status = TX_STATUS_RUNNING
+    }
+
+    const summary2 = {
+      "metadata": {
+        "owner": this.#me.owner,
+        "txId": this.#me.txId,
+        "externalId": this.#me.externalId ? this.#me.externalId : null,
+        "transactionType": this.#me.transactionData.transactionType,
+        status,
+        // "sequenceOfUpdate": this.#me.delta,
+        "completionTime": this.#me.transactionData.completionTime,
+        "lastUpdated": this.#me.transactionData.lastUpdated,
+        "notifiedTime": this.#me.transactionData.notifiedTime
+      },
+      "progressReport": this.#me.progressReport,
+      "data": this.#me.transactionData.transactionOutput
+    }
+    // console.log(`summary2=`, summary2)
+    return summary2
+  }
+
+
 
 
   static async getSummaryByExternalId(owner, externalId) {
@@ -941,7 +1129,7 @@ export default class Transaction {
   }
 
   static async getSwitch(owner, txId, name) {
-    const { switches } = await Transaction.getSwitches(owner, txId)
+    const { switches } = await TransactionState.getSwitches(owner, txId)
     if (typeof(switches[name]) === 'undefined') {
       return null
     }
@@ -959,7 +1147,7 @@ export default class Transaction {
    * cause the current sleeping step to be immediately retried.
    */
   static async setSwitch(owner, txId, name, value, triggerNudgeEvent=false) {
-    const { switches, sequenceOfUpdate } = await Transaction.getSwitches(owner, txId)
+    const { switches, sequenceOfUpdate } = await TransactionState.getSwitches(owner, txId)
     if (value === null || typeof(value) === 'undefined') {
 
       // Remove the switch
@@ -1008,7 +1196,7 @@ export default class Transaction {
    * @returns
    */
   getSleepingSince() {
-    return this.#sleepingSince
+    return this.#me.retry.sleepingSince
   }
 
   /**
@@ -1016,7 +1204,7 @@ export default class Transaction {
    * @returns
    */
   getRetryCounter() {
-    return this.#sleepCounter
+    return this.#me.retry.counter
   }
 
   /**
@@ -1024,7 +1212,7 @@ export default class Transaction {
    * @returns
    */
   getWakeTime() {
-    return this.#wakeTime
+    return this.#me.retry.wakeTime
   }
 
   /**
@@ -1032,15 +1220,15 @@ export default class Transaction {
    * @returns
    */
   getWakeSwitch() {
-    return this.#wakeSwitch
+    return this.#me.retry.wakeSwitch
   }
 
   getWakeNodeGroup() {
-    return this.#wakeNodeGroup
+    return this.#me.retry.wakeNodeGroup
   }
 
   getWakeStepId() {
-    return this.#wakeStepId
+    return this.#me.retry.wakeStepId
   }
 
   getNodeGroupForStep(stepId) {
@@ -1065,8 +1253,19 @@ export default class Transaction {
    * @param {string[]} status
    * @returns
    */
-  static async findTransactions(pagesize=20, offset=0, filter='', statusList=[STEP_SUCCESS, STEP_FAILED, STEP_ABORTED]) {
-    // console.log(`findTransactions()`, options)
+  static async findTransactions(archived, pagesize=20, offset=0, filter='', statusList=[STEP_SUCCESS, STEP_FAILED, STEP_ABORTED]) {
+    // console.log(`TransactionState.findTransactions()`, archived)
+
+    archived = false
+    if (!archived) {
+      const redisLua = await RedisQueue.getRedisLua()
+      if (offset == 0) {
+        const result = await redisLua.findTransactions(filter, statusList)
+        // const result = [ ]
+        return result
+      }
+      return [ ]
+    }
 
     let sql = `SELECT
       transaction_id AS txId,
@@ -1141,16 +1340,16 @@ export default class Transaction {
       params.push(pagesize) // reversed
     }
 
-    // console.log(`sql=`, sql)
-    // console.log(`params=`, params)
+    console.log(`sql=`, sql)
+    console.log(`params=`, params)
     const rows = await query(sql, params)
     // console.log(`${rows.length} transactions.`)
     return rows
   }
 
   stepIds() {
-    // console.log(`stepIds()`)
-    const stepIds = Object.keys(this.#steps)
+    // console.log(`stepIds()`, this.#me.steps)
+    const stepIds = Object.keys(this.#me.steps)
     // console.log(`stepIds=`, stepIds)
     return stepIds
   }
@@ -1158,10 +1357,10 @@ export default class Transaction {
   // Temporary debug hack for 16aug22.
   xoxYarp(msg='', highlightedStepId=null) {
     console.log(``)
-    console.log(`${me()}: ${msg}: TX ===>>> ${this.#txId}`)
+    console.log(`${me()}: ${msg}: TX ===>>> ${this.#me.txId}`)
     let found = false
-    for (const stepId in this.#steps) {
-      const step = this.#steps[stepId]
+    for (const stepId in this.#me.steps) {
+      const step = this.#me.steps[stepId]
       let arrow = ''
       if (stepId===highlightedStepId) {
         arrow = ' <====='
@@ -1199,21 +1398,21 @@ export default class Transaction {
 
   async getDetails(withSteps=true, withDeltas=false) {
     const obj = {
-      txId: this.#txId,
-      owner: this.#owner,
-      externalId: this.#externalId,
-      status: this.#status,
-      sequenceOfUpdate: this.#sequenceOfUpdate,
-      progressReport: this.#progressReport,
-      transactionOutput: this.#transactionOutput,
-      completionTime: this.#completionTime
+      txId: this.#me.txId,
+      owner: this.#me.owner,
+      externalId: this.#me.externalId,
+      status: this.#me.transactionData.status,
+      sequenceOfUpdate: this.#me.sequenceOfUpdate,
+      progressReport: this.#me.progressReport,
+      transactionOutput: this.#me.transactionData.transactionOutput,
+      completionTime: this.#me.transactionData.completionTime
     }
     if (withSteps) {
       obj.steps = [ ]
-      for (const stepId in this.#steps) {
-      // for (const step of this.#steps) {
+      for (const stepId in this.#me.steps) {
+      // for (const step of this.#me.steps) {
         // console.log(`stepId=`, stepId)
-        const step = this.#steps[stepId]
+        const step = this.#me.steps[stepId]
         // console.log(`step=`, step)
         const stepObj = {
           stepId,
@@ -1251,52 +1450,25 @@ export default class Transaction {
   }
 
   // 
+  pretty() {
+    return JSON.stringify(this.asObject(), '', 2)
+  }
+
+  // 
   stringify() {
     return JSON.stringify(this.asObject())
   }
 
-  static transactionStateFromJSON(json) {
-    const obj = JSON.parse(json)
-    // console.log(`transactionStateFromJSON(), obj=`, JSON.stringify(obj, '', 2))
-    // throw new Error('transactionStateFromJSON: Not implemented yet.')
-    const txId = obj.txId
-    const owner = obj.owner
-    const externalId = obj.externalId
-    const transactionType = obj.transactionType
-    const tx = new Transaction(txId, owner, externalId, transactionType)
-
-    tx.#status = obj.status
-    tx.#sequenceOfUpdate = obj.sequenceOfUpdate
-    tx.#progressReport = obj.progressReport
-    tx.#transactionOutput = obj.transactionOutput
-    tx.#completionTime = obj.completionTime ? new Date(obj.completionTime) : null
-  
-    // Sleep related stuff
-    tx.#sleepingSince = obj.sleepingSince ? new Date(obj.sleepingSince) : null
-    tx.#sleepCounter = obj.sleepCounter
-    tx.#wakeTime = obj.wakeTime ? new Date(obj.wakeTime) : null
-    tx.#wakeSwitch = obj.wakeSwitch
-    tx.#wakeNodeGroup = obj.wakeNodeGroup
-    tx.#wakeStepId = obj.wakeStepId
-
-    tx.#deltaCounter = obj.deltaCounter
-
-    tx.#tx = obj.transactionData
-    tx.#steps = obj.steps
-    tx.#flow = obj.flow
-
-    return tx
-  }
 
   // Returns a abbreviated description of the transaction
   toString() {
     // return JSON.stringify(this.asObject())
     const obj = {
-      txId: this.#txId,
-      owner: this.#owner,
-      externalId: this.#externalId,
-      transactionData: this.#tx,
-      steps: this.#steps
+      txId: this.#me.txId,
+      owner: this.#me.owner,
+      externalId: this.#me.externalId,
+      transactionData: this.#me,
+      steps: this.#me.steps
     }
     return JSON.stringify(obj)
   }

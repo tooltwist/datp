@@ -16,16 +16,19 @@ import juice from '@tooltwist/juice-client'
 import { RouterStep as RouterStepInternal } from './ATP/hardcoded-steps/RouterStep'
 import Pause from './lib/pause'
 import Scheduler2 from './ATP/Scheduler2/Scheduler2'
-import Transaction from './ATP/Scheduler2/Transaction'
+import TransactionState from './ATP/Scheduler2/TransactionState'
 import { deepCopy } from './lib/deepCopy'
 import LongPoll from './ATP/Scheduler2/LongPoll'
-import { DuplicateExternalIdError } from './ATP/Scheduler2/TransactionPersistance'
 import DatpCron from './cron/cron'
 import { generateErrorByName, registerErrorLibrary } from './lib/errorCodes'
 import errors_datp_EN from './lib/errors-datp-EN'
 import errors_datp_FIL from './lib/errors-datp-FIL'
 import { registerReplyConverter, convertReply } from './ATP/Scheduler2/ReplyConverter'
-import { requiresWebhookReply, RETURN_TX_STATUS_CALLBACK_ZZZ } from './ATP/Scheduler2/returnTxStatusCallbackZZZ'
+import { RETURN_TX_STATUS_CALLBACK_ZZZ } from './ATP/Scheduler2/returnTxStatusCallbackZZZ'
+import { WebhookProcessor } from './ATP/Scheduler2/webhooks/WebhookProcessor'
+import { ArchiveProcessor } from './ATP/Scheduler2/archiving/ArchiveProcessor'
+import { requiresWebhookReply } from './ATP/Scheduler2/webhooks/tryTheWebhook'
+import { DuplicateExternalIdError } from './ATP/Scheduler2/DuplicateExternalIdError'
 
 const VERBOSE = 0
 
@@ -39,6 +42,8 @@ export const RouterStep = RouterStepInternal
 export const pause = Pause
 export const query = dbQuery
 export let schedulerForThisNode = null
+export let webhookProcessor = null
+export let archiveProcessor = null
 export let cron = null
 
 async function restifySlaveServer(options) {
@@ -69,6 +74,12 @@ export async function goLive(server) {
   schedulerForThisNode = new Scheduler2(nodeGroup, { description })
   // await scheduler.drainQueue()
   await schedulerForThisNode.start()
+
+  webhookProcessor = new WebhookProcessor()
+  await webhookProcessor.start()
+
+  archiveProcessor = new ArchiveProcessor()
+  await archiveProcessor.start()
 
   // Cron
   cron = new DatpCron()
@@ -148,6 +159,7 @@ export async function startTransactionRoute(req, res, next, tenant, transactionT
     metadata = { }
   }
   const externalId = metadata.externalId ? metadata.externalId : null
+  // console.log(`VOGCED 1 externalId=`, externalId)
   const reply = metadata.reply
 
   // Let's see how we should reply - shortpoll (default), longpoll, or webhook (http...)
@@ -256,6 +268,7 @@ export async function startTransactionRoute(req, res, next, tenant, transactionT
   let tx
   try {
     tx = await schedulerForThisNode.startTransaction({ metadata: metadataCopy, data: dataCopy })
+//  console.log(`tx=`, tx.asObject())
   } catch (e) {
 
     // An error occurred.
@@ -271,7 +284,6 @@ export async function startTransactionRoute(req, res, next, tenant, transactionT
     }
     throw e
   }
-  // console.log(`tx=`, tx)
 
   /*
    * Now decide how we reply.
@@ -285,12 +297,15 @@ export async function startTransactionRoute(req, res, next, tenant, transactionT
 
     // Long polling.
     if (VERBOSE) console.log(`DATP.startTransactionRoute() - REPLY AFTER A WHILE`)
-    const cancelWebhook = !!metadata.webhook
+    // const cancelWebhook = !!metadata.webhook
+    const cancelWebhook = !!metadata.pollReplyCancelsWebhook
     return LongPoll.returnTxStatusAfterDelayWithPotentialEarlyReply(tenant, tx.getTxId(), res, next, cancelWebhook)
   } else {
 
     // Short polling.
-    let summary = await Transaction.getSummary(tenant, tx.getTxId())
+    // console.log(`tx=`, tx.pretty())
+    let summary = tx.summaryFromState()
+    // console.log(`summary=`, summary)
     if (VERBOSE) console.log(`DATP.startTransactionRoute() - IMMEDIATE REPLY`)
 
     // Convert the reply as required by the app.
