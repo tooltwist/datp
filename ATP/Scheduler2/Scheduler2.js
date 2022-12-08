@@ -945,7 +945,9 @@ export default class Scheduler2 {
       pipelineF2.ts2 = 0
       pipelineF2.ts3 = 0
       // pipelineF2.input = initialData
-      const { f2i: completionHandlerF2i, f2: completionHandlerF2 } = tx.vf2_addF2sibling(f2i, F2_TRANSACTION_CH)
+      // const { f2i: completionHandlerF2i, f2: completionHandlerF2 } = tx.vf2_addF2sibling(f2i, F2_TRANSACTION_CH, 'Scheduler2.startTransaction')
+      const { f2i: completionHandlerF2i, f2: completionHandlerF2 } = tx.vf2_addF2sibling(f2i, F2_TRANSACTION_CH, 'Scheduler2.startTransaction')
+      // const { f2i: completionHandlerF2i, f2: completionHandlerF2 } = tx.vf2_addF2child(f2i, F2_TRANSACTION_CH, 'Scheduler2.startTransaction')
       completionHandlerF2.nodeGroup = myNodeGroup
       completionHandlerF2.callback = TX_COMPLETE_CALLBACK
 
@@ -983,6 +985,11 @@ export default class Scheduler2 {
    */
   async enqueue_StartPipeline(tx, parentFlowIndex, stepId, vog_event, onComplete, checkExternalIdIsUnique, workerForShortcut) {
 
+    // console.log(`parentFlowIndex=`, parentFlowIndex)
+    // console.log(`vog_event=`, vog_event)
+    const f2i = vog_event.f2i
+
+    if (FLOW_VERBOSE) flowMsg(tx, `>>> enqueue_StartPipeline(parentFlowIndex=${parentFlowIndex})`, parentFlowIndex)
     if (FLOW_VERBOSE) flowMsg(tx, `>>> enqueue_StartPipeline(parentFlowIndex=${parentFlowIndex})`, parentFlowIndex)
 
     // Check the event is valid
@@ -1241,8 +1248,8 @@ export default class Scheduler2 {
    * @param {object} event
    */
    async enqueue_StepCompleted(tx, flowIndex, nextF2i, completionToken, workerForShortcut=null) {
-    console.log(`MEGA YARP A`);
-    flow2Msg(tx, 'ALSO MEGA YARP');
+    // console.log(`MEGA YARP A`);
+    // flow2Msg(tx, 'ALSO MEGA YARP');
 
     if (FLOW_VERBOSE) flow2Msg(tx, `<<< Zenqueue_StepCompleted(${nextF2i})`.brightBlue + ' ' + tx.vog_flowPath(flowIndex))
     //if (FLOW_VERBOSE) flowMsg(tx, `<<< enqueue_StepCompleted(${nextF2i})`.brightBlue + ' ' + tx.vog_flowPath(flowIndex))

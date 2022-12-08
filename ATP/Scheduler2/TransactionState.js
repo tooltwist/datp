@@ -44,10 +44,12 @@ export const FIELD_FLOW_INDEX = 'i'
 export const FIELD_PARENT_FLOW_INDEX = 'p'
 
 export const F2_TRANSACTION = 'TX_START'
-export const F2_TRANSACTION_CH = 'TX_PIPELINE_COMPLETE'
+export const F2_TRANSACTION_CH = 'TX_CALLBACK'
 export const F2_STEP = 'STEP'
 export const F2_PIPELINE = 'PIPELINE_START'
-export const F2_PIPELINE_CH = 'PIPELINE_STEP_COMPLETE'
+export const F2_PIPELINE_CH = 'PIPELINE_CALLBACK'
+
+export const F2_VERBOSE = 0
 
 
 // Debug stuff
@@ -382,11 +384,15 @@ export default class TransactionState {
       ts3: 0
     }
     this.#me.f2.push(entry)
+
+    if (F2_VERBOSE > 1) console.log(`F2: v2f_setF2Transaction: ${this.#me.f2.length}: ADDING TRANSACTION`.bgBrightRed.black)
+    if (F2_VERBOSE > 2) this.dumpFlow2()
+
     return { f2i: 0, f2: entry }
   }
 
-  vf2_addF2sibling(f2i, type) {
-    console.log(`vf2_addF2sibling(${f2i}, ${type})`)
+  vf2_addF2sibling(f2i, type, addedBy) {
+    // console.log(`vf2_addF2sibling(${f2i}, ${type})`)
     assert(f2i >= 0 && f2i < this.#me.f2.length)
     const thisF2 = this.#me.f2[f2i]
     // console.log(`thisF2=`, thisF2)
@@ -399,7 +405,7 @@ export default class TransactionState {
     while (newPos < this.#me.f2.length && this.#me.f2[newPos].p === f2i) {
       newPos++
     }
-    console.log(`newPos=`, newPos)
+    // console.log(`newPos=`, newPos)
     const newF2 = {
       description: this.vf2_typeDescription(type),
       t: type,
@@ -410,7 +416,12 @@ export default class TransactionState {
       ts2: 0,
       ts3: 0
     }
+    newF2._by = addedBy
     this.#me.f2.splice(newPos, 0, newF2)
+
+    if (F2_VERBOSE > 1) console.log(`F2: vf2_addF2sibling: ${newPos}/${this.#me.f2.length}: ADDING SIBLING: ${type}`.bgBrightRed.black + ` by ${addedBy}`)
+    if (F2_VERBOSE > 2) this.dumpFlow2()
+
     return { f2i: newPos, f2: newF2 }
   }
 
@@ -433,8 +444,11 @@ export default class TransactionState {
       ts3: 0
     }
     childF2._by = addedBy
-
     this.#me.f2.splice(childF2i, 0, childF2)
+
+    if (F2_VERBOSE > 1) console.log(`F2: vf2_addF2child: ${childF2i}/${this.#me.f2.length}: ADDING CHILD ${type}`.bgBrightRed.black + ` by ${addedBy}`)
+    if (F2_VERBOSE > 2) this.dumpFlow2()
+
     return { f2i: childF2i, f2: childF2 }
   }
 
@@ -1459,6 +1473,40 @@ export default class TransactionState {
     return JSON.stringify(this.asObject())
   }
 
+  dumpFlow2(f2i = -1) {
+    for (let i = 0; i < this.#me.f2.length; i++) {
+      let pointer = ''
+      if (f2i >= 0) {
+        pointer = (f2i === i) ? '-->' : '   '
+      }
+      const f2 = this.#me.f2[i]
+      let num = `${i}`; while (num.length < 3) num = ` ${num}`
+      let l = ''; for (let i = 0; i < f2.l; i++) l += '  ';
+      let p = f2.p ? ` p${f2.p}` : ''
+      let s = f2.s ? `s${f2.s}` : ''
+      let by = f2._by ? f2._by : ''
+      switch (f2.t) {
+        case F2_PIPELINE:
+          console.log(`${pointer} ${num}:${l} ${f2.t} (${f2._pipelineName})` + `   [${p} ${s} ${by}]`.gray)
+          break
+
+        case F2_PIPELINE_CH:
+          console.log(`${pointer} ${num}:${l} ${f2.t} (${f2.callback})` + `   [${p} ${s} ${by}]`.gray)
+          break
+
+        case F2_STEP:
+          const step = this.#me.steps[f2.stepId]
+          const stepType = (step && step.stepDefinition) ? step.stepDefinition.stepType : ''
+          console.log(`${pointer} ${num}:${l} ${f2.t} (${stepType})` + `   [${p} ${s} ${by}]`.gray)
+          break
+    
+        default:
+          console.log(`${pointer} ${num}:${l} ${f2.t}` + `   [${p} ${s} ${by}]`.gray)
+          // console.log(`f2=`, f2)
+          break
+      }
+    }
+  }
 
   // Returns a abbreviated description of the transaction
   toString() {

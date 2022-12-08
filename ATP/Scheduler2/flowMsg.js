@@ -5,7 +5,7 @@
  * the author or owner be liable for any claim or damages.
  */
 export function flowMsg(txState, msg, flowIndex=-1) {
-  // console.log(`flowMsg(${msg})`)
+  console.log(`flowMsg(${msg})`)
   const flowLength = txState.vog_getFlowLength()
   let level = -1 // transaction level
   if (flowLength === 0) {
@@ -54,7 +54,7 @@ export function flowMsg(txState, msg, flowIndex=-1) {
 }
 
 export function flow2Msg(txState, msg, f2i=-1) {
-  console.log(`flow2Msg(${msg}, f2i=${f2i})`)
+  // console.log(`flow2Msg(${msg}, f2i=${f2i})`)
   const flowLength = txState.vf2_getF2Length()
   let level = -1 // transaction level
   if (flowLength === 0) {

@@ -12,7 +12,7 @@ import assert from 'assert'
 import { STEP_ABORTED, STEP_FAILED, STEP_INTERNAL_ERROR, STEP_QUEUED, STEP_RUNNING, STEP_SLEEPING, STEP_SUCCESS, STEP_TIMEOUT } from "../Step"
 import { schedulerForThisNode } from "../.."
 import { CHECK_FOR_BLOCKING_WORKERS_TIMEOUT, INCLUDE_STATE_IN_NODE_HOPPING_EVENTS, SHORTCUT_STEP_START } from "../../datp-constants"
-import TransactionState from "./TransactionState"
+import TransactionState, { F2_VERBOSE } from "./TransactionState"
 import me from "../../lib/me"
 import { DEFINITION_PROCESS_STEP_START_EVENT, FLOW_DEFINITION, STEP_DEFINITION, validateStandardObject } from "./eventValidation"
 import { FLOW_VERBOSE } from "./queuing/redis-lua"
@@ -68,7 +68,7 @@ export default class Worker2 {
   async processEvent(txState, event) {
     const typeStr = event.eventType ? ` (${event.eventType})` : ''
     if (FLOW_VERBOSE) console.log(`[worker ${this.#workerId} processing event${typeStr}]`.gray)
-    console.log(`event=`, JSON.stringify(event, '', 2))
+    // console.log(`event=`, JSON.stringify(event, '', 2))
 
     // Check that the event includes the transaction state
     assert (!event.txState)
@@ -91,6 +91,8 @@ export default class Worker2 {
 
       // Decide how to handle this event.
       const eventType = event.eventType
+      if (F2_VERBOSE) console.log(`F2: EVENT ${event.eventType}   (f2i=${event.f2i})`.bgMagenta.white)
+      if (F2_VERBOSE) txState.dumpFlow2(event.f2i)
       // delete event.eventType
       switch (eventType) {
         case Scheduler2.NULL_EVENT:
@@ -352,9 +354,10 @@ export default class Worker2 {
    * @param {object} event
    */
   async processEvent_StepCompleted(tx, event) {
-    // if (FLOW_VERBOSE > 1)
-    console.log(`<<< Worker.processEvent_StepCompleted()`.cyan + ' ' + tx.vog_flowPath(event.flowIndex).gray)
+    // console.log(`----------------------`.bgYellow)
+    if (FLOW_VERBOSE > 1) console.log(`<<< Worker.processEvent_StepCompleted()`.cyan + ' ' + tx.vog_flowPath(event.flowIndex).gray)
 
+    // console.log(`tx.pretty()=`, tx.pretty())
     // console.log(`tx=`, tx)
     // console.log(`event=`, event)
 
@@ -407,10 +410,11 @@ export default class Worker2 {
 
 
       // Update the timestamp
+      console.log(`event.f2i=`, event.f2i)
       const f2 = tx.vf2_getF2(event.f2i)
       f2.ts2 = Date.now()
       f2.ts3 = f2.ts2
-      // console.log(`f2 =`.bgBrightRed, f2)
+      // console.log(`f2=`.bgYellow, f2)
 
 
       // Call the callback

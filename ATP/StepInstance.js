@@ -24,6 +24,7 @@ import { DEFINITION_MATERIALIZE_STEP_EVENT, FLOW_DEFINITION, STEP_DEFINITION, va
 import { FLOW_VERBOSE } from './Scheduler2/queuing/redis-lua'
 import { requiresWebhookProgressReports } from './Scheduler2/webhooks/tryTheWebhook'
 import { flow2Msg, flowMsg } from './Scheduler2/flowMsg'
+require('colors')
 
 const VERBOSE = 0
 const VERBOSE_16aug22 = 0
@@ -378,13 +379,13 @@ export default class StepInstance {
     // console.log(`parentFlow=`, parentFlow)
 
     // Update flow2
-    console.log(`this.#f2i=`.bgMagenta, this.#f2i)
+    // console.log(`this.#f2i=`.bgMagenta, this.#f2i)
     const f2 = tx.vf2_getF2(this.#f2i)
     f2.status = STEP_SUCCESS
     f2.note = note
     f2.output = stepOutput
     f2.ts3 = Date.now()
-    console.log(`f2=`, f2)
+    // console.log(`f2=`, f2)
 
     // const event = {
     //   eventType: Scheduler2.STEP_COMPLETED_EVENT,
@@ -442,7 +443,7 @@ export default class StepInstance {
     f2.note = note
     f2.output = stepOutput
     f2.ts3 = Date.now()
-    console.log(`f2=`.bgRed, f2)
+    // console.log(`f2=`.bgRed, f2)
 
     // Tell the parent we've completed.
     // const queueName = Scheduler2.groupQueueName(this.#onComplete.nodeGroup)
@@ -513,7 +514,7 @@ export default class StepInstance {
     f2.note = note
     f2.output = stepOutput
     f2.ts3 = Date.now()
-    console.log(`f2=`.bgRed, f2)
+    // console.log(`f2=`.bgRed, f2)
 
     // Tell the parent we've completed.
     // console.log(`replying to `, this.#onComplete)
@@ -578,7 +579,7 @@ export default class StepInstance {
     f2.note = note
     f2.output = data
     f2.ts3 = Date.now()
-    console.log(`f2=`.bgRed, f2)
+    // console.log(`f2=`.bgRed, f2)
 
     // Tell the parent we've completed.
     // const event = {
@@ -627,7 +628,7 @@ export default class StepInstance {
     await this.log(dbLogbook.LOG_LEVEL_ERROR, `Exception in step.`, e)
     // this.artifact('exception', { stacktrace: e.stack })
 
-    // Trim down the stacktract and save it
+    // Trim down the stacktrace and save it
     let trace = e.stack
     let pos = trace.indexOf('    at processTicksAndRejections')
     if (pos >= 0) {
@@ -660,7 +661,7 @@ export default class StepInstance {
     f2.note = note
     f2.output = data
     f2.ts3 = Date.now()
-    console.log(`f2=`.bgRed, f2)
+    // console.log(`f2=`.bgRed, f2)
 
     // Tell the parent we've completed.
     // const event = {
@@ -669,9 +670,16 @@ export default class StepInstance {
     //   flowIndex: this.#flowIndex,
     //   // completionToken: this.#onComplete.completionToken,
     // }
+
+    console.log(`----------------------`.bgMagenta)
+    console.log(`In exceptionInStep`.bgMagenta)
+    // console.log(`tx.pretty()=`, tx.pretty())
+    console.log(`this.#f2i + 1=`, this.#f2i + 1)
+
+
     const nextF2i = this.#f2i + 1
     const completionToken = null
-    const workerForShortcut = this.getWorker()
+    const workerForShortcut = this.#worker
     const rv = await schedulerForThisNode.enqueue_StepCompleted(tx, this.#flowIndex, nextF2i, completionToken, workerForShortcut)
     assert(rv === GO_BACK_AND_RELEASE_WORKER)
     return GO_BACK_AND_RELEASE_WORKER

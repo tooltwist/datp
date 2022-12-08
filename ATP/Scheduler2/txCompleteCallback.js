@@ -18,7 +18,7 @@ export const TX_COMPLETE_CALLBACK = `txComplete`
 
 export async function txCompleteCallback (tx, flowIndex, f2i , nodeInfo, worker) {
   // if (FLOW_VERBOSE)
-  flowMsg(tx, `Callback txCompleteCallback(flowIndex=${flowIndex})`, flowIndex)
+  flow2Msg(tx, `Callback txCompleteCallback(f2i=${f2i})`, f2i)
   
   // Save the final step's output, status and note as the transaction's result
   const f2Status = tx.vf2_getStatus(f2i)

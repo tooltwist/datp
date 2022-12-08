@@ -13,7 +13,7 @@ import { CHILD_PIPELINE_COMPLETION_CALLBACK } from '../Scheduler2/ChildPipelineC
 import { flow2Msg, flowMsg } from '../Scheduler2/flowMsg'
 import { FLOW_VERBOSE } from '../Scheduler2/queuing/redis-lua'
 import Scheduler2 from '../Scheduler2/Scheduler2'
-import { F2_PIPELINE, F2_PIPELINE_CH, F2_STEP } from '../Scheduler2/TransactionState'
+import { F2_PIPELINE, F2_PIPELINE_CH, F2_STEP, F2_VERBOSE } from '../Scheduler2/TransactionState'
 import { GO_BACK_AND_RELEASE_WORKER } from '../Scheduler2/Worker2'
 import Step from '../Step'
 import StepTypeRegister from '../StepTypeRegister'
@@ -147,7 +147,7 @@ export class RouterStep extends Step {
     instance.syncLogs()
 
 
-    // Add the first child to f2
+    // Add the pipeline step as a child to f2
     const f2i = instance.vog_getF2i()
     const { f2i:childF2i, f2:childF2} = tx.vf2_addF2child(f2i, F2_PIPELINE, 'RouterStep.invoke')
     childF2._pipelineName = pipelineName
@@ -156,7 +156,8 @@ export class RouterStep extends Step {
     childF2.ts1 = Date.now()
     childF2.ts2 = 0
     childF2.ts3 = 0
-    const { f2:completionHandlerF2 } = tx.vf2_addF2sibling(f2i, F2_PIPELINE_CH)
+    // const { f2:completionHandlerF2 } = tx.vf2_addF2child(f2i, F2_PIPELINE_CH, 'RouterStep.invoke')
+    const { f2:completionHandlerF2 } = tx.vf2_addF2sibling(f2i, F2_PIPELINE_CH, 'RouterStep.invoke')
     completionHandlerF2.callback = CHILD_PIPELINE_COMPLETION_CALLBACK
     completionHandlerF2.nodeGroup = parentNodeGroup
 
@@ -206,6 +207,9 @@ export class RouterStep extends Step {
 //VOG777      context: { txId, parentNodeGroup, parentStepId, childStepId }
     }
     const parentFlowIndex = instance.vog_getFlowIndex()
+    const parentF2i = instance.vog_getF2i()
+    // console.log(`parentFlowIndex=`.bgMagenta, parentFlowIndex)
+    // console.log(`parentF2i=`.bgMagenta, parentF2i)
     //VOG YARP THIS KILLS STUFF??? const parentF2i = instance.vf2_getF2i()
     const checkExternalIdIsUnique = false
     const rv = await schedulerForThisNode.enqueue_StartPipeline(tx, parentFlowIndex, childStepId, event, onComplete, checkExternalIdIsUnique, workerForShortcut)

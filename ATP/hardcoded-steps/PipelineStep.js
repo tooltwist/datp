@@ -15,7 +15,7 @@ import { schedulerForThisNode } from '../..'
 import { GO_BACK_AND_RELEASE_WORKER } from '../Scheduler2/Worker2'
 import { FLOW_VERBOSE } from '../Scheduler2/queuing/redis-lua'
 import { flow2Msg, flowMsg } from '../Scheduler2/flowMsg'
-import { F2_PIPELINE_CH, F2_STEP } from '../Scheduler2/TransactionState'
+import { F2_PIPELINE_CH, F2_STEP, F2_VERBOSE } from '../Scheduler2/TransactionState'
 
 export const PIPELINES_VERBOSE = 0
 
@@ -35,6 +35,8 @@ class Pipeline extends Step {
       if (a.id > b.id) return +1
       return 0
     })
+    // console.log(`Pipeline.constructor(). Definition=`, definition)
+
   }//- constructor
 
 
@@ -53,6 +55,7 @@ class Pipeline extends Step {
       throw new Error(`Pipeline contains no steps [${pipelineInstance.getStepId()}]`)
     }
     const childStepDefinition = this.#steps[0].definition
+// console.log(`first childStepDefinition=`, childStepDefinition)
 
     const stepInput = await pipelineInstance.getTxData().getData()
     const metadata = await pipelineInstance.getMetadata()
@@ -103,14 +106,38 @@ class Pipeline extends Step {
     if (PIPELINES_VERBOSE)  pipelineInstance.trace(`Step #1 - begin`)
     pipelineInstance.syncLogs()
 
+    // Add all the steps to f2, with a completion handler after each.
+    // if (F2_VERBOSE) console.log(`F2: PipelineStep.invoke - add ${childStepIds.length} steps to f2`.bgBrightYellow.blue)
+    // if (F2_VERBOSE) console.log(`F2: Pipeline is ${childStepDefinition}`.bgBrightYellow.blue)
+
+    // const f2i = pipelineInstance.vog_getF2i()
+    // let firstChildF2i = -1
+    // for (let i = 0; i < childStepIds.length; i++) {
+    //   const { f2i:childF2i, f2:childF2} = tx.vf2_addF2child(f2i, F2_STEP, 'Pipeline.invoke')
+    //   childF2.stepId = childStepId
+    //   childF2.ts1 = Date.now()
+    //   childF2.ts2 = 0
+    //   childF2.ts3 = 0
+    //   if (firstChildF2i < 0) {
+    //     firstChildF2i = childF2i
+    //   }
+    //   const { f2:completionHandlerF2 } = tx.vf2_addF2child(f2i, F2_PIPELINE_CH, 'Pipeline.invoke')
+    //   // const { f2:completionHandlerF2 } = tx.vf2_addF2sibling(f2i, F2_PIPELINE_CH, 'Pipeline.invoke')
+    //   completionHandlerF2.callback = PIPELINE_STEP_COMPLETE_CALLBACK
+    //   completionHandlerF2.nodeGroup = schedulerForThisNode.getNodeGroup()
+    // }
+
     // Add the first child to f2
     const f2i = pipelineInstance.vog_getF2i()
-    const { f2i:childF2i, f2:childF2} = tx.vf2_addF2child(f2i, F2_STEP, 'Pipeline.invoke')
+    const { f2i:firstChildF2i, f2:childF2} = tx.vf2_addF2child(f2i, F2_STEP, 'Pipeline.invoke')
     childF2.stepId = childStepId
     childF2.ts1 = Date.now()
     childF2.ts2 = 0
     childF2.ts3 = 0
-    const { f2:completionHandlerF2 } = tx.vf2_addF2sibling(f2i, F2_PIPELINE_CH)
+    // const { f2:completionHandlerF2 } = tx.vf2_addF2sibling(f2i, F2_PIPELINE_CH, 'Pipeline.invoke')
+    // const { f2:completionHandlerF2 } = tx.vf2_addF2sibling(firstChildF2i, F2_PIPELINE_CH, 'Pipeline.invoke')
+    const { f2:completionHandlerF2 } = tx.vf2_addF2sibling(f2i, F2_PIPELINE_CH, 'Pipeline.invoke')
+    // const { f2:completionHandlerF2 } = tx.vf2_addF2child(f2i, F2_PIPELINE_CH, 'Pipeline.invoke')
     completionHandlerF2.callback = PIPELINE_STEP_COMPLETE_CALLBACK
     completionHandlerF2.nodeGroup = schedulerForThisNode.getNodeGroup()
 
@@ -151,7 +178,7 @@ class Pipeline extends Step {
       data: stepInput,
       level: pipelineInstance.getLevel() + 1,
       // parentFlowIndex: pipelineInstance.vog_getFlowIndex(),
-      f2i: childF2i,
+      f2i: firstChildF2i,
     }
     const onComplete = {
       nodeGroup: myNodeGroup,

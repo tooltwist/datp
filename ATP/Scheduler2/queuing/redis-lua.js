@@ -17,7 +17,7 @@ const Redis = require('ioredis');
 const VERBOSE = 0
 const SHOWLOG = 0
 
-export const FLOW_VERBOSE = 1
+export const FLOW_VERBOSE = 0
 export const FLOW_PARANOID = 1
 let yarpCnt = 0
 
@@ -1448,7 +1448,7 @@ redis.call('set', '@n3', nodeGroup)
     // Is this the initial transaction?
     const txStateObject = txState.asObject()
     const isInitialTransaction = (txStateObject.flow.length < 2)
-    console.log(`isInitialTransaction=`.gray, isInitialTransaction)
+    // console.log(`isInitialTransaction=`.gray, isInitialTransaction)
 
 
     const pipelineKey = pipeline ? `${KEYSPACE_PIPELINE}${pipeline}` : `${KEYSPACE_PIPELINE}-`
@@ -1597,7 +1597,7 @@ redis.call('set', '@n3', nodeGroup)
     // Is this the initial transaction?
     const txStateObject = txState.asObject()
     const isInitialTransaction = (txStateObject.flow.length < 2)
-    console.log(`isInitialTransaction=`.gray, isInitialTransaction)
+    // console.log(`isInitialTransaction=`.gray, isInitialTransaction)
 
 
     const pipelineKey = pipeline ? `${KEYSPACE_PIPELINE}${pipeline}` : `${KEYSPACE_PIPELINE}-`
@@ -1764,7 +1764,7 @@ redis.call('set', '@n3', nodeGroup)
     // Is this the initial transaction?
     const txStateObject = txState.asObject()
     const isInitialTransaction = (txStateObject.flow.length < 2)
-    console.log(`isInitialTransaction=`.gray, isInitialTransaction)
+    // console.log(`isInitialTransaction=`.gray, isInitialTransaction)
 
 
     const pipelineKey = pipeline ? `${KEYSPACE_PIPELINE}${pipeline}` : `${KEYSPACE_PIPELINE}-`

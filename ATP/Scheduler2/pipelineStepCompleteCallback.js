@@ -16,7 +16,7 @@ import { STEP_DEFINITION, validateStandardObject } from './eventValidation'
 import { flow2Msg, flowMsg } from './flowMsg'
 import { FLOW_PARANOID, FLOW_VERBOSE } from './queuing/redis-lua'
 import Scheduler2 from './Scheduler2'
-import { F2_PIPELINE_CH, F2_STEP } from './TransactionState'
+import { F2_PIPELINE_CH, F2_STEP, F2_VERBOSE } from './TransactionState'
 import { GO_BACK_AND_RELEASE_WORKER } from './Worker2'
 
 
@@ -24,6 +24,7 @@ export const PIPELINE_STEP_COMPLETE_CALLBACK = `pipelineStepComplete`
 
 export async function pipelineStepCompleteCallback (tx, flowIndex, f2i, nodeInfo, worker) {
   if (FLOW_VERBOSE) flowMsg(tx, `Callback pipelineStepCompleteCallback(flowIndex=${flowIndex})`, flowIndex)
+  if (F2_VERBOSE) console.log(`F2: pipelineStepCompleteCallback: ${f2i}`)
 
   assert(typeof(flowIndex) === 'number')
 
@@ -102,6 +103,9 @@ export async function pipelineStepCompleteCallback (tx, flowIndex, f2i, nodeInfo
 
 
   if (childStatus === STEP_SUCCESS) {
+
+
+
     // Do we have any steps left
     // console.log(`yarp D - ${this.stepNo}`)
     // console.log(`BEFORE parentFlow.vog_currentPipelineStep=`, parentFlow.vog_currentPipelineStep)
@@ -118,6 +122,15 @@ export async function pipelineStepCompleteCallback (tx, flowIndex, f2i, nodeInfo
     // if (nextStepNo >= pipelineInstance.privateData.numSteps) {
     // if (PIPELINES_VERBOSE) console.log(`Which step?  ${nextStepNo} of [0...${pipelineSteps.length - 1}]`)
     if (nextStepNo >= childStepIds.length) {
+
+
+      /*************************************************************
+       *
+       * 
+       *      The step SUCCEEDED, and that was THE LAST STEP.
+       * 
+       * 
+       *************************************************************/
 
       /*
        *  We've finished this pipeline - return the final response
@@ -182,6 +195,7 @@ export async function pipelineStepCompleteCallback (tx, flowIndex, f2i, nodeInfo
       // }
 
       const nextF2i = f2i + 1
+      if (F2_VERBOSE) console.log(`F2: pipelineStepCompleteCallback: Pipeline finished, go to ${nextF2i}`.bgBrightBlue.white)
       const completionToken = null
       const workerForShortcut = worker
       const rv = await schedulerForThisNode.enqueue_StepCompleted(tx, parentFlowIndex, nextF2i, completionToken, workerForShortcut)
@@ -189,9 +203,15 @@ export async function pipelineStepCompleteCallback (tx, flowIndex, f2i, nodeInfo
       return GO_BACK_AND_RELEASE_WORKER
 
     } else {
-      /*
-       *  Initiate the next step
-       */
+
+      /*************************************************************
+       *
+       * 
+       *      The step SUCCEEDED, and THERE ARE MORE STEPS.
+       * 
+       * 
+       *************************************************************/
+
       if (PIPELINES_VERBOSE) console.log(indent + `----    ON TO THE NEXT PIPELINE STEP  `.black.bgGreen.bold)
 
 
@@ -241,16 +261,26 @@ export async function pipelineStepCompleteCallback (tx, flowIndex, f2i, nodeInfo
 
 
       // Add the next child to f2
+      const myF2 = tx.vf2_getF2(f2i)
+      assert(myF2)
+      const pipelineF2i = myF2.s
+      console.log(`pipelineF2i=`, pipelineF2i)
+
+
+      // const { f2i:childF2i, f2:childF2} = tx.vf2_addF2child(f2i, F2_STEP, 'pipelineStepCompleteCallback')
       const { f2i:childF2i, f2:childF2} = tx.vf2_addF2child(f2i, F2_STEP, 'pipelineStepCompleteCallback')
+      // const { f2i:childF2i, f2:childF2} = tx.vf2_addF2sibling(pipelineF2i, F2_STEP, 'pipelineStepCompleteCallback')
       childF2.stepId = childStepId
       childF2.ts1 = Date.now()
       childF2.ts2 = 0
       childF2.ts3 = 0
-      const { f2i: completionF2i, f2:completionHandlerF2 } = tx.vf2_addF2sibling(f2i, F2_PIPELINE_CH)
+      const { f2i: completionF2i, f2:completionHandlerF2 } = tx.vf2_addF2sibling(f2i, F2_PIPELINE_CH, 'pipelineStepCompleteCallback')
+      // const { f2i: completionF2i, f2:completionHandlerF2 } = tx.vf2_addF2child(childF2i, F2_PIPELINE_CH, 'pipelineStepCompleteCallback')
       completionHandlerF2.callback = PIPELINE_STEP_COMPLETE_CALLBACK
       completionHandlerF2.nodeGroup = schedulerForThisNode.getNodeGroup()
       // console.log(`completionHandlerF2=`.brightMagenta, completionHandlerF2)
 
+      const nextF2i = f2i + 1
 
 
       await tx.delta(childStepId, {
@@ -271,7 +301,8 @@ export async function pipelineStepCompleteCallback (tx, flowIndex, f2i, nodeInfo
         metadata: metadataForNewStep,
         data: inputForNewStep,
         level: pipelineStep.level + 1,
-        f2i: childF2i,
+        // f2i: childF2i,
+        f2i: nextF2i,
       }
       const onComplete = {
         nodeGroup: myNodeGroup,
@@ -279,6 +310,9 @@ export async function pipelineStepCompleteCallback (tx, flowIndex, f2i, nodeInfo
         callback: PIPELINE_STEP_COMPLETE_CALLBACK,
 //VOG777        context: { txId, parentNodeGroup: nodeInfo.nodeGroup, parentStepId: pipelineStepId, childStepId }
       }
+
+      if (F2_VERBOSE) console.log(`F2: pipelineStepCompleteCallback: On to next step ${nextF2i}`.bgBrightBlue.white)
+
       const rv = await schedulerForThisNode.enqueue_StartStep(tx, parentFlowIndex, childStepId, event, onComplete, worker)
       assert(rv === GO_BACK_AND_RELEASE_WORKER)
       return GO_BACK_AND_RELEASE_WORKER
@@ -290,9 +324,11 @@ export async function pipelineStepCompleteCallback (tx, flowIndex, f2i, nodeInfo
     || childStatus === STEP_INTERNAL_ERROR
   ) {
 
-    /*
-     *  Need to try Rollback
-     */
+    /*************************************************************
+     *
+     *        The step DID NOT succeed. Need to try Rollback
+     *
+     *************************************************************/
     // We can't rollback yet, so abort instead.
     const pipelineStatus = (childStatus === STEP_FAILED) ? STEP_ABORTED : childStatus
     //ZZZZ Log this
