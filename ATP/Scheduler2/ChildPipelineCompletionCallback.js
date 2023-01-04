@@ -16,6 +16,7 @@ import Scheduler2 from './Scheduler2'
 import { FLOW_PARANOID, FLOW_VERBOSE } from './queuing/redis-lua'
 import { STEP_DEFINITION, validateStandardObject } from './eventValidation'
 import { flow2Msg, flowMsg } from './flowMsg'
+import { F2ATTR_SIBLING } from './TransactionState'
 
 export const CHILD_PIPELINE_COMPLETION_CALLBACK = 'childPipelineComplete'
 
@@ -130,7 +131,7 @@ export async function childPipelineCompletionCallback (tx, flowIndex, f2i, nodeI
   // Update the RouterStep F2
   const myF2 = tx.vf2_getF2(f2i)
   assert(myF2)
-  const pipelineF2 = tx.vf2_getF2(myF2.s) // sibling
+  const pipelineF2 = tx.vf2_getF2(myF2[F2ATTR_SIBLING]) // sibling
   assert(pipelineF2)
   pipelineF2.ts3 = Date.now()
   // pipelineF2._yarp3 = 'chldPipelineCompleteCallback'

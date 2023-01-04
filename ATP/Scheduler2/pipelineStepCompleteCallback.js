@@ -16,7 +16,7 @@ import { STEP_DEFINITION, validateStandardObject } from './eventValidation'
 import { flow2Msg, flowMsg } from './flowMsg'
 import { FLOW_PARANOID, FLOW_VERBOSE } from './queuing/redis-lua'
 import Scheduler2 from './Scheduler2'
-import { F2_PIPELINE_CH, F2_STEP, F2_VERBOSE } from './TransactionState'
+import { F2ATTR_SIBLING, F2_PIPELINE_CH, F2_STEP, F2_VERBOSE } from './TransactionState'
 import { GO_BACK_AND_RELEASE_WORKER } from './Worker2'
 
 
@@ -176,7 +176,7 @@ export async function pipelineStepCompleteCallback (tx, flowIndex, f2i, nodeInfo
       // step it will be updated again when the next step finishes.
       const myF2 = tx.vf2_getF2(f2i)
       assert(myF2)
-      const pipelineF2 = tx.vf2_getF2(myF2.s)
+      const pipelineF2 = tx.vf2_getF2(myF2[F2ATTR_SIBLING])
       assert(pipelineF2)
       pipelineF2.ts3 = Date.now()
       // pipelineF2._yarp3 = 'pipelineStepCompleteCallback'
@@ -263,7 +263,7 @@ export async function pipelineStepCompleteCallback (tx, flowIndex, f2i, nodeInfo
       // Add the next child to f2
       const myF2 = tx.vf2_getF2(f2i)
       assert(myF2)
-      const pipelineF2i = myF2.s
+      const pipelineF2i = myF2[F2ATTR_SIBLING]
       console.log(`pipelineF2i=`, pipelineF2i)
 
 

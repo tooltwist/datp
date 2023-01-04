@@ -1,3 +1,5 @@
+import { F2ATTR_LEVEL } from "./TransactionState"
+
 /* Copyright Tooltwist Innovations Limited - All Rights Reserved
  * This file is part of DATP and as such is proprietary and confidential software.
  * Unauthorized copying of this file, via any medium is strictly prohibited. All
@@ -66,14 +68,14 @@ export function flow2Msg(txState, msg, f2i=-1) {
     // console.log(`f2=`, f2)
     // const stepRecord = txState.vog_getStepRecord(f2.stepId)
     // console.log(`stepRecord=`, stepRecord)
-    level = f2.l
+    level = f2[F2ATTR_LEVEL]
   } else if (f2i < flowLength) {
     console.log(`f2i=`, f2i)
     const f2 = txState.vf2_getF2(f2i)
     // console.log(`f2=`, f2)
     // const stepRecord = txState.vog_getStepRecord(f2.stepId)
     // console.log(`stepRecord=`, stepRecord)
-    level = f2.l
+    level = f2[F2ATTR_LEVEL]
   } else {
     const err = `Invalid flow index [${f2i}]`
     console.trace(err)

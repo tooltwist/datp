@@ -49,6 +49,12 @@ export const F2_STEP = 'STEP'
 export const F2_PIPELINE = 'PIPELINE_START'
 export const F2_PIPELINE_CH = 'PIPELINE_CALLBACK'
 
+// Flow2 attributes are defined this way, so we can use shortened versions when not debugging.
+export const F2ATTR_TYPE = '__type'
+export const F2ATTR_PARENT = '__parent'
+export const F2ATTR_SIBLING = '__sibling'
+export const F2ATTR_LEVEL = '__level'
+
 export const F2_VERBOSE = 0
 
 
@@ -60,7 +66,7 @@ require('colors')
 let countTxCoreUpdate = 0
 
 export default class TransactionState {
-  #me // The trransactio object
+  #me // The transaction object
 
   // Deltas (changes to this transaction state)
   #deltaCounter
@@ -353,9 +359,9 @@ export default class TransactionState {
     // console.log(`entry=`, entry)
   }
 
-  vog_getFlow() {
-    return this.#me.flow
-  }
+  // vog_getFlow() {
+  //   return this.#me.flow
+  // }
 
   vog_getFlowLength() {
     return this.#me.flow.length
@@ -373,9 +379,9 @@ export default class TransactionState {
     assert(this.#me.f2.length === 0)
     const entry = {
       description: this.vf2_typeDescription(F2_TRANSACTION),
-      t:F2_TRANSACTION,
-      l:0,
-      p: -1,
+      // t: F2_TRANSACTION,
+      // l: 0,
+      // p: -1,
       transactionType: pipelineName,
       // metadata,
       // input,
@@ -383,6 +389,9 @@ export default class TransactionState {
       ts2: 0,
       ts3: 0
     }
+    entry[F2ATTR_TYPE] = F2_TRANSACTION
+    entry[F2ATTR_LEVEL] = 0
+    entry[F2ATTR_PARENT] = -1
     this.#me.f2.push(entry)
 
     if (F2_VERBOSE > 1) console.log(`F2: v2f_setF2Transaction: ${this.#me.f2.length}: ADDING TRANSACTION`.bgBrightRed.black)
@@ -398,24 +407,28 @@ export default class TransactionState {
     // console.log(`thisF2=`, thisF2)
 
     // If this F2 record has a sibling itself, we'll use the same one.
-    const siblingF2i = thisF2.s ? thisF2.s : f2i
+    const siblingF2i = thisF2[F2ATTR_SIBLING] ? thisF2[F2ATTR_SIBLING] : f2i
 
     // Skip over any children
     let newPos = f2i + 1
-    while (newPos < this.#me.f2.length && this.#me.f2[newPos].p === f2i) {
+    while (newPos < this.#me.f2.length && this.#me.f2[newPos][F2ATTR_PARENT] === f2i) {
       newPos++
     }
     // console.log(`newPos=`, newPos)
     const newF2 = {
       description: this.vf2_typeDescription(type),
-      t: type,
+      // t: type,
       // p: parent.p,
-      l: thisF2.l,
-      s: siblingF2i,
+      // l: thisF2.l,
+      // s: siblingF2i,
       ts1: Date.now(),
       ts2: 0,
       ts3: 0
     }
+    newF2[F2ATTR_TYPE] = type
+    newF2[F2ATTR_LEVEL] = thisF2[F2ATTR_LEVEL]
+    newF2[F2ATTR_SIBLING] = siblingF2i
+    // newF2[F2ATTR_SIBLING] = siblingF2i
     newF2._by = addedBy
     this.#me.f2.splice(newPos, 0, newF2)
 
@@ -431,18 +444,21 @@ export default class TransactionState {
 
     // Skip over any children
     let childF2i = parentF2i + 1
-    while (childF2i < this.#me.f2.length && this.#me.f2[childF2i].p === parentF2i) {
+    while (childF2i < this.#me.f2.length && this.#me.f2[childF2i][F2ATTR_PARENT] === parentF2i) {
       childF2i++
     }
     const childF2 = {
       description: this.vf2_typeDescription(type),
-      t: type,
-      p: parentF2i,
-      l: parent.l + 1,
+      // t: type,
+      // p: parentF2i,
+      // l: parent.l + 1,
       ts1: Date.now(),
       ts2: 0,
       ts3: 0
     }
+    childF2[F2ATTR_TYPE] = type
+    childF2[F2ATTR_PARENT] = parentF2i
+    childF2[F2ATTR_LEVEL] = parent[F2ATTR_LEVEL] + 1
     childF2._by = addedBy
     this.#me.f2.splice(childF2i, 0, childF2)
 
@@ -1481,27 +1497,27 @@ export default class TransactionState {
       }
       const f2 = this.#me.f2[i]
       let num = `${i}`; while (num.length < 3) num = ` ${num}`
-      let l = ''; for (let i = 0; i < f2.l; i++) l += '  ';
-      let p = f2.p ? ` p${f2.p}` : ''
-      let s = f2.s ? `s${f2.s}` : ''
+      let l = ''; for (let i = 0; i < f2[F2ATTR_LEVEL]; i++) l += '  ';
+      let p = f2[F2ATTR_PARENT] ? ` p${f2[F2ATTR_PARENT]}` : ''
+      let s = f2[F2ATTR_SIBLING] ? `s${f2[F2ATTR_SIBLING]}` : ''
       let by = f2._by ? f2._by : ''
-      switch (f2.t) {
+      switch (f2[F2ATTR_TYPE]) {
         case F2_PIPELINE:
-          console.log(`${pointer} ${num}:${l} ${f2.t} (${f2._pipelineName})` + `   [${p} ${s} ${by}]`.gray)
+          console.log(`${pointer} ${num}:${l} ${f2[F2ATTR_TYPE]} (${f2._pipelineName})` + `   [${p} ${s} ${by}]`.gray)
           break
 
         case F2_PIPELINE_CH:
-          console.log(`${pointer} ${num}:${l} ${f2.t} (${f2.callback})` + `   [${p} ${s} ${by}]`.gray)
+          console.log(`${pointer} ${num}:${l} ${f2[F2ATTR_TYPE]} (${f2.callback})` + `   [${p} ${s} ${by}]`.gray)
           break
 
         case F2_STEP:
           const step = this.#me.steps[f2.stepId]
           const stepType = (step && step.stepDefinition) ? step.stepDefinition.stepType : ''
-          console.log(`${pointer} ${num}:${l} ${f2.t} (${stepType})` + `   [${p} ${s} ${by}]`.gray)
+          console.log(`${pointer} ${num}:${l} ${f2[F2ATTR_TYPE]} (${stepType})` + `   [${p} ${s} ${by}]`.gray)
           break
     
         default:
-          console.log(`${pointer} ${num}:${l} ${f2.t}` + `   [${p} ${s} ${by}]`.gray)
+          console.log(`${pointer} ${num}:${l} ${f2[F2ATTR_TYPE]}` + `   [${p} ${s} ${by}]`.gray)
           // console.log(`f2=`, f2)
           break
       }
