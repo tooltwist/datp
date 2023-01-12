@@ -36,12 +36,51 @@ export const WEBHOOK_STATUS_ABORTED = 'ABORTED'
 export const WEBHOOK_STATUS_MAX_RETRIES = 'MAX_RETRIES'
 
 
+export const RETURN_TX_STATUS_CALLBACK_ZZZ = `returnTxStatus`
+
+
 export function requiresWebhookReply(metadata) {
   return (typeof(metadata.webhook) === 'string') && metadata.webhook.startsWith('http')
 }
 
 export function requiresWebhookProgressReports(metadata) {
   return requiresWebhookReply(metadata) && metadata.progressReports
+}
+
+export async function sendStatusByWebhook(owner, txId, webhookUrl, eventType) {
+  // console.log(`sendStatusByWebhook(${owner}, ${txId}, webhookUrl=${webhookUrl}, eventType=${eventType})`)
+
+  // Save this webhook in the database
+  const eventTime = new Date()
+  try {
+    const sql = `INSERT INTO atp_webhook
+      (transaction_id, owner, url, event_type, initial_attempt, next_attempt)
+      VALUES (?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ${MIN_WEBHOOK_RETRY} SECOND))`
+    const params = [ txId, owner, webhookUrl, eventType, eventTime ]
+    // console.log(`sql=`, sql)
+    // console.log(`params=`, params)
+    const result = await dbupdate(sql, params)
+    // console.log(`result=`, result)
+    assert(result.affectedRows === 1)
+  } catch (e) {
+
+    // console.log(`e=`, e)
+    // console.log(`e.code=`, e.code)
+    if (e.code && e.code === 'ER_DUP_ENTRY') {
+      // The record already exists, so we'll update it. This happens when we have progress reports.
+      const sql2 = `UPDATE atp_webhook SET event_type=?, initial_attempt=?, next_attempt = DATE_ADD(NOW(), INTERVAL ${MIN_WEBHOOK_RETRY} SECOND) WHERE transaction_id=?`
+      const params2 = [ eventType, eventTime, txId ]
+      const reply2 = await dbupdate(sql2, params2)
+      // console.log(`reply2=`, reply2)
+    } else {
+      throw e
+    }
+  }
+
+  // Try the webhook now (but don't wait for it to complete)
+  setTimeout(async () => {
+    await tryTheWebhook(owner, txId, webhookUrl, eventType, eventTime, 0)
+  }, 0)
 }
 
 export async function tryTheWebhook(owner, txId, webhookUrl, eventType, eventTime, retryCount) {

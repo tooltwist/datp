@@ -24,10 +24,9 @@ import { generateErrorByName, registerErrorLibrary } from './lib/errorCodes'
 import errors_datp_EN from './lib/errors-datp-EN'
 import errors_datp_FIL from './lib/errors-datp-FIL'
 import { registerReplyConverter, convertReply } from './ATP/Scheduler2/ReplyConverter'
-import { RETURN_TX_STATUS_CALLBACK_ZZZ } from './ATP/Scheduler2/returnTxStatusCallbackZZZ'
 import { WebhookProcessor } from './ATP/Scheduler2/webhooks/WebhookProcessor'
 import { ArchiveProcessor } from './ATP/Scheduler2/archiving/ArchiveProcessor'
-import { requiresWebhookReply } from './ATP/Scheduler2/webhooks/tryTheWebhook'
+import { requiresWebhookReply, RETURN_TX_STATUS_CALLBACK_ZZZ } from './ATP/Scheduler2/webhooks/tryTheWebhook'
 import { DuplicateExternalIdError } from './ATP/Scheduler2/DuplicateExternalIdError'
 
 const VERBOSE = 0

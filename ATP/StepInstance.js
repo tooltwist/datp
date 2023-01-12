@@ -17,12 +17,11 @@ import dbLogbook from '../database/dbLogbook'
 import { DEEP_SLEEP_SECONDS, isDevelopmentMode } from '../datp-constants'
 import isEqual  from 'lodash.isequal'
 import { GO_BACK_AND_RELEASE_WORKER } from './Scheduler2/Worker2'
-import { sendStatusByWebhook, WEBHOOK_EVENT_PROGRESS } from './Scheduler2/returnTxStatusCallbackZZZ'
 import me from '../lib/me'
 import Scheduler2 from './Scheduler2/Scheduler2'
 import { DEFINITION_MATERIALIZE_STEP_EVENT, FLOW_DEFINITION, STEP_DEFINITION, validateStandardObject } from './Scheduler2/eventValidation'
 import { FLOW_VERBOSE } from './Scheduler2/queuing/redis-lua'
-import { requiresWebhookProgressReports } from './Scheduler2/webhooks/tryTheWebhook'
+import { requiresWebhookProgressReports, sendStatusByWebhook, WEBHOOK_EVENT_PROGRESS } from './Scheduler2/webhooks/tryTheWebhook'
 import { flow2Msg, flowMsg } from './Scheduler2/flowMsg'
 require('colors')
 

@@ -8,8 +8,6 @@
 import { pipelineStepCompleteCallback, PIPELINE_STEP_COMPLETE_CALLBACK } from "./pipelineStepCompleteCallback"
 import { childPipelineCompletionCallback, CHILD_PIPELINE_COMPLETION_CALLBACK } from "./ChildPipelineCompletionCallback"
 import { txCompleteCallback, TX_COMPLETE_CALLBACK } from "./txCompleteCallback"
-// import { rootStepCompleteCallbackZZZ, ROOT_STEP_COMPLETE_CALLBACK_ZZZ } from "./rootStepCompleteCallbackZZZ"
-// import { returnTxStatusCallbackZZZ, RETURN_TX_STATUS_CALLBACK_ZZZ } from "./returnTxStatusCallbackZZZ"
 import assert from "assert"
 import { GO_BACK_AND_RELEASE_WORKER } from "./Worker2"
 
@@ -34,9 +32,6 @@ export default class CallbackRegister {
       CallbackRegister._index[PIPELINE_STEP_COMPLETE_CALLBACK] = pipelineStepCompleteCallback
       CallbackRegister._index[CHILD_PIPELINE_COMPLETION_CALLBACK] = childPipelineCompletionCallback
       CallbackRegister._index[TX_COMPLETE_CALLBACK] = txCompleteCallback
-
-      // CallbackRegister._index[ROOT_STEP_COMPLETE_CALLBACK_ZZZ] = rootStepCompleteCallbackZZZ
-      // CallbackRegister._index[RETURN_TX_STATUS_CALLBACK_ZZZ] = returnTxStatusCallbackZZZ
     }
   }
 
