@@ -11,7 +11,7 @@ import XData, { dataFromXDataOrObject } from "./XData"
 import { STEP_TYPE_PIPELINE } from './StepTypeRegister'
 import indentPrefix from '../lib/indentPrefix'
 import assert from 'assert'
-import TransactionState from './Scheduler2/TransactionState'
+import TransactionState, { F2ATTR_STEPID } from './Scheduler2/TransactionState'
 import { schedulerForThisNode } from '..'
 import dbLogbook from '../database/dbLogbook'
 import { DEEP_SLEEP_SECONDS, isDevelopmentMode } from '../datp-constants'
@@ -133,7 +133,8 @@ export default class StepInstance {
       this.#parentStepId = parentFlow.stepId
     }
 
-    const stepData = tx.stepData(flow.stepId)
+
+    const stepData = tx.stepData(f2[F2ATTR_STEPID])
     // console.log(`materialize() stepData=`.red, stepData)
 
     validateStandardObject('materialize() step', stepData, STEP_DEFINITION)
@@ -149,7 +150,7 @@ export default class StepInstance {
     this.#txId = event.txId
     this.#nodeGroup = event.nodeGroup
     this.#nodeId = event.nodeId
-    this.#stepId = flow.stepId //ZZZ Remove this
+    this.#stepId = f2[F2ATTR_STEPID] //ZZZ Remove this
     this.#txdata = new XData(event.data)
     this.#metadata = metadata
     this.#level = stepData.level

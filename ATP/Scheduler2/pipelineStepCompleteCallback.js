@@ -16,7 +16,7 @@ import { STEP_DEFINITION, validateStandardObject } from './eventValidation'
 import { flow2Msg, flowMsg } from './flowMsg'
 import { FLOW_PARANOID, FLOW_VERBOSE } from './queuing/redis-lua'
 import Scheduler2 from './Scheduler2'
-import { F2ATTR_SIBLING, F2_PIPELINE_CH, F2_STEP, F2_VERBOSE } from './TransactionState'
+import { F2ATTR_CALLBACK, F2ATTR_NODEGROUP, F2ATTR_SIBLING, F2ATTR_STEPID, F2_PIPELINE_CH, F2_STEP, F2_VERBOSE } from './TransactionState'
 import { GO_BACK_AND_RELEASE_WORKER } from './Worker2'
 
 
@@ -270,14 +270,14 @@ export async function pipelineStepCompleteCallback (tx, flowIndex, f2i, nodeInfo
       // const { f2i:childF2i, f2:childF2} = tx.vf2_addF2child(f2i, F2_STEP, 'pipelineStepCompleteCallback')
       const { f2i:childF2i, f2:childF2} = tx.vf2_addF2child(f2i, F2_STEP, 'pipelineStepCompleteCallback')
       // const { f2i:childF2i, f2:childF2} = tx.vf2_addF2sibling(pipelineF2i, F2_STEP, 'pipelineStepCompleteCallback')
-      childF2.stepId = childStepId
+      childF2[F2ATTR_STEPID] = childStepId
       childF2.ts1 = Date.now()
       childF2.ts2 = 0
       childF2.ts3 = 0
       const { f2i: completionF2i, f2:completionHandlerF2 } = tx.vf2_addF2sibling(f2i, F2_PIPELINE_CH, 'pipelineStepCompleteCallback')
       // const { f2i: completionF2i, f2:completionHandlerF2 } = tx.vf2_addF2child(childF2i, F2_PIPELINE_CH, 'pipelineStepCompleteCallback')
-      completionHandlerF2.callback = PIPELINE_STEP_COMPLETE_CALLBACK
-      completionHandlerF2.nodeGroup = schedulerForThisNode.getNodeGroup()
+      completionHandlerF2[F2ATTR_CALLBACK] = PIPELINE_STEP_COMPLETE_CALLBACK
+      completionHandlerF2[F2ATTR_NODEGROUP] = schedulerForThisNode.getNodeGroup()
       // console.log(`completionHandlerF2=`.brightMagenta, completionHandlerF2)
 
       const nextF2i = f2i + 1

@@ -23,7 +23,7 @@ import { SHORTCUT_STEP_START, SHORTCUT_STEP_COMPLETE, WORKER_CHECK_INTERVAL } fr
 import { DUP_EXTERNAL_ID_DELAY, INCLUDE_STATE_IN_NODE_HOPPING_EVENTS } from '../../datp-constants'
 import { getPipelineVersionInUse } from '../../database/dbPipelines'
 import juice from '@tooltwist/juice-client'
-import TransactionState, { F2_PIPELINE, F2_TRANSACTION_CH } from './TransactionState'
+import TransactionState, { F2ATTR_CALLBACK, F2ATTR_NODEGROUP, F2ATTR_PIPELINE, F2ATTR_STEPID, F2_PIPELINE, F2_TRANSACTION_CH } from './TransactionState'
 // import dbLogbook from '../../database/dbLogbook'
 import LongPoll from './LongPoll'
 import { MemoryEventQueue } from './MemoryEventQueue'
@@ -939,8 +939,8 @@ export default class Scheduler2 {
       f2.metadata = metadataCopy
       f2.input = initialData
       const { f2i:pipelineF2i, f2:pipelineF2 } = tx.vf2_addF2child(f2i, F2_PIPELINE, 'Scheduler2.startTransaction')
-      pipelineF2._pipelineName = pipelineName
-      pipelineF2.stepId = stepId
+      pipelineF2[F2ATTR_PIPELINE] = pipelineName
+      pipelineF2[F2ATTR_STEPID] = stepId
       pipelineF2.ts1 = Date.now()
       pipelineF2.ts2 = 0
       pipelineF2.ts3 = 0
@@ -948,8 +948,8 @@ export default class Scheduler2 {
       // const { f2i: completionHandlerF2i, f2: completionHandlerF2 } = tx.vf2_addF2sibling(f2i, F2_TRANSACTION_CH, 'Scheduler2.startTransaction')
       const { f2i: completionHandlerF2i, f2: completionHandlerF2 } = tx.vf2_addF2sibling(f2i, F2_TRANSACTION_CH, 'Scheduler2.startTransaction')
       // const { f2i: completionHandlerF2i, f2: completionHandlerF2 } = tx.vf2_addF2child(f2i, F2_TRANSACTION_CH, 'Scheduler2.startTransaction')
-      completionHandlerF2.nodeGroup = myNodeGroup
-      completionHandlerF2.callback = TX_COMPLETE_CALLBACK
+      completionHandlerF2[F2ATTR_NODEGROUP] = myNodeGroup
+      completionHandlerF2[F2ATTR_CALLBACK] = TX_COMPLETE_CALLBACK
 
       vog_event.f2i = pipelineF2i
 

@@ -12,7 +12,7 @@ import assert from 'assert'
 import { STEP_ABORTED, STEP_FAILED, STEP_INTERNAL_ERROR, STEP_QUEUED, STEP_RUNNING, STEP_SLEEPING, STEP_SUCCESS, STEP_TIMEOUT } from "../Step"
 import { schedulerForThisNode } from "../.."
 import { CHECK_FOR_BLOCKING_WORKERS_TIMEOUT, INCLUDE_STATE_IN_NODE_HOPPING_EVENTS, SHORTCUT_STEP_START } from "../../datp-constants"
-import TransactionState, { F2_VERBOSE } from "./TransactionState"
+import TransactionState, { F2ATTR_CALLBACK, F2ATTR_NODEGROUP, F2ATTR_NODEID, F2ATTR_STEPID, F2_VERBOSE } from "./TransactionState"
 import me from "../../lib/me"
 import { DEFINITION_PROCESS_STEP_START_EVENT, FLOW_DEFINITION, STEP_DEFINITION, validateStandardObject } from "./eventValidation"
 import { FLOW_VERBOSE } from "./queuing/redis-lua"
@@ -174,7 +174,7 @@ export default class Worker2 {
     // if (VERBOSE) console.log(`Worker2.processEvent_StepStart()`)
 
     const f2 = txState.vf2_getF2(event.f2i)
-    const stepId = f2.stepId
+    const stepId = f2[F2ATTR_STEPID]
     const stepData = txState.stepData(stepId)
     validateStandardObject('processEvent_StepStart event', event, DEFINITION_PROCESS_STEP_START_EVENT)
     // validateStandardObject('processEvent_StepStart flow', flow, FLOW_DEFINITION)
@@ -190,8 +190,8 @@ export default class Worker2 {
     // Update the timestamp
     const myF2 = txState.vf2_getF2(event.f2i)
     myF2.ts2 = Date.now()
-    myF2._nodeId = schedulerForThisNode.getNodeId()
-    myF2._nodeGroup = schedulerForThisNode.getNodeGroup()
+    myF2[F2ATTR_NODEID] = schedulerForThisNode.getNodeId()
+    myF2[F2ATTR_NODEGROUP] = schedulerForThisNode.getNodeGroup()
 
     
     
@@ -287,7 +287,6 @@ export default class Worker2 {
 
       // console.log(`txState.asObject()=`, txState.asObject())
       txState.vog_flowRecordStep_invoked(stepId)
-      // console.log(`txState.vog_getFlow()=`, txState.vog_getFlow())
 
       const stepObject = instance.getStepObject()
 
@@ -410,7 +409,7 @@ export default class Worker2 {
 
 
       // Update the timestamp
-      console.log(`event.f2i=`, event.f2i)
+      console.log(`event.f2i=`.red, event.f2i)
       const f2 = tx.vf2_getF2(event.f2i)
       f2.ts2 = Date.now()
       f2.ts3 = f2.ts2
@@ -427,7 +426,7 @@ export default class Worker2 {
       // console.log(`processEvent_StepCompleted event.flowIndex=`.blue, event.flowIndex)
       // console.log(`VOG ZARP PEW 6`)
 
-      const rv = await CallbackRegister.call(tx, f2.callback, event.flowIndex, event.f2i, nodeInfo, worker)
+      const rv = await CallbackRegister.call(tx, f2[F2ATTR_CALLBACK], event.flowIndex, event.f2i, nodeInfo, worker)//MZMZMZ
       assert(rv === GO_BACK_AND_RELEASE_WORKER)
       return GO_BACK_AND_RELEASE_WORKER
     } catch (e) {

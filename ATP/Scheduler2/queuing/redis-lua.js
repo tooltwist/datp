@@ -9,7 +9,7 @@ import { STEP_TYPE_PIPELINE } from '../../StepTypeRegister';
 import { DEFINITION_STEP_COMPLETE_EVENT, DEFINITION_PROCESS_STEP_START_EVENT, FLOW_DEFINITION, STEP_DEFINITION, validateStandardObject } from '../eventValidation';
 import { flow2Msg, flowMsg } from '../flowMsg';
 import Scheduler2 from '../Scheduler2';
-import TransactionState from '../TransactionState';
+import TransactionState, { F2ATTR_STEPID } from '../TransactionState';
 import Transaction, { TX_STATUS_QUEUED, TX_STATUS_RUNNING } from '../TransactionState';
 import { requiresWebhookReply, WEBHOOK_EVENT_TXSTATUS, WEBHOOK_RESULT_ABORTED, WEBHOOK_RESULT_FAILED, WEBHOOK_RESULT_SUCCESS, WEBHOOK_STATUS_ABORTED, WEBHOOK_STATUS_DELIVERED, WEBHOOK_STATUS_PENDING, WEBHOOK_STATUS_PROCESSING, WEBHOOK_STATUS_RETRY, WEBHOOK_STATUS_MAX_RETRIES } from '../webhooks/tryTheWebhook';
 const Redis = require('ioredis');

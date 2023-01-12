@@ -66,14 +66,14 @@ export function flow2Msg(txState, msg, f2i=-1) {
     // console.log(`f2i=`, f2i)
     const f2 = txState.vf2_getF2(flowLength - 1)
     // console.log(`f2=`, f2)
-    // const stepRecord = txState.vog_getStepRecord(f2.stepId)
+    // const stepRecord = txState.vog_getStepRecord(f2[F2ATTR_STEPID])
     // console.log(`stepRecord=`, stepRecord)
     level = f2[F2ATTR_LEVEL]
   } else if (f2i < flowLength) {
     console.log(`f2i=`, f2i)
     const f2 = txState.vf2_getF2(f2i)
     // console.log(`f2=`, f2)
-    // const stepRecord = txState.vog_getStepRecord(f2.stepId)
+    // const stepRecord = txState.vog_getStepRecord(f2[F2ATTR_STEPID])
     // console.log(`stepRecord=`, stepRecord)
     level = f2[F2ATTR_LEVEL]
   } else {
