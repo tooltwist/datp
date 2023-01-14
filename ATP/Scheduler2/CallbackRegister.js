@@ -52,7 +52,7 @@ export default class CallbackRegister {
     if (VERBOSE) console.log(`% CallbackRegister.call(${name}, f2i=${f2i})`, flowIndex, nodeInfo)
     this._checkInitialized()
 
-    assert(typeof(flowIndex) === 'number')
+//ZM    assert(typeof(flowIndex) === 'number')
     assert(typeof(f2i) === 'number')
 
     const func = CallbackRegister._index[name]

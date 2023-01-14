@@ -395,7 +395,7 @@ export default class StepInstance {
     const nextF2i = this.#f2i + 1
     const completionToken = null
     const workerForShortcut = this.#worker
-    const rv = await schedulerForThisNode.enqueue_StepCompleted(tx, this.#flowIndex, nextF2i, completionToken, workerForShortcut)
+    const rv = await schedulerForThisNode.enqueue_StepCompleted(tx, nextF2i, completionToken, workerForShortcut)
     assert(rv === GO_BACK_AND_RELEASE_WORKER)
     return GO_BACK_AND_RELEASE_WORKER
   }
@@ -453,7 +453,7 @@ export default class StepInstance {
     const nextF2i = this.#f2i + 1
     const workerForShortcut = this.#worker
     const completionToken = null
-    const rv = await schedulerForThisNode.enqueue_StepCompleted(tx, this.#flowIndex, nextF2i, completionToken, workerForShortcut)
+    const rv = await schedulerForThisNode.enqueue_StepCompleted(tx, nextF2i, completionToken, workerForShortcut)
     assert(rv === GO_BACK_AND_RELEASE_WORKER)
     return GO_BACK_AND_RELEASE_WORKER
   }
@@ -522,7 +522,7 @@ export default class StepInstance {
     const nextF2i = this.#f2i + 1
     const completionToken = null
     const workerForShortcut = this.#worker
-    const rv = await schedulerForThisNode.enqueue_StepCompleted(tx, this.#flowIndex, nextF2i, completionToken, workerForShortcut)
+    const rv = await schedulerForThisNode.enqueue_StepCompleted(tx, nextF2i, completionToken, workerForShortcut)
     assert(rv === GO_BACK_AND_RELEASE_WORKER)
     return GO_BACK_AND_RELEASE_WORKER
   }
@@ -585,7 +585,7 @@ export default class StepInstance {
     const nextF2i = this.#f2i + 1
     const completionToken = null
     const workerForShortcut = this.getWorker()
-    const rv = await schedulerForThisNode.enqueue_StepCompleted(tx, this.#flowIndex, nextF2i, completionToken, workerForShortcut)
+    const rv = await schedulerForThisNode.enqueue_StepCompleted(tx, nextF2i, completionToken, workerForShortcut)
     assert(rv === GO_BACK_AND_RELEASE_WORKER)
     return GO_BACK_AND_RELEASE_WORKER
   }
@@ -672,7 +672,7 @@ export default class StepInstance {
     const nextF2i = this.#f2i + 1
     const completionToken = null
     const workerForShortcut = this.#worker
-    const rv = await schedulerForThisNode.enqueue_StepCompleted(tx, this.#flowIndex, nextF2i, completionToken, workerForShortcut)
+    const rv = await schedulerForThisNode.enqueue_StepCompleted(tx, nextF2i, completionToken, workerForShortcut)
     assert(rv === GO_BACK_AND_RELEASE_WORKER)
     return GO_BACK_AND_RELEASE_WORKER
   }

@@ -206,10 +206,10 @@ export class RouterStep extends Step {
       callback: CHILD_PIPELINE_COMPLETION_CALLBACK,
 //VOG777      context: { txId, parentNodeGroup, parentStepId, childStepId }
     }
-    const parentFlowIndex = instance.vog_getFlowIndex()
+//ZM    const parentFlowIndex = instance.vog_getFlowIndex()
     //VOG YARP THIS KILLS STUFF??? const parentF2i = instance.vf2_getF2i()
     const checkExternalIdIsUnique = false
-    const rv = await schedulerForThisNode.enqueue_StartPipeline(tx, parentFlowIndex, childStepId, event, onComplete, checkExternalIdIsUnique, workerForShortcut)
+    const rv = await schedulerForThisNode.enqueue_StartPipeline(tx, childStepId, event, onComplete, checkExternalIdIsUnique, workerForShortcut)
     assert(rv === GO_BACK_AND_RELEASE_WORKER)
 
     // We need to tell the instance that we are returning without calling succeeded(), failed(), etc.

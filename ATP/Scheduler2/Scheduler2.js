@@ -957,9 +957,9 @@ export default class Scheduler2 {
       //   callback: ROOT_STEP_COMPLETE_CALLBACK_ZZZ,
       //   context: { txId, stepId },
       // }
-      const parentFlowIndex = null
+//ZM      const parentFlowIndex = null
       const checkExternalIdIsUnique = metadata.externalId ? true : false
-      await this.enqueue_StartPipeline(tx, parentFlowIndex, stepId, vog_event, onComplete, checkExternalIdIsUnique, workerForShortcut)
+      await this.enqueue_StartPipeline(tx, stepId, vog_event, onComplete, checkExternalIdIsUnique, workerForShortcut)
 
       return tx
     } catch (e) {
@@ -981,14 +981,11 @@ export default class Scheduler2 {
    * @param {*} workerForShortcut 
    * @returns 
    */
-  async enqueue_StartPipeline(tx, parentFlowIndex, stepId, vog_event, onComplete, checkExternalIdIsUnique, workerForShortcut) {
+  async enqueue_StartPipeline(tx, stepId, vog_event, onComplete, checkExternalIdIsUnique, workerForShortcut) {
 
-    // console.log(`parentFlowIndex=`, parentFlowIndex)
-    // console.log(`vog_event=`, vog_event)
-    const f2i = vog_event.f2i
+    // const f2i = vog_event.f2i
 
-    if (FLOW_VERBOSE) flow2Msg(tx, `>>> enqueue_StartPipeline(parentFlowIndex=${parentFlowIndex})`, -1)
-    if (FLOW_VERBOSE) flow2Msg(tx, `>>> enqueue_StartPipeline(parentFlowIndex=${parentFlowIndex})`, -1)
+    if (FLOW_VERBOSE) flow2Msg(tx, `>>> enqueue_StartPipeline()`, -1)
 
     // Check the event is valid
     // console.log(`enqueue_StartPipeline event=`.cyan, vog_event)
@@ -1022,8 +1019,8 @@ export default class Scheduler2 {
     tx.vog_setNextStepId(stepId)
 
 
-    const childFlowIndex = tx.vog_flowRecordStep_scheduled(parentFlowIndex, stepId, vog_event.data, onComplete)
-    vog_event.flowIndex = childFlowIndex
+//ZM    const childFlowIndex = tx.vog_flowRecordStep_scheduled(parentFlowIndex, stepId, vog_event.data, onComplete)
+//ZM    vog_event.flowIndex = childFlowIndex
 
     if (FLOW_PARANOID) {
       const s = tx.stepData(stepId)
@@ -1103,9 +1100,9 @@ export default class Scheduler2 {
    * @param {string} eventType
    * @param {object} options
    */
-  async enqueue_StartStep(tx, parentFlowIndex, stepId, vog_event, onComplete, workerForShortcut) {
+  async enqueue_StartStep(tx, stepId, vog_event, onComplete, workerForShortcut) {
 
-    if (FLOW_VERBOSE) flow2Msg(tx, `>>> enqueue_StartStep(parentFlowIndex=${parentFlowIndex})`, -1)
+    if (FLOW_VERBOSE) flow2Msg(tx, `>>> enqueue_StartStep()`, -1)
 
     // Check the event is valid
     // console.log(`enqueue_StartStep event=`.cyan, vog_event)
@@ -1138,8 +1135,8 @@ export default class Scheduler2 {
     tx.vog_setNextStepId(stepId)
 
 
-    const childFlowIndex = tx.vog_flowRecordStep_scheduled(parentFlowIndex, stepId, vog_event.data, onComplete)
-    vog_event.flowIndex = childFlowIndex
+//ZM    const childFlowIndex = tx.vog_flowRecordStep_scheduled(parentFlowIndex, stepId, vog_event.data, onComplete)
+//ZM    vog_event.flowIndex = childFlowIndex
     if (FLOW_PARANOID) {
       const s = tx.stepData(stepId)
       validateStandardObject('enqueue_StartStep step (paranoid)', s, STEP_DEFINITION)
@@ -1242,18 +1239,18 @@ export default class Scheduler2 {
    * @param {string} queueName
    * @param {object} event
    */
-   async enqueue_StepCompleted(tx, flowIndex, nextF2i, completionToken, workerForShortcut=null) {
+   async enqueue_StepCompleted(tx, nextF2i, completionToken, workerForShortcut=null) {
     // if (FLOW_VERBOSE) flow2Msg(tx, `<<< Zenqueue_StepCompleted(${nextF2i})`.brightBlue + ' ' + tx.vog_flowPath(flowIndex))
     if (FLOW_VERBOSE) flow2Msg(tx, `<<< Zenqueue_StepCompleted(${nextF2i})`.brightBlue)
 
     // We send the event to the parent.
-    const parentFlowIndex = tx.vog_getParentFlowIndex(flowIndex)
+//ZM    const parentFlowIndex = tx.vog_getParentFlowIndex(flowIndex)
     const event = {
       eventType: Scheduler2.STEP_COMPLETED_EVENT,
       txId: tx.getTxId(),
-      flowIndex,// deprecate this
-      childFlowIndex: flowIndex,
-      parentFlowIndex,
+//ZM      flowIndex,// deprecate this
+//ZM      childFlowIndex: flowIndex,
+//ZM      parentFlowIndex,
       completionToken,
       f2i: nextF2i,
     }

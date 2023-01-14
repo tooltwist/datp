@@ -255,7 +255,7 @@ export default class Worker2 {
         const nextF2i = event.f2i + 1
         const completionToken = null
         const workerForShortcut = this
-        const rv = await schedulerForThisNode.enqueue_StepCompleted(txState, event.flowIndex, nextF2i, completionToken, workerForShortcut)
+        const rv = await schedulerForThisNode.enqueue_StepCompleted(txState, nextF2i, completionToken, workerForShortcut)
         assert(rv === GO_BACK_AND_RELEASE_WORKER)
         this.#reuseCounter--
         return GO_BACK_AND_RELEASE_WORKER

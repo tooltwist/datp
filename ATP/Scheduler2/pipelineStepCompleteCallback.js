@@ -40,7 +40,7 @@ export async function pipelineStepCompleteCallback (tx, flowIndex, f2i, nodeInfo
   assert(typeof(pipelineF2[F2ATTR_CURRENT_PIPELINE_STEP]) === 'number')
 
   // Get the flow entry for the pipeline that called this step
-  const parentFlowIndex = tx.vog_getParentFlowIndex(flowIndex)
+//ZM  const parentFlowIndex = tx.vog_getParentFlowIndex(flowIndex)
   const parentStepId = tx.vf2_getStepId(f2i)
 
   const pipelineStep = tx.stepData(parentStepId)
@@ -137,7 +137,7 @@ export async function pipelineStepCompleteCallback (tx, flowIndex, f2i, nodeInfo
       if (F2_VERBOSE) console.log(`F2: pipelineStepCompleteCallback: Pipeline finished, go to ${nextF2i}`.bgBrightBlue.white)
       const completionToken = null
       const workerForShortcut = worker
-      const rv = await schedulerForThisNode.enqueue_StepCompleted(tx, parentFlowIndex, nextF2i, completionToken, workerForShortcut)
+      const rv = await schedulerForThisNode.enqueue_StepCompleted(tx, nextF2i, completionToken, workerForShortcut)
       assert(rv === GO_BACK_AND_RELEASE_WORKER)
       return GO_BACK_AND_RELEASE_WORKER
 
@@ -226,7 +226,7 @@ export async function pipelineStepCompleteCallback (tx, flowIndex, f2i, nodeInfo
 
       if (F2_VERBOSE) console.log(`F2: pipelineStepCompleteCallback: On to next step ${nextF2i}`.bgBrightBlue.white)
 
-      const rv = await schedulerForThisNode.enqueue_StartStep(tx, parentFlowIndex, childStepId, event, onComplete, worker)
+      const rv = await schedulerForThisNode.enqueue_StartStep(tx, childStepId, event, onComplete, worker)
       assert(rv === GO_BACK_AND_RELEASE_WORKER)
       return GO_BACK_AND_RELEASE_WORKER
     }//- initiate the next step
@@ -264,7 +264,7 @@ export async function pipelineStepCompleteCallback (tx, flowIndex, f2i, nodeInfo
     const nextF2i = f2i + 1
     const completionToken = null
     const workerForShortcut = worker
-    const rv = await schedulerForThisNode.enqueue_StepCompleted(tx, parentFlowIndex, nextF2i, completionToken, workerForShortcut)
+    const rv = await schedulerForThisNode.enqueue_StepCompleted(tx, nextF2i, completionToken, workerForShortcut)
     assert(rv === GO_BACK_AND_RELEASE_WORKER)
     return GO_BACK_AND_RELEASE_WORKER
 

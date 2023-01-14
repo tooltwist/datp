@@ -49,7 +49,7 @@ export async function childPipelineCompletionCallback (tx, flowIndex, f2i, nodeI
   if (ROUTERSTEP_VERBOSE) console.log(`FINISHED child ${childStepId}`)
 
   // Get the flow entry for the pipeline that called this step
-  const parentFlowIndex = tx.vog_getParentFlowIndex(flowIndex)
+//ZM  const parentFlowIndex = tx.vog_getParentFlowIndex(flowIndex)
   const parentStepId = tx.vf2_getStepId(f2i)
   if (ROUTERSTEP_VERBOSE) console.log(`WHICH MEANS FINISHED parent ${parentStepId}`)
   const parentStep = tx.stepData(parentStepId)
@@ -125,7 +125,7 @@ export async function childPipelineCompletionCallback (tx, flowIndex, f2i, nodeI
   const nextF2i = f2i + 1
   const completionToken = null
   const workerForShortcut = worker
-  const rv = await schedulerForThisNode.enqueue_StepCompleted(tx, parentFlowIndex, nextF2i, completionToken, workerForShortcut)
+  const rv = await schedulerForThisNode.enqueue_StepCompleted(tx, nextF2i, completionToken, workerForShortcut)
   assert(rv === GO_BACK_AND_RELEASE_WORKER)
   return GO_BACK_AND_RELEASE_WORKER
 }//- childPipelineCompletionCallback

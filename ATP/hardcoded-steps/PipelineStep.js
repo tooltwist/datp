@@ -189,8 +189,8 @@ class Pipeline extends Step {
 //VOG777      context: { txId, parentNodeGroup, parentStepId, childStepId }
     }
 
-    const parentFlowIndex = pipelineInstance.vog_getFlowIndex()
-    const rv = await schedulerForThisNode.enqueue_StartStep(tx, parentFlowIndex, childStepId, event, onComplete, workerForShortcut)
+//ZM    const parentFlowIndex = pipelineInstance.vog_getFlowIndex()
+    const rv = await schedulerForThisNode.enqueue_StartStep(tx, childStepId, event, onComplete, workerForShortcut)
     assert(rv === GO_BACK_AND_RELEASE_WORKER)
 
     //ZZZZ Handling of sync steps???

@@ -305,6 +305,9 @@ export default class TransactionState {
   }
 
   vog_flowRecordStep_scheduled(parentIndex, stepId, input, onComplete) {
+    console.log(`vog_flowRecordStep_scheduled - NOT CREATING FLOW RECORD`)
+    return
+
     if (VERBOSE) console.log(`vog_flowRecordStep_scheduled(parentIndex=${parentIndex}, ${stepId}, input, onComplete)`)
     // console.log(`this.#me.flow=`, this.#me.flow)
 
@@ -336,6 +339,9 @@ export default class TransactionState {
   }
 
   vog_flowRecordStep_invoked(stepId, nodeId) {
+    console.log(`vog_flowRecordStep_invoked() - NOT CHECKING FLOW RECORD`)
+    return
+
     // console.log(`vog_flowRecordStep_invoked()`.red)
     assert(this.#me.flow.length >= 1)
     const latestEntry = this.#me.flow[this.#me.flow.length - 1]
@@ -609,11 +615,11 @@ export default class TransactionState {
   //   return step.vogPath
   // }
 
-  vog_getParentFlowIndex(flowIndex) {
-    assert(flowIndex >= 0 && flowIndex < this.#me.flow.length)
-    const pIndex = this.#me.flow[flowIndex][FIELD_PARENT_FLOW_INDEX]
-    return (pIndex === undefined) ? -1 : pIndex
-  }
+  // vog_getParentFlowIndex(flowIndex) {
+  //   assert(flowIndex >= 0 && flowIndex < this.#me.flow.length)
+  //   const pIndex = this.#me.flow[flowIndex][FIELD_PARENT_FLOW_INDEX]
+  //   return (pIndex === undefined) ? -1 : pIndex
+  // }
 
   vog_getMetadata() {
     assert(typeof(this.#me.transactionData.metadata) === 'object')
