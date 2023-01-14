@@ -424,7 +424,7 @@ export default class Worker2 {
 
       const flowIndex = event.flowIndex
       // const flowIndex = 999999
-      const rv = await CallbackRegister.call(tx, f2[F2ATTR_CALLBACK], flowIndex, event.f2i, nodeInfo, worker)//MZMZMZ
+      const rv = await CallbackRegister.call(tx, f2[F2ATTR_CALLBACK], event.f2i, nodeInfo, worker)//MZMZMZ
       assert(rv === GO_BACK_AND_RELEASE_WORKER)
       return GO_BACK_AND_RELEASE_WORKER
     } catch (e) {
@@ -469,7 +469,7 @@ export default class Worker2 {
         transactionOutput,
         sequenceOfUpdate
       }
-      const rv = await CallbackRegister.call(tx, txData.onChange.callback, event.flowIndex, event.f2i, extraInfo, worker)
+      const rv = await CallbackRegister.call(tx, txData.onChange.callback, event.f2i, extraInfo, worker)
       assert(rv == GO_BACK_AND_RELEASE_WORKER)
       return GO_BACK_AND_RELEASE_WORKER
     } catch (e) {
@@ -509,7 +509,7 @@ export default class Worker2 {
   //       note,
   //       transactionOutput
   //     }
-  //     const rv = await CallbackRegister.call(tx, txData.onComplete.callback, event.flowIndex, event.f2i, extraInfo, worker)
+  //     const rv = await CallbackRegister.call(tx, txData.onComplete.callback, event.f2i, extraInfo, worker)
   //     assert(rv === GO_BACK_AND_RELEASE_WORKER)
   //     return GO_BACK_AND_RELEASE_WORKER
   //   } catch (e) {

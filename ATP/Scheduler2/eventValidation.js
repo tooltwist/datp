@@ -68,6 +68,7 @@ export function validateStandardObject(msg, event, definition, mayHaveExtraField
   const errors = [ ]
   const found = { }
   for (const field in definition) {
+    if (field === 'flowIndex') continue
     found[field] = false
   }
 
@@ -92,6 +93,7 @@ export function validateStandardObject(msg, event, definition, mayHaveExtraField
 
   // Check that all the required fields are provided
   for (const field in definition) {
+    if (field === 'flowIndex') continue
     if (!definition[field].optional && !found[field]) {
       errors.push(`Mandatory field ${field} is missing`)
     }
@@ -184,8 +186,8 @@ export const EVENT_DEFINITION_STEP_START_SCHEDULED = {
 export const DEFINITION_PROCESS_STEP_START_EVENT = {
   eventType: { type: 'string' },
   txId: { type: 'string' },
-  flowIndex: { type: 'number' },
-  f2i: { type: 'number', optional: true },//ZZZZZ Should not be optional
+  // flowIndex: { type: 'number' },
+  f2i: { type: 'number' },//ZZZZZ Should not be optional
   parentNodeGroup: { type: 'string' },
   stepDefinition: { type: 'string,object', optional: true },
   // fullSequence: { type: 'string' },
@@ -202,7 +204,7 @@ export const DEFINITION_PROCESS_STEP_START_EVENT = {
 export const DEFINITION_MATERIALIZE_STEP_EVENT = {
   eventType: { type: 'string' },
   txId: { type: 'string' },
-  flowIndex: { type: 'number' },
+//ZM  flowIndex: { type: 'number' },
   parentNodeGroup: { type: 'string' },
   // fullSequence: { type: 'string' },
   // vogPath: { type: 'string' },
@@ -222,9 +224,9 @@ export const DEFINITION_MATERIALIZE_STEP_EVENT = {
 export const DEFINITION_STEP_COMPLETE_EVENT = {
   eventType: { type: 'string' },
   txId: { type: 'string' },
-  flowIndex: { type: 'number', optional: true },
-  parentFlowIndex: { type: 'number' },
-  childFlowIndex: { type: 'number' },
+//ZM  flowIndex: { type: 'number', optional: true },
+//ZM  parentFlowIndex: { type: 'number' },
+//ZM  childFlowIndex: { type: 'number' },
   completionToken: { type: 'string,object', optional: true },
   ts: { type: 'number', optional: true }, // Not set for memory queue?
   f2i: { type: 'number' },
@@ -245,11 +247,11 @@ export const FLOW_DEFINITION = {
     // "nodeGroup": "master",
     // "callback": "txComplete"
   note: { type: 'string', nullable: true },
-  completionStatus: { type: 'string', nullable: true },
+//ZM  completionStatus: { type: 'string', nullable: true },
   output: { type: 'object', nullable: true },
   // Used by pipelines
   vog_nodeGroup: { type: 'string', optional: true },
-  vog_currentPipelineStep: { type: 'number', optional: true },
+//ZM  vog_currentPipelineStep: { type: 'number', optional: true },
 }
 
 export const STEP_DEFINITION = {

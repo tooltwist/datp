@@ -744,7 +744,7 @@ export default class Scheduler2 {
       //   }
       //   const tx = await TransactionCache.newTransaction(metadata.owner, metadata.externalId, metadata.transactionType)
       //   const worker = null
-      //   await CallbackRegister.call(tx, metadata.onComplete.callback, 0, 1, fakeTransactionOutput, worker)
+      //   await CallbackRegister.call(tx, metadata.onComplete.callback, 1, fakeTransactionOutput, worker)
       //   return
       // }
 

@@ -22,8 +22,8 @@ import { GO_BACK_AND_RELEASE_WORKER } from './Worker2'
 
 export const PIPELINE_STEP_COMPLETE_CALLBACK = `pipelineStepComplete`
 
-export async function pipelineStepCompleteCallback (tx, flowIndex, f2i, nodeInfo, worker) {
-  if (FLOW_VERBOSE) flow2Msg(tx, `Callback pipelineStepCompleteCallback(flowIndex=${flowIndex})`, f2i)
+export async function pipelineStepCompleteCallback (tx, f2i, nodeInfo, worker) {
+  if (FLOW_VERBOSE) flow2Msg(tx, `Callback pipelineStepCompleteCallback(f2i=${f2i})`, f2i)
   if (F2_VERBOSE) console.log(`F2: pipelineStepCompleteCallback: ${f2i}`)
 
   assert(typeof(f2i) === 'number')
