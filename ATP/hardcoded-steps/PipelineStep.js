@@ -9,13 +9,12 @@ import StepTypes from '../StepTypeRegister'
 import assert from 'assert'
 import StepInstance from '../StepInstance'
 import Scheduler2 from '../Scheduler2/Scheduler2'
-import GenerateHash from '../GenerateHash'
 import { PIPELINE_STEP_COMPLETE_CALLBACK } from '../Scheduler2/pipelineStepCompleteCallback'
 import { schedulerForThisNode } from '../..'
 import { GO_BACK_AND_RELEASE_WORKER } from '../Scheduler2/Worker2'
 import { FLOW_VERBOSE } from '../Scheduler2/queuing/redis-lua'
-import { flow2Msg, flowMsg } from '../Scheduler2/flowMsg'
-import { F2ATTR_CALLBACK, F2ATTR_NODEGROUP, F2ATTR_STEPID, F2_PIPELINE_CH, F2_STEP, F2_VERBOSE } from '../Scheduler2/TransactionState'
+import { flow2Msg } from '../Scheduler2/flowMsg'
+import { F2ATTR_CALLBACK, F2ATTR_CURRENT_PIPELINE_STEP, F2ATTR_NODEGROUP, F2ATTR_STEPID, F2_PIPELINE_CH, F2_STEP, F2_VERBOSE } from '../Scheduler2/TransactionState'
 
 export const PIPELINES_VERBOSE = 0
 
@@ -129,6 +128,9 @@ class Pipeline extends Step {
 
     // Add the first child to f2
     const f2i = pipelineInstance.vog_getF2i()
+    const parentF2 = tx.vf2_getF2(f2i)
+    parentF2[F2ATTR_CURRENT_PIPELINE_STEP] = 0
+
     const { f2i:firstChildF2i, f2:childF2} = tx.vf2_addF2child(f2i, F2_STEP, 'Pipeline.invoke')
     childF2[F2ATTR_STEPID] = childStepId
     childF2.ts1 = Date.now()
@@ -188,8 +190,6 @@ class Pipeline extends Step {
     }
 
     const parentFlowIndex = pipelineInstance.vog_getFlowIndex()
-    const parentFlow = tx.vog_getFlowRecord(parentFlowIndex)
-    parentFlow.vog_currentPipelineStep = 0
     const rv = await schedulerForThisNode.enqueue_StartStep(tx, parentFlowIndex, childStepId, event, onComplete, workerForShortcut)
     assert(rv === GO_BACK_AND_RELEASE_WORKER)
 

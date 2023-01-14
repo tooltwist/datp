@@ -4,21 +4,14 @@
  * rights reserved. No warranty, explicit or implicit, provided. In no event shall
  * the author or owner be liable for any claim or damages.
  */
-import { schedulerForThisNode } from "../.."
-import { PIPELINES_VERBOSE } from "../hardcoded-steps/PipelineStep"
-import Scheduler2 from "./Scheduler2"
 import { GO_BACK_AND_RELEASE_WORKER } from "./Worker2"
-import assert from "assert"
 import { RedisQueue } from "./queuing/RedisQueue-ioredis"
-import { FLOW_VERBOSE } from "./queuing/redis-lua"
-import { flow2Msg, flowMsg } from "./flowMsg"
 
 
 export const TX_COMPLETE_CALLBACK = `txComplete`
 
 export async function txCompleteCallback (tx, flowIndex, f2i , nodeInfo, worker) {
-  // if (FLOW_VERBOSE)
-  flow2Msg(tx, `Callback txCompleteCallback(f2i=${f2i})`, f2i)
+  if (FLOW_VERBOSE) flow2Msg(tx, `Callback txCompleteCallback(f2i=${f2i})`, f2i)
   
   // Save the final step's output, status and note as the transaction's result
   const f2Status = tx.vf2_getStatus(f2i)

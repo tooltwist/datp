@@ -10,7 +10,7 @@ import { getPipelineVersionInUse } from '../../database/dbPipelines'
 import { deepCopy } from '../../lib/deepCopy'
 import GenerateHash from '../GenerateHash'
 import { CHILD_PIPELINE_COMPLETION_CALLBACK } from '../Scheduler2/ChildPipelineCompletionCallback'
-import { flow2Msg, flowMsg } from '../Scheduler2/flowMsg'
+import { flow2Msg } from '../Scheduler2/flowMsg'
 import { FLOW_VERBOSE } from '../Scheduler2/queuing/redis-lua'
 import Scheduler2 from '../Scheduler2/Scheduler2'
 import { F2ATTR_CALLBACK, F2ATTR_NODEGROUP, F2ATTR_PIPELINE, F2ATTR_STEPID, F2_PIPELINE, F2_PIPELINE_CH, F2_STEP, F2_VERBOSE } from '../Scheduler2/TransactionState'
@@ -207,9 +207,6 @@ export class RouterStep extends Step {
 //VOG777      context: { txId, parentNodeGroup, parentStepId, childStepId }
     }
     const parentFlowIndex = instance.vog_getFlowIndex()
-    const parentF2i = instance.vog_getF2i()
-    // console.log(`parentFlowIndex=`.bgMagenta, parentFlowIndex)
-    // console.log(`parentF2i=`.bgMagenta, parentF2i)
     //VOG YARP THIS KILLS STUFF??? const parentF2i = instance.vf2_getF2i()
     const checkExternalIdIsUnique = false
     const rv = await schedulerForThisNode.enqueue_StartPipeline(tx, parentFlowIndex, childStepId, event, onComplete, checkExternalIdIsUnique, workerForShortcut)

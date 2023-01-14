@@ -7,11 +7,11 @@ import pause from '../../../lib/pause';
 import { STEP_ABORTED, STEP_FAILED, STEP_INTERNAL_ERROR, STEP_SUCCESS, STEP_TIMEOUT } from '../../Step';
 import { STEP_TYPE_PIPELINE } from '../../StepTypeRegister';
 import { DEFINITION_STEP_COMPLETE_EVENT, DEFINITION_PROCESS_STEP_START_EVENT, FLOW_DEFINITION, STEP_DEFINITION, validateStandardObject } from '../eventValidation';
-import { flow2Msg, flowMsg } from '../flowMsg';
+import { flow2Msg } from '../flowMsg';
 import Scheduler2 from '../Scheduler2';
 import TransactionState, { F2ATTR_STEPID } from '../TransactionState';
 import Transaction, { TX_STATUS_QUEUED, TX_STATUS_RUNNING } from '../TransactionState';
-import { requiresWebhookReply, WEBHOOK_EVENT_TXSTATUS, WEBHOOK_RESULT_ABORTED, WEBHOOK_RESULT_FAILED, WEBHOOK_RESULT_SUCCESS, WEBHOOK_STATUS_ABORTED, WEBHOOK_STATUS_DELIVERED, WEBHOOK_STATUS_PENDING, WEBHOOK_STATUS_PROCESSING, WEBHOOK_STATUS_RETRY, WEBHOOK_STATUS_MAX_RETRIES } from '../webhooks/tryTheWebhook';
+import { requiresWebhookReply, WEBHOOK_RESULT_ABORTED, WEBHOOK_RESULT_FAILED, WEBHOOK_RESULT_SUCCESS, WEBHOOK_STATUS_ABORTED, WEBHOOK_STATUS_DELIVERED, WEBHOOK_STATUS_PENDING, WEBHOOK_STATUS_PROCESSING, WEBHOOK_STATUS_RETRY, WEBHOOK_STATUS_MAX_RETRIES, WEBHOOK_EVENT_TXSTATUS } from '../webhooks/tryTheWebhook';
 const Redis = require('ioredis');
 
 const VERBOSE = 0
@@ -2155,10 +2155,8 @@ redis.call('set', '@n3', nodeGroup)
 
           // Create the event
           const event = JSON.parse(eventJSON)
-          // console.log(`event=`, event)
 
           // Create the transaction state.
-
           const txState = transactionStateFromJsonAndExternalizedFields(stateJSON, txStateValues)
 
           // // We need to provide fake txId, owner, externalId and transactionType so it
@@ -2179,18 +2177,22 @@ redis.call('set', '@n3', nodeGroup)
 
           // A few sanity checks
           assert(event.flowIndex >= 0)
-          const flow = txState.vog_getFlowRecord(event.flowIndex)
-          assert(flow)
-          const step = txState.stepData(flow.stepId)
-          assert(step)
+          assert(event.f2i >= 0)
+          const stepId = txState.vf2_getStepId(event.f2i)
 
           // Patch in the pipeline definition.
-          if (pipelineDefinitionJSON && pipelineDefinitionJSON !== '-') {
-            // step.vogStepDefinition = {
+          if (stepId && pipelineDefinitionJSON && pipelineDefinitionJSON !== '-') {
+            // console.log(`PATCHING IN STEP DEFINITION`)
+            const step = txState.stepData(stepId)
+            assert(step)
+              // step.vogStepDefinition = {
             step.stepDefinition = {
               stepType: STEP_TYPE_PIPELINE,
               description: `Pipeline ${pipelineName}`,
               steps: JSON.parse(pipelineDefinitionJSON)
+            }
+            if (FLOW_PARANOID) {
+              validateStandardObject('redis-lua.luaDequeue() step', step, STEP_DEFINITION)
             }
           }
 
@@ -2206,8 +2208,8 @@ redis.call('set', '@n3', nodeGroup)
                 break
 
             }
-            validateStandardObject('redis-lua.luaDequeue() flow', flow, FLOW_DEFINITION)
-            validateStandardObject('redis-lua.luaDequeue() step', step, STEP_DEFINITION)
+            // validateStandardObject('redis-lua.luaDequeue() flow', flow, FLOW_DEFINITION)
+            // validateStandardObject('redis-lua.luaDequeue() step', step, STEP_DEFINITION)
           }
 
           // Add the event and transaction state to our reply.

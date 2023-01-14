@@ -127,8 +127,7 @@ export async function mondatRoute_transactionStatusV1(req, res, next) {
 }
 
 export async function mondatRoute_transactionStateV1(req, res, next) {
-  // if (VERBOSE)
-  console.log(`mondatRoute_transactionStateV1()`.yellow)
+  if (VERBOSE) console.log(`mondatRoute_transactionStateV1()`.yellow)
 
   //ZZZZZZZ This should get the transaction summary from the database, and leave the state alone.
 

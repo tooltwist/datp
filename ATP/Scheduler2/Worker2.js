@@ -16,7 +16,7 @@ import TransactionState, { F2ATTR_CALLBACK, F2ATTR_NODEGROUP, F2ATTR_NODEID, F2A
 import me from "../../lib/me"
 import { DEFINITION_PROCESS_STEP_START_EVENT, FLOW_DEFINITION, STEP_DEFINITION, validateStandardObject } from "./eventValidation"
 import { FLOW_VERBOSE } from "./queuing/redis-lua"
-import { flow2Msg, flowMsg } from "./flowMsg"
+import { flow2Msg } from "./flowMsg"
 
 const VERBOSE = 0
 const VERBOSE_16aug22 = 0
@@ -180,8 +180,8 @@ export default class Worker2 {
     // validateStandardObject('processEvent_StepStart flow', flow, FLOW_DEFINITION)
     validateStandardObject('processEvent_StepStart step', stepData, STEP_DEFINITION)
 
-    if (FLOW_VERBOSE > 1) console.log(`>>> processEvent_StepStart() `.brightBlue + txState.vog_flowPath(flowIndex).gray)
-    // console.log(`event=`, event)
+    // if (FLOW_VERBOSE > 1) console.log(`>>> processEvent_StepStart() `.brightBlue + txState.vog_flowPath(flowIndex).gray)
+    if (FLOW_VERBOSE > 1) console.log(`>>> processEvent_StepStart() `.brightBlue)
 
     if (VERBOSE > 1) console.log(`${me()}: event=`, JSON.stringify(event, '', 2))
     // const zzz = JSON.parse(event.txState)
@@ -369,11 +369,9 @@ export default class Worker2 {
 
       assert(event.eventType === Scheduler2.STEP_COMPLETED_EVENT)
       assert(typeof(event.txId) === 'string')
-      assert(typeof(event.flowIndex) === 'number')
       assert(typeof(event.f2i) === 'number')
 
       const status = tx.vf2_getStatus(event.f2i)
-      // console.log(`status =`.bgBrightRed, status)
       if (
         status === STEP_ABORTED
         || status === STEP_FAILED
@@ -409,11 +407,9 @@ export default class Worker2 {
 
 
       // Update the timestamp
-      console.log(`event.f2i=`.red, event.f2i)
       const f2 = tx.vf2_getF2(event.f2i)
       f2.ts2 = Date.now()
       f2.ts3 = f2.ts2
-      // console.log(`f2=`.bgYellow, f2)
 
 
       // Call the callback
@@ -426,7 +422,9 @@ export default class Worker2 {
       // console.log(`processEvent_StepCompleted event.flowIndex=`.blue, event.flowIndex)
       // console.log(`VOG ZARP PEW 6`)
 
-      const rv = await CallbackRegister.call(tx, f2[F2ATTR_CALLBACK], event.flowIndex, event.f2i, nodeInfo, worker)//MZMZMZ
+      const flowIndex = event.flowIndex
+      // const flowIndex = 999999
+      const rv = await CallbackRegister.call(tx, f2[F2ATTR_CALLBACK], flowIndex, event.f2i, nodeInfo, worker)//MZMZMZ
       assert(rv === GO_BACK_AND_RELEASE_WORKER)
       return GO_BACK_AND_RELEASE_WORKER
     } catch (e) {

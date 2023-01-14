@@ -61,6 +61,7 @@ export const F2ATTR_STEPID = '__stepId'
 export const F2ATTR_DESCRIPTION = '__description'
 export const F2ATTR_TRANSACTION_TYPE = '__transactionType'
 export const F2ATTR_PIPELINE = '__pipeline'
+export const F2ATTR_CURRENT_PIPELINE_STEP = '__currentStep'
 
 export const F2_VERBOSE = 0
 
@@ -370,17 +371,17 @@ export default class TransactionState {
   //   return this.#me.flow
   // }
 
-  vog_getFlowLength() {
-    return this.#me.flow.length
-  }
+  // vog_getFlowLength() {
+  //   return this.#me.flow.length
+  // }
 
-  vog_getFlowRecord(index) {
-    if (index < 0) {
-      index = this.#me.flow.length - 1
-    }
-    assert(index >= 0 && index < this.#me.flow.length)
-    return this.#me.flow[index]
-  }
+  // vog_getFlowRecord(index) {
+  //   if (index < 0) {
+  //     index = this.#me.flow.length - 1
+  //   }
+  //   assert(index >= 0 && index < this.#me.flow.length)
+  //   return this.#me.flow[index]
+  // }
 
   v2f_setF2Transaction(pipelineName, metadata, input) {
     assert(this.#me.f2.length === 0)
@@ -505,21 +506,76 @@ export default class TransactionState {
     return this.#me.f2[f2i]
   }
 
-  vog_getStepRecord(index) {
-    // console.log(`this.#me.steps=`, this.#me.steps)
-    return this.#me.steps[index]
+  /**
+   * Return a flow entry.
+   * If a flow entry is for a callback, called after running a step,
+   * pipeline or transaction, then it will be associated with the
+   * original pipeline or transaction flow entry (it's 'sibling'). In
+   * that case, return the flow entry for the sibling.
+   * @param {integer} f2i Flow index
+   * @returns Flow entry
+   */
+  vf2_getF2OrSibling(f2i) {
+    assert(f2i >= 0 && f2i < this.#me.f2.length)
+    const f2 = this.#me.f2[f2i]
+    const siblingF2i = f2[F2ATTR_SIBLING]
+    // console.log(`siblingF2i=`, siblingF2i)
+    if (typeof(siblingF2i) !== 'undefined') {
+      assert(siblingF2i >= 0 && siblingF2i < this.#me.f2.length)
+      return this.#me.f2[siblingF2i]
+    }
+    return f2
   }
 
+  // vog_getStepRecord(index) {
+  //   // console.log(`this.#me.steps=`, this.#me.steps)
+  //   return this.#me.steps[index]
+  // }
+
+  /**
+   * Run back through the flow entries until we find a status.
+   * 
+   * @param {*} index 
+   * @returns 
+   */
   vf2_getStatus(index) {
     assert(index >= 0 && index < this.#me.f2.length)
     for ( ; index > 0; index--) {
       const f2 = this.#me.f2[index]
       if (typeof(f2.status) !== 'undefined') {
-        console.log(`f2@${index}.status=`, f2.status)
+        // console.log(`f2@${index}.status=`, f2.status)
         return f2.status
       }
     }
     throw new Error(`Internal error: could not get status of f2 [${index}]`)
+  }
+
+  /**
+   * Get the stepId related to a flow entry.
+   * If this is a step then the flow entry will contain the stepId. If the
+   * entry is for a callback then we get the stepId from the matching flow
+   * entry (it's sibling pipeline).
+   * @param {integer} f2i Flow index
+   * @returns 
+   */
+  vf2_getStepId(f2i) {
+    // console.log(`vf2_getStepId(${f2i})`.magenta)
+    assert(f2i >= 0 && f2i < this.#me.f2.length)
+    const f2 = this.#me.f2[f2i]
+
+    // If this is related to another f2, for example if this is
+    // a callback, get the step from that sibling.
+    const siblingF2i = f2[F2ATTR_SIBLING]
+    // console.log(`siblingF2i=`, siblingF2i)
+    if (typeof(siblingF2i) !== 'undefined') {
+      // console.log(`USING stepId from sibling`)
+      assert(siblingF2i >= 0 && siblingF2i < this.#me.f2.length)
+      const siblingF2 = this.#me.f2[siblingF2i]
+      // console.log(`siblingF2=`, siblingF2)
+      return siblingF2[F2ATTR_STEPID]
+    }
+// console.log(`USING original f2 stepId`)
+    return f2[F2ATTR_STEPID]
   }
 
   vf2_getNote(index) {
@@ -527,7 +583,7 @@ export default class TransactionState {
     for ( ; index > 0; index--) {
       const f2 = this.#me.f2[index]
       if (typeof(f2.note) !== 'undefined') {
-        console.log(`f2@${index}.note=`, f2.note)
+        // console.log(`f2@${index}.note=`, f2.note)
         return f2.note
       }
     }
@@ -539,19 +595,19 @@ export default class TransactionState {
     for ( ; index > 0; index--) {
       const f2 = this.#me.f2[index]
       if (typeof(f2.output) !== 'undefined') {
-        console.log(`f2@${index}.output=`, f2.output)
+        // console.log(`f2@${index}.output=`, f2.output)
         return f2.output
       }
     }
     throw new Error(`Internal error: could not get status of f2 [${index}]`)
   }
 
-  vog_flowPath(index) {
-    assert(index >= 0 && index < this.#me.flow.length)
-    const flow = this.#me.flow[index]
-    const step = this.#me.steps[flow.stepId]
-    return step.vogPath
-  }
+  // vog_flowPath(index) {
+  //   assert(index >= 0 && index < this.#me.flow.length)
+  //   const flow = this.#me.flow[index]
+  //   const step = this.#me.steps[flow.stepId]
+  //   return step.vogPath
+  // }
 
   vog_getParentFlowIndex(flowIndex) {
     assert(flowIndex >= 0 && flowIndex < this.#me.flow.length)

@@ -22,7 +22,7 @@ import Scheduler2 from './Scheduler2/Scheduler2'
 import { DEFINITION_MATERIALIZE_STEP_EVENT, FLOW_DEFINITION, STEP_DEFINITION, validateStandardObject } from './Scheduler2/eventValidation'
 import { FLOW_VERBOSE } from './Scheduler2/queuing/redis-lua'
 import { requiresWebhookProgressReports, sendStatusByWebhook, WEBHOOK_EVENT_PROGRESS } from './Scheduler2/webhooks/tryTheWebhook'
-import { flow2Msg, flowMsg } from './Scheduler2/flowMsg'
+import { flow2Msg } from './Scheduler2/flowMsg'
 require('colors')
 
 const VERBOSE = 0
@@ -39,7 +39,7 @@ export default class StepInstance {
   #nodeId     // Specific server
   #stepId
   // #parentNodeId
-  #parentStepId
+  // #parentStepId
   #stepDefinition
   // #logbook
   #txdata
@@ -69,7 +69,7 @@ export default class StepInstance {
     this.#nodeId = null
     // Definition
     // this.#parentNodeId = null
-    this.#parentStepId = null
+    // this.#parentStepId = null
     this.#stepId = null
     this.#stepDefinition = { stepType: null}
     // Transaction data
@@ -110,6 +110,8 @@ export default class StepInstance {
     // console.log(``)
     // console.log(`StepInstance.materialize event=`, event)
     // console.log(`  typeof(tx)=`, typeof(tx))
+    // console.log(`event.f2i=`, event.f2i)
+
 
     assert(tx instanceof TransactionState)
 
@@ -121,21 +123,20 @@ export default class StepInstance {
 
     // const txData = tx.txData()
     // console.log(`txData=`, txData)
-    const flow = tx.vog_getFlowRecord(event.flowIndex)
-    validateStandardObject('materialize(), flow', flow, FLOW_DEFINITION)
+    // const flow = tx.vog_getFlowRecord(event.flowIndex)
+    // validateStandardObject('materialize(), flow', flow, FLOW_DEFINITION)
 
-    let parentFlow = null
-    const parentFlowIndex = tx.vog_getParentFlowIndex(event.flowIndex)
-    if (parentFlowIndex >= 0) {
-      parentFlow = tx.vog_getFlowRecord(parentFlowIndex)
-      validateStandardObject('materialize(), parentFlow', parentFlow, FLOW_DEFINITION)
-      this.#parentStepId = parentFlow.stepId
-    }
+    // let parentFlow = null
+    // const parentFlowIndex = tx.vog_getParentFlowIndex(event.flowIndex)
+    // if (parentFlowIndex >= 0) {
+    //   parentFlow = tx.vog_getFlowRecord(parentFlowIndex)
+    //   validateStandardObject('materialize(), parentFlow', parentFlow, FLOW_DEFINITION)
+    //   this.#parentStepId = parentFlow.stepId
+    // }
 
 
+    const f2 = tx.vf2_getF2(event.f2i)
     const stepData = tx.stepData(f2[F2ATTR_STEPID])
-    // console.log(`materialize() stepData=`.red, stepData)
-
     validateStandardObject('materialize() step', stepData, STEP_DEFINITION)
 
     assert (typeof(stepData.fullSequence) === 'string')
@@ -369,17 +370,16 @@ export default class StepInstance {
 
     tx.vog_flowRecordStep_complete(this.#flowIndex, STEP_SUCCESS, note, myStepOutput)
 
-    const flow = tx.vog_getFlowRecord(this.#flowIndex)
+//ZM    const flow = tx.vog_getFlowRecord(this.#flowIndex)
 
     // We need to run the completion handler in the parent's nodeGroup
-    const parentFlowIndex = flow.p
-    const parentFlow = tx.vog_getFlowRecord(parentFlowIndex)
+//ZM    const parentFlowIndex = flow.p
+//ZM    const parentFlow = tx.vog_getFlowRecord(parentFlowIndex)
     // console.log(`parentFlow=`, parentFlow)
-    const parentNodeGroup = parentFlow.vog_nodeGroup
+//ZM    const parentNodeGroup = parentFlow.vog_nodeGroup
     // console.log(`parentFlow=`, parentFlow)
 
     // Update flow2
-    // console.log(`this.#f2i=`.bgMagenta, this.#f2i)
     const f2 = tx.vf2_getF2(this.#f2i)
     f2.status = STEP_SUCCESS
     f2.note = note
@@ -437,13 +437,11 @@ export default class StepInstance {
     tx.vog_flowRecordStep_complete(this.#flowIndex, STEP_ABORTED, note, myStepOutput)
 
     // Update flow2
-    console.log(`this.#f2i=`.bgRed, this.#f2i)
     const f2 = tx.vf2_getF2(this.#f2i)
     f2.status = STEP_ABORTED
     f2.note = note
     f2.output = stepOutput
     f2.ts3 = Date.now()
-    // console.log(`f2=`.bgRed, f2)
 
     // Tell the parent we've completed.
     // const queueName = Scheduler2.groupQueueName(this.#onComplete.nodeGroup)
@@ -508,13 +506,11 @@ export default class StepInstance {
     tx.vog_flowRecordStep_complete(this.#flowIndex, STEP_FAILED, note, myStepOutput)
 
     // Update flow2
-    console.log(`this.#f2i=`.bgRed, this.#f2i)
     const f2 = tx.vf2_getF2(this.#f2i)
     f2.status = STEP_FAILED
     f2.note = note
     f2.output = stepOutput
     f2.ts3 = Date.now()
-    // console.log(`f2=`.bgRed, f2)
 
     // Tell the parent we've completed.
     // console.log(`replying to `, this.#onComplete)
@@ -573,13 +569,11 @@ export default class StepInstance {
     tx.vog_flowRecordStep_complete(this.#flowIndex, STEP_INTERNAL_ERROR, note, data)
 
     // Update flow2
-    console.log(`this.#f2i=`.bgRed, this.#f2i)
     const f2 = tx.vf2_getF2(this.#f2i)
     f2.status = STEP_INTERNAL_ERROR
     f2.note = note
     f2.output = data
     f2.ts3 = Date.now()
-    // console.log(`f2=`.bgRed, f2)
 
     // Tell the parent we've completed.
     // const event = {
@@ -655,13 +649,11 @@ export default class StepInstance {
     tx.vog_flowRecordStep_complete(this.#flowIndex, STEP_INTERNAL_ERROR, note, data)
 
     // Update flow2
-    console.log(`this.#f2i=`.bgRed, this.#f2i)
     const f2 = tx.vf2_getF2(this.#f2i)
     f2.status = STEP_INTERNAL_ERROR
     f2.note = note
     f2.output = data
     f2.ts3 = Date.now()
-    // console.log(`f2=`.bgRed, f2)
 
     // Tell the parent we've completed.
     // const event = {
@@ -969,12 +961,12 @@ console.log(new Error().stack)
   // Add details into toString() when debugging
   // See https://stackoverflow.com/questions/42886953/whats-the-recommended-way-to-customize-tostring-using-symbol-tostringtag-or-ov
   get [Symbol.toStringTag]() {
-    let s = `${this.#stepDefinition.stepType}, ${this.#stepId}`
-    if (this.#parentStepId) {
-      s += `, parent=${this.#parentStepId}`
-    } else {
-      s += `, no parent`
-    }
+    let s = `${this.#stepDefinition.stepType}, ${this.#stepId}, ${this.#f2i}`
+    // if (this.#parentStepId) {
+    //   s += `, parent=${this.#parentStepId}`
+    // } else {
+    //   s += `, no parent`
+    // }
     return s
   }
 

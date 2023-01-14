@@ -31,15 +31,13 @@ import { RedisQueue } from './queuing/RedisQueue-ioredis'
 import me from '../../lib/me'
 import pause from '../../lib/pause'
 import { FLOW_PARANOID, FLOW_VERBOSE } from './queuing/redis-lua'
-import { flow2Msg, flowMsg } from './flowMsg'
+import { flow2Msg } from './flowMsg'
 
 // Debug related
 const VERBOSE = 0
 const VERBOSE_16aug22 = 0
 const Q_VERBOSE = 0
 require('colors')
-
-const YARPLUA_FOR_STEP_START = true
 
 
 let txStartCounter = 0
@@ -989,11 +987,11 @@ export default class Scheduler2 {
     // console.log(`vog_event=`, vog_event)
     const f2i = vog_event.f2i
 
-    if (FLOW_VERBOSE) flowMsg(tx, `>>> enqueue_StartPipeline(parentFlowIndex=${parentFlowIndex})`, parentFlowIndex)
-    if (FLOW_VERBOSE) flowMsg(tx, `>>> enqueue_StartPipeline(parentFlowIndex=${parentFlowIndex})`, parentFlowIndex)
+    if (FLOW_VERBOSE) flow2Msg(tx, `>>> enqueue_StartPipeline(parentFlowIndex=${parentFlowIndex})`, -1)
+    if (FLOW_VERBOSE) flow2Msg(tx, `>>> enqueue_StartPipeline(parentFlowIndex=${parentFlowIndex})`, -1)
 
     // Check the event is valid
-    // console.log(`enqueue_StartStep event=`.cyan, vog_event)
+    // console.log(`enqueue_StartPipeline event=`.cyan, vog_event)
     validateStandardObject('enqueue_StartPipeline() event', vog_event, EVENT_DEFINITION_STEP_START_SCHEDULED)
 
 
@@ -1026,9 +1024,6 @@ export default class Scheduler2 {
 
     const childFlowIndex = tx.vog_flowRecordStep_scheduled(parentFlowIndex, stepId, vog_event.data, onComplete)
     vog_event.flowIndex = childFlowIndex
-    // onComplete.flowIndex = flowIndex
-    // console.log(`tx.vog_getFlow()=`, tx.vog_getFlow())
-    // console.log(`stepStart vog_event=`, vog_event)
 
     if (FLOW_PARANOID) {
       const s = tx.stepData(stepId)
@@ -1110,7 +1105,7 @@ export default class Scheduler2 {
    */
   async enqueue_StartStep(tx, parentFlowIndex, stepId, vog_event, onComplete, workerForShortcut) {
 
-    if (FLOW_VERBOSE) flowMsg(tx, `>>> enqueue_StartStep(parentFlowIndex=${parentFlowIndex})`, parentFlowIndex)
+    if (FLOW_VERBOSE) flow2Msg(tx, `>>> enqueue_StartStep(parentFlowIndex=${parentFlowIndex})`, -1)
 
     // Check the event is valid
     // console.log(`enqueue_StartStep event=`.cyan, vog_event)
@@ -1149,8 +1144,8 @@ export default class Scheduler2 {
       const s = tx.stepData(stepId)
       validateStandardObject('enqueue_StartStep step (paranoid)', s, STEP_DEFINITION)
 
-      const f = tx.vog_getFlowRecord(vog_event.flowIndex)
-      validateStandardObject('enqueue_StartStep flow (paranoid)', f, FLOW_DEFINITION)
+//ZM      const f = tx.vog_getFlowRecord(vog_event.flowIndex)
+//ZM      validateStandardObject('enqueue_StartStep flow (paranoid)', f, FLOW_DEFINITION)
 
       // console.log(`f=`, f)
     }
@@ -1248,13 +1243,8 @@ export default class Scheduler2 {
    * @param {object} event
    */
    async enqueue_StepCompleted(tx, flowIndex, nextF2i, completionToken, workerForShortcut=null) {
-    // console.log(`MEGA YARP A`);
-    // flow2Msg(tx, 'ALSO MEGA YARP');
-
-    if (FLOW_VERBOSE) flow2Msg(tx, `<<< Zenqueue_StepCompleted(${nextF2i})`.brightBlue + ' ' + tx.vog_flowPath(flowIndex))
-    //if (FLOW_VERBOSE) flowMsg(tx, `<<< enqueue_StepCompleted(${nextF2i})`.brightBlue + ' ' + tx.vog_flowPath(flowIndex))
-    // console.log(`tx=`, tx)
-    // console.log(`event=`, event)
+    // if (FLOW_VERBOSE) flow2Msg(tx, `<<< Zenqueue_StepCompleted(${nextF2i})`.brightBlue + ' ' + tx.vog_flowPath(flowIndex))
+    if (FLOW_VERBOSE) flow2Msg(tx, `<<< Zenqueue_StepCompleted(${nextF2i})`.brightBlue)
 
     // We send the event to the parent.
     const parentFlowIndex = tx.vog_getParentFlowIndex(flowIndex)
@@ -1270,9 +1260,7 @@ export default class Scheduler2 {
 
     // Update the F2
     const nextF2 = tx.vf2_getF2(nextF2i)
-    // nextF2._yarp = 'enqueue_StepCompleted'
     nextF2.ts1 = Date.now()
-
 
     if (FLOW_PARANOID) {
       validateStandardObject('enqueue_StepCompleted event', event, DEFINITION_STEP_COMPLETE_EVENT)
@@ -1298,10 +1286,12 @@ export default class Scheduler2 {
     // Get the node group of the parent, so we know where to run the
     // completion handler callback.
     // tx.vog_getParentFlowIndex(event.flowIndex)
-    const flow = tx.vog_getFlowRecord(event.flowIndex)
-    // console.log(`flow=`, flow)
-    const callbackNodeGroup = flow.onComplete.nodeGroup
-  
+//ZM    const f2 = tx.vf2_getF2(event.f2i)
+    // console.log(`f2=`.blue, f2)
+//ZM    const flow = tx.vog_getFlowRecord(event.flowIndex)
+    // console.log(`flow=`.blue, flow)
+    const callbackNodeGroup = nextF2[F2ATTR_NODEGROUP]
+
     // How to reply when complete
     // assert (typeof(event.onComplete) === 'object')
     // assert (typeof(event.onComplete.nodeGroup) === 'string')
