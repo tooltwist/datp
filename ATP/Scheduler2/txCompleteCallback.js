@@ -6,6 +6,7 @@
  */
 import { GO_BACK_AND_RELEASE_WORKER } from "./Worker2"
 import { RedisQueue } from "./queuing/RedisQueue-ioredis"
+import { FLOW_VERBOSE } from "./queuing/redis-lua"
 
 
 export const TX_COMPLETE_CALLBACK = `txComplete`

@@ -255,7 +255,7 @@ export default class Worker2 {
         const nextF2i = event.f2i + 1
         const completionToken = null
         const workerForShortcut = this
-        const rv = await schedulerForThisNode.enqueue_StepCompleted(txState, this.flowIndex, nextF2i, completionToken, workerForShortcut)
+        const rv = await schedulerForThisNode.enqueue_StepCompleted(txState, event.flowIndex, nextF2i, completionToken, workerForShortcut)
         assert(rv === GO_BACK_AND_RELEASE_WORKER)
         this.#reuseCounter--
         return GO_BACK_AND_RELEASE_WORKER
@@ -354,7 +354,7 @@ export default class Worker2 {
    */
   async processEvent_StepCompleted(tx, event) {
     // console.log(`----------------------`.bgYellow)
-    if (FLOW_VERBOSE > 1) console.log(`<<< Worker.processEvent_StepCompleted()`.cyan + ' ' + tx.vog_flowPath(event.flowIndex).gray)
+    if (FLOW_VERBOSE > 1) console.log(`<<< Worker.processEvent_StepCompleted()`.cyan + ' ' + event.f2i)
 
     // console.log(`tx.pretty()=`, tx.pretty())
     // console.log(`tx=`, tx)
@@ -442,8 +442,6 @@ export default class Worker2 {
    */
    async processEvent_TransactionChanged(event) {
     if (VERBOSE > 1) console.log(`<<< processEvent_TransactionChanged()`.brightYellow, event)
-
-    assert(typeof(event.flowIndex) === 'number')
 
     try {
       const worker = this

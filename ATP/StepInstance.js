@@ -368,7 +368,7 @@ export default class StepInstance {
       // stepOutput: myStepOutput
     }, 'stepInstance.succeeded()')
 
-    tx.vog_flowRecordStep_complete(this.#flowIndex, STEP_SUCCESS, note, myStepOutput)
+    // tx.vog_flowRecordStep_complete(this.#flowIndex, STEP_SUCCESS, note, myStepOutput)
 
 //ZM    const flow = tx.vog_getFlowRecord(this.#flowIndex)
 
@@ -434,7 +434,7 @@ export default class StepInstance {
       // stepOutput: myStepOutput
     }, 'stepInstance.aborted()')
 
-    tx.vog_flowRecordStep_complete(this.#flowIndex, STEP_ABORTED, note, myStepOutput)
+    // tx.vog_flowRecordStep_complete(this.#flowIndex, STEP_ABORTED, note, myStepOutput)
 
     // Update flow2
     const f2 = tx.vf2_getF2(this.#f2i)
@@ -503,7 +503,7 @@ export default class StepInstance {
       // stepOutput: myStepOutput
     }, 'stepInstance.failed()')
 
-    tx.vog_flowRecordStep_complete(this.#flowIndex, STEP_FAILED, note, myStepOutput)
+    // tx.vog_flowRecordStep_complete(this.#flowIndex, STEP_FAILED, note, myStepOutput)
 
     // Update flow2
     const f2 = tx.vf2_getF2(this.#f2i)
@@ -566,7 +566,7 @@ export default class StepInstance {
       // stepOutput: data
     }, 'stepInstance.badDefinition()')
 
-    tx.vog_flowRecordStep_complete(this.#flowIndex, STEP_INTERNAL_ERROR, note, data)
+    // tx.vog_flowRecordStep_complete(this.#flowIndex, STEP_INTERNAL_ERROR, note, data)
 
     // Update flow2
     const f2 = tx.vf2_getF2(this.#f2i)
@@ -646,7 +646,7 @@ export default class StepInstance {
       // stepOutput: data
     }, 'stepInstance.exceptionInStep()')
 
-    tx.vog_flowRecordStep_complete(this.#flowIndex, STEP_INTERNAL_ERROR, note, data)
+    // tx.vog_flowRecordStep_complete(this.#flowIndex, STEP_INTERNAL_ERROR, note, data)
 
     // Update flow2
     const f2 = tx.vf2_getF2(this.#f2i)

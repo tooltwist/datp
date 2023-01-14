@@ -2176,7 +2176,6 @@ redis.call('set', '@n3', nodeGroup)
           // console.log(`txState=`, txState.pretty())
 
           // A few sanity checks
-          assert(event.flowIndex >= 0)
           assert(event.f2i >= 0)
           const stepId = txState.vf2_getStepId(event.f2i)
 

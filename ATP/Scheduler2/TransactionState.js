@@ -355,17 +355,17 @@ export default class TransactionState {
     latestEntry.duration = duration
   }
 
-  vog_flowRecordStep_complete(flowIndex, completionStatus, note, output) {
-    // console.log(`vog_flowRecordStep_complete(${flowIndex}, ${completionStatus}, ${note}, ${output})`.brightYellow)
-    assert(flowIndex >= 0 && flowIndex < this.#me.flow.length)
-    const entry = this.#me.flow[flowIndex]
-    // assert(entry.stepId === stepId)
-    entry.ts3 = Date.now()
-    entry.completionStatus = completionStatus
-    entry.note = note
-    entry.output = output
-    // console.log(`entry=`, entry)
-  }
+  // vog_flowRecordStep_complete(flowIndex, completionStatus, note, output) {
+  //   // console.log(`vog_flowRecordStep_complete(${flowIndex}, ${completionStatus}, ${note}, ${output})`.brightYellow)
+  //   assert(flowIndex >= 0 && flowIndex < this.#me.flow.length)
+  //   const entry = this.#me.flow[flowIndex]
+  //   // assert(entry.stepId === stepId)
+  //   entry.ts3 = Date.now()
+  //   entry.completionStatus = completionStatus
+  //   entry.note = note
+  //   entry.output = output
+  //   // console.log(`entry=`, entry)
+  // }
 
   // vog_getFlow() {
   //   return this.#me.flow
