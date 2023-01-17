@@ -196,10 +196,6 @@ export async function pipelineStepCompleteCallback (tx, f2i, nodeInfo, worker) {
       const nextF2i = f2i + 1
 
 
-      await tx.delta(childStepId, {
-        vogAddedBy: 'PipelineStepCompletedCallback()'
-      }, 'pipelineStep.invoke()')/// Temporary - remove this
-
       const event = {
         eventType: Scheduler2.STEP_START_EVENT,
         // Need either a pipeline or a nodeGroup

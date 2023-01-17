@@ -262,7 +262,7 @@ export const STEP_DEFINITION = {
   // vogPipeline: { type: 'string' },
   level: { type: 'number' },
   fullSequence: { type: 'string' },
-  vogAddedBy: { type: 'string' },
+//ZM  vogAddedBy: { type: 'string' },
   stepDefinition: { type: 'string,object' },
   // stepInput: { type: 'object' },
   status: { type: 'string' },

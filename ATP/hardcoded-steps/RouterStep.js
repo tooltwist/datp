@@ -118,10 +118,6 @@ export class RouterStep extends Step {
     // // const childNodeId = null
 
     const childStepId = await tx.addPipelineStep(parentStepId, 0, pipelineName)
-    // await tx.delta(childStepId, { vogIsPipelineChild: true }, 'pipelineStep.invoke()')/// Temporary - remove this
-    await tx.delta(childStepId, {
-      vogAddedBy: 'RouterStep.invoke()'
-    }, 'pipelineStep.invoke()')/// Temporary - remove this
 
     // // If this pipeline runs in a different node group, we'll start it via the group
     // // queue for that nodeGroup. If the pipeline runs in the current node group, we'll

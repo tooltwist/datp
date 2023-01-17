@@ -872,9 +872,6 @@ export default class Scheduler2 {
       // const stepId = GenerateHash('s')
 
       const stepId = await tx.addInitialStep(pipelineName)
-      await tx.delta(stepId, {
-        vogAddedBy: 'Scheduler2.startTransaction()'
-      }, 'pipelineStep.invoke()')/// Temporary - remove this
 
       // Update our statistics
       this.#transactionsInPastMinute.add(1)

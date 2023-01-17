@@ -70,9 +70,6 @@ class Pipeline extends Step {
       const childFullSequence = `${pipelineStep.fullSequence}.${i + 1}` // Start sequence at 1
       const childVogPath = `${pipelineStep.vogPath},${i + 1}=PC.${childStepDefinition.stepType}` // Start sequence at 1
 
-
-
-      await tx.delta(childStepId, { vogAddedBy: 'PipelineStep.invoke()' }, 'pipelineStep.invoke()')/// Temporary - remove this
       await tx.delta(childStepId, {
         stepDefinition: childStepDefinition,
         fullSequence: childFullSequence,
