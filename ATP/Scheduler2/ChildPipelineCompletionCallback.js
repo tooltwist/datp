@@ -21,7 +21,7 @@ export const CHILD_PIPELINE_COMPLETION_CALLBACK = 'childPipelineComplete'
  * to a child pipeline. When the child pipline completes, the RouterStep completes with the
  * status of the child pipeline it invoked.
  */
-export async function childPipelineCompletionCallback (tx, f2i, nodeInfo, worker) {
+export async function childPipelineCompletionCallback (tx, f2i, worker) {
   if (FLOW_VERBOSE) flow2Msg(tx, `Callback childPipelineCompletionCallback(f2i=${f2i})`, f2i)
 
   assert(typeof(f2i) === 'number')
@@ -55,7 +55,6 @@ export async function childPipelineCompletionCallback (tx, f2i, nodeInfo, worker
 
   // Prefix to make debug messages nice
   const indent = indentPrefix(parentStep.level)
-  // if (ROUTERSTEP_VERBOSE) console.log(indent + `==> Callback childPipelineCompletionCallback() context=`, callbackContext, nodeInfo)
 
   assert(stepStatus !== STEP_FAILED) // Should not happen. Pipelines either succeed, rollback to success, or abort.
 

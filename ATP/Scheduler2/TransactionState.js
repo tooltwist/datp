@@ -317,6 +317,23 @@ export default class TransactionState {
     return { f2i: 0, f2: entry }
   }
 
+  vf2_setF2callback(f2i, value) {
+    assert(f2i >= 0 && f2i < this.#me.f2.length)
+    this.#me.f2[f2i][F2ATTR_CALLBACK] = value
+  }
+
+  vf2_setF2pipeline(f2i, pipeline) {
+    assert(f2i >= 0 && f2i < this.#me.f2.length)
+    this.#me.f2[f2i][F2ATTR_PIPELINE] = pipeline
+  }
+
+  /**
+   * 
+   * @param {*} f2i 
+   * @param {*} type 
+   * @param {*} addedBy 
+   * @returns { f2i, f2 }
+   */
   vf2_addF2sibling(f2i, type, addedBy) {
     // console.log(`vf2_addF2sibling(${f2i}, ${type})`)
     assert(f2i >= 0 && f2i < this.#me.f2.length)
@@ -348,6 +365,13 @@ export default class TransactionState {
     return { f2i: newPos, f2: newF2 }
   }
 
+  /**
+   * 
+   * @param {*} parentF2i 
+   * @param {*} type 
+   * @param {*} addedBy 
+   * @returns { f2i, f2 }
+   */
   vf2_addF2child(parentF2i, type, addedBy) {
     assert(parentF2i >= 0 && parentF2i < this.#me.f2.length)
     const parent = this.#me.f2[parentF2i]

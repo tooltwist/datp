@@ -19,7 +19,7 @@ import { GO_BACK_AND_RELEASE_WORKER } from './Worker2'
 
 export const PIPELINE_STEP_COMPLETE_CALLBACK = `pipelineStepComplete`
 
-export async function pipelineStepCompleteCallback (tx, f2i, nodeInfo, worker) {
+export async function pipelineStepCompleteCallback (tx, f2i, worker) {
   if (FLOW_VERBOSE) flow2Msg(tx, `Callback pipelineStepCompleteCallback(f2i=${f2i})`, f2i)
   if (F2_VERBOSE) console.log(`F2: pipelineStepCompleteCallback: ${f2i}`)
 
@@ -140,12 +140,6 @@ export async function pipelineStepCompleteCallback (tx, f2i, nodeInfo, worker) {
       const metadataForNewStep = tx.vog_getMetadata()
       const inputForNewStep = tx.vf2_getOutput(f2i)
 
-      // The child will run in this node - same as this pipeline.
-      // We keep the steps all running on the same node, so they all use the same
-      // cached transaction. We only jump to another node when we are calling a
-      // pipline that runs on another node.
-      const myNodeGroup = schedulerForThisNode.getNodeGroup()
-
       //VOGGY
       if (FLOW_VERBOSE) {
         // console.log(`--------------------------------------`)
@@ -168,17 +162,23 @@ export async function pipelineStepCompleteCallback (tx, f2i, nodeInfo, worker) {
       childF2.ts1 = Date.now()
       childF2.ts2 = 0
       childF2.ts3 = 0
-      const { f2i: completionF2i, f2:completionHandlerF2 } = tx.vf2_addF2sibling(f2i, F2_PIPELINE_CH, 'pipelineStepCompleteCallback')
-      completionHandlerF2[F2ATTR_CALLBACK] = PIPELINE_STEP_COMPLETE_CALLBACK
+      const { f2i: completionHandlerF2i, f2:completionHandlerF2 } = tx.vf2_addF2sibling(f2i, F2_PIPELINE_CH, 'pipelineStepCompleteCallback')
+      // completionHandlerF2[F2ATTR_CALLBACK] = PIPELINE_STEP_COMPLETE_CALLBACK
+      tx.vf2_setF2callback(completionHandlerF2i, PIPELINE_STEP_COMPLETE_CALLBACK)
       completionHandlerF2[F2ATTR_NODEGROUP] = schedulerForThisNode.getNodeGroup()
 
       const nextF2i = f2i + 1
 
 
+      // The child will run in this node - same as this pipeline.
+      // We keep the steps all running on the same node, so they all use the same
+      // cached transaction. We only jump to another node when we are calling a
+      // pipline that runs on another node.
+      const myNodeGroup = schedulerForThisNode.getNodeGroup()
       const event = {
         eventType: Scheduler2.STEP_START_EVENT,
         txId,
-        parentNodeGroup: nodeInfo.nodeGroup,
+        parentNodeGroup: myNodeGroup,
         stepDefinition: pipelineSteps[nextStepNo].definition,
         metadata: metadataForNewStep,
         data: inputForNewStep,

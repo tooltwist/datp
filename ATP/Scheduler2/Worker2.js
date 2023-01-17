@@ -297,7 +297,7 @@ export default class Worker2 {
 
           if (FLOW_VERBOSE) flow2Msg(txState, `[${this.#reuseCounter}: worker ${this.#workerId} STARTING STEP ${stepId} ]`)
           const rv = await stepObject.invoke(instance) // Provided by the step implementation
-          // if (FLOW_VERBOSE) flow2Msg(txState, `[${this.#reuseCounter}: worker ${this.#workerId} RETURNED FROM ${stepId}] (and any nested steps)`)
+          if (FLOW_VERBOSE) flow2Msg(txState, `[${this.#reuseCounter}: worker ${this.#workerId} RETURNED FROM ${stepId}] (and any nested steps)`)
 
           // Check that the step used the stepInstance functions to finalize the step.
           if (!instance._correctlyFinishedStep()) {
@@ -387,15 +387,8 @@ export default class Worker2 {
       f2.ts2 = Date.now()
       f2.ts3 = f2.ts2
 
-
       // Call the callback
-      // console.log(`=> calling callback [${stepData.onComplete.callback}]`.dim)
-      const nodeInfo = {
-        nodeGroup: schedulerForThisNode.getNodeGroup(),
-        nodeId: schedulerForThisNode.getNodeId()
-      }
-
-      const rv = await CallbackRegister.call(tx, f2[F2ATTR_CALLBACK], event.f2i, nodeInfo, worker)//MZMZMZ
+      const rv = await CallbackRegister.call(tx, f2[F2ATTR_CALLBACK], event.f2i, worker)
       assert(rv === GO_BACK_AND_RELEASE_WORKER)
       return GO_BACK_AND_RELEASE_WORKER
     } catch (e) {

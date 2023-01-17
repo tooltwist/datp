@@ -11,7 +11,7 @@ import { FLOW_VERBOSE } from "./queuing/redis-lua"
 
 export const TX_COMPLETE_CALLBACK = `txComplete`
 
-export async function txCompleteCallback (tx, f2i , nodeInfo, worker) {
+export async function txCompleteCallback (tx, f2i, worker) {
   if (FLOW_VERBOSE) flow2Msg(tx, `Callback txCompleteCallback(f2i=${f2i})`, f2i)
   
   // Save the final step's output, status and note as the transaction's result

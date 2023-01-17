@@ -97,7 +97,7 @@ export class RouterStep extends Step {
     childF2.ts2 = 0
     childF2.ts3 = 0
     // const { f2:completionHandlerF2 } = tx.vf2_addF2child(f2i, F2_PIPELINE_CH, 'RouterStep.invoke')
-    const { f2:completionHandlerF2 } = tx.vf2_addF2sibling(f2i, F2_PIPELINE_CH, 'RouterStep.invoke')
+    const { f2:completionHandlerF2, f2i:completionHandlerF2i } = tx.vf2_addF2sibling(f2i, F2_PIPELINE_CH, 'RouterStep.invoke')
     completionHandlerF2[F2ATTR_CALLBACK] = CHILD_PIPELINE_COMPLETION_CALLBACK
     completionHandlerF2[F2ATTR_NODEGROUP] = parentNodeGroup
 

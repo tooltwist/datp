@@ -901,7 +901,8 @@ export default class Scheduler2 {
       pipelineF2.ts3 = 0
       const { f2i: completionHandlerF2i, f2: completionHandlerF2 } = tx.vf2_addF2sibling(f2i, F2_TRANSACTION_CH, 'Scheduler2.startTransaction')
       completionHandlerF2[F2ATTR_NODEGROUP] = myNodeGroup
-      completionHandlerF2[F2ATTR_CALLBACK] = TX_COMPLETE_CALLBACK
+      // completionHandlerF2[F2ATTR_CALLBACK] = TX_COMPLETE_CALLBACK
+      tx.vf2_setF2callback(completionHandlerF2i, TX_COMPLETE_CALLBACK)
 
       vog_event.f2i = pipelineF2i
       const checkExternalIdIsUnique = metadata.externalId ? true : false
