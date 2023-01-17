@@ -103,7 +103,6 @@ export default class TransactionState {
       progressReport: obj.progressReport ? obj.progressReport : null,
 
       steps: obj.steps ? obj.steps : { }, // stepId => { }
-      flow: obj.flow ? obj.flow : [ ], // Progress through the pipelines / steps
       f2: obj.f2 ? obj.f2 : [ ],
     }
 
@@ -200,14 +199,6 @@ export default class TransactionState {
     return this.#me.transactionData.completionTime
   }
 
-  // vogGetStep(stepId) {
-  //   let step = this.#me.steps[stepId]
-  //   if (step === undefined) {
-  //     step = { }
-  //     this.#me.steps[stepId] = step
-  //   }
-  //   return step
-  // }
 
   async addInitialStep(pipelineName) {
     const stepId = GenerateHash('s')
@@ -272,20 +263,13 @@ export default class TransactionState {
     
   async addChildStep(parentStepId, index) {
     const childStepId = GenerateHash('s')
-    // await this.setChildIndex(childStepId, index)
-    // await this.setChildParent(childStepId, parentStepId)
-
-    // console.log(`parentStepId=`, parentStepId)
     const parentStep = this.#me.steps[parentStepId]
-    // console.log(`parentStep=`, parentStep)
 
     validateStandardObject('addChildStep() parent step', parentStep, STEP_DEFINITION)
 
     const childFullSequence = `${parentStep.fullSequence}.${index}` // Start sequence at 1
-    // const childVogPath = `${pipelineInstance.getVogPath()},1=P.${stepType}` // Start sequence at 1
     let childVogPath = `${parentStep.vogPath?parentStep.vogPath:'???vog???'},${index}` // Start sequence at 1
     const stepDefinition = this.vog_getStepDefinitionFromParent(parentStepId, index)
-    // console.log(`stepDefinition=`, stepDefinition)
     if (stepDefinition && stepDefinition.stepType) {
       childVogPath += `=${stepDefinition.stepType}`
     }
@@ -299,57 +283,7 @@ export default class TransactionState {
       status: STEP_INITIAL,
     }, 'Transaction.js')
 
-    // console.log(`this.vog_getStepDefinition(${childStepId})=`, this.vog_getStepDefinition(childStepId))
-
     return childStepId
-  }
-
-  vog_flowRecordStep_scheduled(parentIndex, stepId, input, onComplete) {
-    console.log(`vog_flowRecordStep_scheduled - NOT CREATING FLOW RECORD`)
-    return
-
-    if (VERBOSE) console.log(`vog_flowRecordStep_scheduled(parentIndex=${parentIndex}, ${stepId}, input, onComplete)`)
-    // console.log(`this.#me.flow=`, this.#me.flow)
-
-    const step = this.stepData(stepId)
-    assert(step)
-
-    const index = this.#me.flow.length
-    const entry = {
-      i: index
-    }
-    if (typeof(parentIndex) === 'number') {
-      entry.p = parentIndex
-    }
-    // entry.vogPath = vogPath
-    entry._tmpPath = step.vogPath
-    entry.ts1 = Date.now()
-    entry.ts2 = 0
-    entry.ts3 = 0
-    entry.stepId = stepId
-    entry.nodeId = null,
-    entry.input = input
-    entry.onComplete = onComplete
-    entry.note = null
-    entry.completionStatus = null
-    entry.output = null
-    // console.log(`vog_flowRecordStep_scheduled() - new flow entry: ${JSON.stringify(entry,'',2)}`.magenta)
-    this.#me.flow.push(entry)
-    return this.#me.flow.length - 1
-  }
-
-  vog_flowRecordStep_invoked(stepId, nodeId) {
-    console.log(`vog_flowRecordStep_invoked() - NOT CHECKING FLOW RECORD`)
-    return
-
-    // console.log(`vog_flowRecordStep_invoked()`.red)
-    assert(this.#me.flow.length >= 1)
-    const latestEntry = this.#me.flow[this.#me.flow.length - 1]
-    // console.log(`latestEntry=`, latestEntry)
-    assert(latestEntry.stepId === stepId)
-    latestEntry.ts2 = Date.now()
-    latestEntry.nodeId = schedulerForThisNode.getNodeId()
-    latestEntry.vog_nodeGroup = schedulerForThisNode.getNodeGroup()
   }
 
   vog_flowRecordStep_sleep(stepId, wakeSwitch, duration) {
@@ -361,42 +295,9 @@ export default class TransactionState {
     latestEntry.duration = duration
   }
 
-  // vog_flowRecordStep_complete(flowIndex, completionStatus, note, output) {
-  //   // console.log(`vog_flowRecordStep_complete(${flowIndex}, ${completionStatus}, ${note}, ${output})`.brightYellow)
-  //   assert(flowIndex >= 0 && flowIndex < this.#me.flow.length)
-  //   const entry = this.#me.flow[flowIndex]
-  //   // assert(entry.stepId === stepId)
-  //   entry.ts3 = Date.now()
-  //   entry.completionStatus = completionStatus
-  //   entry.note = note
-  //   entry.output = output
-  //   // console.log(`entry=`, entry)
-  // }
-
-  // vog_getFlow() {
-  //   return this.#me.flow
-  // }
-
-  // vog_getFlowLength() {
-  //   return this.#me.flow.length
-  // }
-
-  // vog_getFlowRecord(index) {
-  //   if (index < 0) {
-  //     index = this.#me.flow.length - 1
-  //   }
-  //   assert(index >= 0 && index < this.#me.flow.length)
-  //   return this.#me.flow[index]
-  // }
-
   v2f_setF2Transaction(pipelineName, metadata, input) {
     assert(this.#me.f2.length === 0)
     const entry = {
-      // description: this.vf2_typeDescription(F2_TRANSACTION),
-      // t: F2_TRANSACTION,
-      // l: 0,
-      // p: -1,
-      // transactionType: pipelineName,
       // metadata,
       // input,
       ts1: Date.now(),
@@ -420,7 +321,6 @@ export default class TransactionState {
     // console.log(`vf2_addF2sibling(${f2i}, ${type})`)
     assert(f2i >= 0 && f2i < this.#me.f2.length)
     const thisF2 = this.#me.f2[f2i]
-    // console.log(`thisF2=`, thisF2)
 
     // If this F2 record has a sibling itself, we'll use the same one.
     const siblingF2i = thisF2[F2ATTR_SIBLING] ? thisF2[F2ATTR_SIBLING] : f2i
@@ -430,13 +330,7 @@ export default class TransactionState {
     while (newPos < this.#me.f2.length && this.#me.f2[newPos][F2ATTR_PARENT] === f2i) {
       newPos++
     }
-    // console.log(`newPos=`, newPos)
     const newF2 = {
-      // description: this.vf2_typeDescription(type),
-      // t: type,
-      // p: parent.p,
-      // l: thisF2.l,
-      // s: siblingF2i,
       ts1: Date.now(),
       ts2: 0,
       ts3: 0
@@ -445,7 +339,6 @@ export default class TransactionState {
     newF2[F2ATTR_TYPE] = type
     newF2[F2ATTR_LEVEL] = thisF2[F2ATTR_LEVEL]
     newF2[F2ATTR_SIBLING] = siblingF2i
-    // newF2[F2ATTR_SIBLING] = siblingF2i
     newF2._addedBy = addedBy
     this.#me.f2.splice(newPos, 0, newF2)
 
@@ -465,10 +358,6 @@ export default class TransactionState {
       childF2i++
     }
     const childF2 = {
-      // description: this.vf2_typeDescription(type),
-      // t: type,
-      // p: parentF2i,
-      // l: parent.l + 1,
       ts1: Date.now(),
       ts2: 0,
       ts3: 0
@@ -525,18 +414,12 @@ export default class TransactionState {
     assert(f2i >= 0 && f2i < this.#me.f2.length)
     const f2 = this.#me.f2[f2i]
     const siblingF2i = f2[F2ATTR_SIBLING]
-    // console.log(`siblingF2i=`, siblingF2i)
     if (typeof(siblingF2i) !== 'undefined') {
       assert(siblingF2i >= 0 && siblingF2i < this.#me.f2.length)
       return this.#me.f2[siblingF2i]
     }
     return f2
   }
-
-  // vog_getStepRecord(index) {
-  //   // console.log(`this.#me.steps=`, this.#me.steps)
-  //   return this.#me.steps[index]
-  // }
 
   /**
    * Run back through the flow entries until we find a status.
@@ -572,15 +455,11 @@ export default class TransactionState {
     // If this is related to another f2, for example if this is
     // a callback, get the step from that sibling.
     const siblingF2i = f2[F2ATTR_SIBLING]
-    // console.log(`siblingF2i=`, siblingF2i)
     if (typeof(siblingF2i) !== 'undefined') {
-      // console.log(`USING stepId from sibling`)
       assert(siblingF2i >= 0 && siblingF2i < this.#me.f2.length)
       const siblingF2 = this.#me.f2[siblingF2i]
-      // console.log(`siblingF2=`, siblingF2)
       return siblingF2[F2ATTR_STEPID]
     }
-// console.log(`USING original f2 stepId`)
     return f2[F2ATTR_STEPID]
   }
 
@@ -608,19 +487,6 @@ export default class TransactionState {
     throw new Error(`Internal error: could not get status of f2 [${index}]`)
   }
 
-  // vog_flowPath(index) {
-  //   assert(index >= 0 && index < this.#me.flow.length)
-  //   const flow = this.#me.flow[index]
-  //   const step = this.#me.steps[flow.stepId]
-  //   return step.vogPath
-  // }
-
-  // vog_getParentFlowIndex(flowIndex) {
-  //   assert(flowIndex >= 0 && flowIndex < this.#me.flow.length)
-  //   const pIndex = this.#me.flow[flowIndex][FIELD_PARENT_FLOW_INDEX]
-  //   return (pIndex === undefined) ? -1 : pIndex
-  // }
-
   vog_getMetadata() {
     assert(typeof(this.#me.transactionData.metadata) === 'object')
     const metadata = this.#me.transactionData.metadata
@@ -639,22 +505,8 @@ export default class TransactionState {
     this.#me.retry.wakeStepId = wakeStepId
   }
 
-  vog_setNextStepId(stepId) {
-    if (!SUPPRESS) console.log(`vog_setNextStepId() - Not sure what to do with the nextStepId`.magenta)
-  }
-
   vog_setTransactionType(transactionType) {
     this.#me.transactionData.transactionType = transactionType
-  }
-
-  vog_setNodeGroup(nodeGroup) {
-    if (!SUPPRESS) console.log(`vog_setNodeGroup() - Not sure what to do with the node group`.magenta)
-  }
-  vog_setNodeId(nodeId) {
-    if (!SUPPRESS) console.log(`vog_setNodeId() - Not sure what to do with the nodeId`.magenta)
-  }
-  vog_setPipelineName(pipelineName) {
-    if (!SUPPRESS) console.log(`vog_setNodeId() - Not sure what to do with the nodeId`.magenta)
   }
   vog_setStatusToQueued() {
     this.#me.transactionData.status = TX_STATUS_QUEUED
@@ -696,8 +548,6 @@ export default class TransactionState {
     // Get the parent step
     const parent = this.#me.steps[parentStepId]
     assert(parent)
-    // console.log(`parent=`, parent)
-    // assert(parent.vogStepDefinition)
     const parentDefinition = parent.vogStepDefinition
     // console.log(`parentDefinition=`, parentDefinition)
     if (!parentDefinition) {
@@ -708,8 +558,6 @@ export default class TransactionState {
     // console.log(`parentDefinition=`, parentDefinition)
 
     // Get the step definition
-    // console.log(`childIndex=`, childIndex)
-    // console.log(`parentDefinition.steps.length=`, parentDefinition.steps.length)
     assert(childIndex >= 0 && childIndex < parentDefinition.steps.length)
     const childDefinition = parentDefinition.steps[childIndex].definition
     assert(childDefinition)
@@ -770,21 +618,6 @@ export default class TransactionState {
   JnodeGroupWhereStepRuns(childId) { return this.#me.steps[childId].nodeGroupWhereStepRuns }
 
 
-  // async setChildIndex(childStepId, stepIndex) {
-  //   // this.vogGetStep(stepId).childStepIndex = stepIndex
-  //   await this.delta(childStepId, {
-  //     vogI: stepIndex,
-  //   }, 'Transaction.js')
-  // }
-
-  // async setChildParent(childStepId, parentStepId) {
-  //   // this.vogGetStep(stepId).vogP = parentStepId
-  //   await this.delta(childStepId, {
-  //     vogP: parentStepId,
-  //   }, 'Transaction.js')
-  // }
-
-
   asObject() {
     return this.#me
   }
@@ -799,9 +632,6 @@ export default class TransactionState {
     return JSON.stringify(this.asObject(), '', pretty ? 2 : 0)
   }
 
-  // txData() {
-  //   return this.#me
-  // }
 
   transactionData() {
     return this.#me.transactionData
@@ -840,7 +670,7 @@ export default class TransactionState {
    * @param {boolean} replayingPastDeltas Set to true only when reloading from database (do not use this).
    */
   async delta(stepId, data, note='', replayingPastDeltas=false) {
-    let id = stepId ? stepId.substring(2, 10) : 'tx'
+    // let id = stepId ? stepId.substring(2, 10) : 'tx'
     // console.log(`delta - ${note} - ${id}`)
     if (VERBOSE) console.log(`\n*** delta(${stepId}, data, replayingPastDeltas=${replayingPastDeltas})`, data)
 // console.log(`YARP delta - #${this.#deltaCounter}`)

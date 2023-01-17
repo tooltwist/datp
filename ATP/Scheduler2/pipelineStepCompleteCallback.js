@@ -6,10 +6,7 @@
  */
 import assert from 'assert'
 import { schedulerForThisNode } from '../..'
-import dbLogbook from '../../database/dbLogbook'
 import indentPrefix from '../../lib/indentPrefix'
-import pause from '../../lib/pause'
-import GenerateHash from '../GenerateHash'
 import { PIPELINES_VERBOSE } from '../hardcoded-steps/PipelineStep'
 import { STEP_SUCCESS, STEP_ABORTED, STEP_FAILED, STEP_INTERNAL_ERROR } from '../Step'
 import { STEP_DEFINITION, validateStandardObject } from './eventValidation'
@@ -40,7 +37,6 @@ export async function pipelineStepCompleteCallback (tx, f2i, nodeInfo, worker) {
   assert(typeof(pipelineF2[F2ATTR_CURRENT_PIPELINE_STEP]) === 'number')
 
   // Get the flow entry for the pipeline that called this step
-//ZM  const parentFlowIndex = tx.vog_getParentFlowIndex(flowIndex)
   const parentStepId = tx.vf2_getStepId(f2i)
 
   const pipelineStep = tx.stepData(parentStepId)
@@ -120,19 +116,6 @@ export async function pipelineStepCompleteCallback (tx, f2i, nodeInfo, worker) {
       // Update the final time for the pipeline.
       pipelineF2.ts3 = Date.now()
 
-      // Send the event back to whoever started this step
-      // const queueToParentOfPipeline = Scheduler2.groupQueueName(pipelineStep.onComplete.nodeGroup)
-      // const parentNodeGroup = parentFlow.onComplete.nodeGroup
-      // console.log(`parentNodeGroup=`.red, parentNodeGroup)
-      // const piplineCompleteEvent = {
-      //   eventType: Scheduler2.STEP_COMPLETED_EVENT,
-      //   txId,
-      //   // parentStepId: '-',
-      //   // stepId: pipelineStepId,
-      //   // completionToken: pipelineStep.onComplete.completionToken
-      //   flowIndex: parentFlowIndex,
-      // }
-
       const nextF2i = f2i + 1
       if (F2_VERBOSE) console.log(`F2: pipelineStepCompleteCallback: Pipeline finished, go to ${nextF2i}`.bgBrightBlue.white)
       const completionToken = null
@@ -180,44 +163,31 @@ export async function pipelineStepCompleteCallback (tx, f2i, nodeInfo, worker) {
       const myF2 = tx.vf2_getF2(f2i)
       assert(myF2)
 
-      // const { f2i:childF2i, f2:childF2} = tx.vf2_addF2child(f2i, F2_STEP, 'pipelineStepCompleteCallback')
       const { f2i:childF2i, f2:childF2} = tx.vf2_addF2child(f2i, F2_STEP, 'pipelineStepCompleteCallback')
-      // const { f2i:childF2i, f2:childF2} = tx.vf2_addF2sibling(pipelineF2i, F2_STEP, 'pipelineStepCompleteCallback')
       childF2[F2ATTR_STEPID] = childStepId
       childF2.ts1 = Date.now()
       childF2.ts2 = 0
       childF2.ts3 = 0
       const { f2i: completionF2i, f2:completionHandlerF2 } = tx.vf2_addF2sibling(f2i, F2_PIPELINE_CH, 'pipelineStepCompleteCallback')
-      // const { f2i: completionF2i, f2:completionHandlerF2 } = tx.vf2_addF2child(childF2i, F2_PIPELINE_CH, 'pipelineStepCompleteCallback')
       completionHandlerF2[F2ATTR_CALLBACK] = PIPELINE_STEP_COMPLETE_CALLBACK
       completionHandlerF2[F2ATTR_NODEGROUP] = schedulerForThisNode.getNodeGroup()
-      // console.log(`completionHandlerF2=`.brightMagenta, completionHandlerF2)
 
       const nextF2i = f2i + 1
 
 
       const event = {
         eventType: Scheduler2.STEP_START_EVENT,
-        // Need either a pipeline or a nodeGroup
-        // nodeGroup: nodeInfo.nodeGroup, // Child runs in same node as the pipeline step
         txId,
-        // stepId: childStepId,
         parentNodeGroup: nodeInfo.nodeGroup,
-        // parentStepId: pipelineStepId,
-        // fullSequence: childFullSequence,
-        // vogPath: childVogPath,
         stepDefinition: pipelineSteps[nextStepNo].definition,
         metadata: metadataForNewStep,
         data: inputForNewStep,
         level: pipelineStep.level + 1,
-        // f2i: childF2i,
         f2i: nextF2i,
       }
       const onComplete = {
         nodeGroup: myNodeGroup,
-        // nodeId: myNodeId,
         callback: PIPELINE_STEP_COMPLETE_CALLBACK,
-//VOG777        context: { txId, parentNodeGroup: nodeInfo.nodeGroup, parentStepId: pipelineStepId, childStepId }
       }
 
       if (F2_VERBOSE) console.log(`F2: pipelineStepCompleteCallback: On to next step ${nextF2i}`.bgBrightBlue.white)
@@ -239,7 +209,7 @@ export async function pipelineStepCompleteCallback (tx, f2i, nodeInfo, worker) {
      *
      *************************************************************/
     // We can't rollback yet, so abort instead.
-//ZM    const pipelineStatus = (stepStatus === STEP_FAILED) ? STEP_ABORTED : stepStatus
+    const pipelineStatus = (stepStatus === STEP_FAILED) ? STEP_ABORTED : stepStatus
     //ZZZZ Log this
     if (PIPELINES_VERBOSE) console.log(indent + `<<<<    PIPELINE DID NOT SUCCEED ${pipelineStepId}  `.white.bgRed)
 //ZM    await tx.delta(pipelineStepId, {
@@ -247,16 +217,8 @@ export async function pipelineStepCompleteCallback (tx, f2i, nodeInfo, worker) {
 //ZM      // note: childStep.note,
 //ZM      // status: pipelineStatus
 //ZM    }, 'pipelineStepCompleteCallback()')
-    // console.log(`pipeline step is now`, tx.stepData(pipelineStepId))
 
     // Send the event back to whoever started this step
-    // const parentNodeGroup = pipelineStep.onComplete.nodeGroup
-    // const piplineCompleteEvent = {
-    //     txId,
-    //     // parentStepId: '-',
-    //     stepId: pipelineStepId,
-    //     completionToken: pipelineStep.onComplete.completionToken
-    //   }
     const nextF2i = f2i + 1
     const completionToken = null
     const workerForShortcut = worker

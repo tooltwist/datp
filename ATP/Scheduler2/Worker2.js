@@ -14,13 +14,12 @@ import { schedulerForThisNode } from "../.."
 import { CHECK_FOR_BLOCKING_WORKERS_TIMEOUT, INCLUDE_STATE_IN_NODE_HOPPING_EVENTS, SHORTCUT_STEP_START } from "../../datp-constants"
 import TransactionState, { F2ATTR_CALLBACK, F2ATTR_NODEGROUP, F2ATTR_NODEID, F2ATTR_STEPID, F2_VERBOSE } from "./TransactionState"
 import me from "../../lib/me"
-import { DEFINITION_PROCESS_STEP_START_EVENT, FLOW_DEFINITION, STEP_DEFINITION, validateStandardObject } from "./eventValidation"
+import { DEFINITION_PROCESS_STEP_START_EVENT, STEP_DEFINITION, validateStandardObject } from "./eventValidation"
 import { FLOW_VERBOSE } from "./queuing/redis-lua"
 import { flow2Msg } from "./flowMsg"
 
 const VERBOSE = 0
 const VERBOSE_16aug22 = 0
-const TX_FROM_EVENT = true
 
 require('colors')
 
@@ -177,15 +176,11 @@ export default class Worker2 {
     const stepId = f2[F2ATTR_STEPID]
     const stepData = txState.stepData(stepId)
     validateStandardObject('processEvent_StepStart event', event, DEFINITION_PROCESS_STEP_START_EVENT)
-    // validateStandardObject('processEvent_StepStart flow', flow, FLOW_DEFINITION)
     validateStandardObject('processEvent_StepStart step', stepData, STEP_DEFINITION)
 
     // if (FLOW_VERBOSE > 1) console.log(`>>> processEvent_StepStart() `.brightBlue + txState.vog_flowPath(flowIndex).gray)
     if (FLOW_VERBOSE > 1) console.log(`>>> processEvent_StepStart() `.brightBlue)
-
     if (VERBOSE > 1) console.log(`${me()}: event=`, JSON.stringify(event, '', 2))
-    // const zzz = JSON.parse(event.txState)
-    // console.log(`txState=`, JSON.stringify(zzz, '', 2))
 
     // Update the timestamp
     const myF2 = txState.vf2_getF2(event.f2i)
@@ -204,7 +199,6 @@ export default class Worker2 {
       // assert(typeof(event.stepId) === 'string')
 
 
-      // console.log(`MY NICE NEW TXSTATE=`, txState.asObject())
       // if (!txState) {
       //   // This should be flagged as a serious system error.ZZZZZ
       //   this.#reuseCounter--
@@ -213,12 +207,6 @@ export default class Worker2 {
       //   throw new Error(msg)
       // }
       if (VERBOSE_16aug22) txState.xoxYarp('Worker starting step', stepId)
-      // const txData = txState.transactionData()
-      // console.log(`txData=`, txData)
-      // if (!SHORTCUT_STEP_START) {
-      //   assert(stepData.status === STEP_QUEUED)
-      // }
-      // assert(flow.vogPath)
 
       // console.log(`Starting step with txData ${txState.pretty()}`.cyan)
       const metadata = txState.vog_getMetadata()
@@ -284,10 +272,6 @@ export default class Worker2 {
       /*
        *  Start the step - we don't wait for it to complete
        */
-
-      // console.log(`txState.asObject()=`, txState.asObject())
-      txState.vog_flowRecordStep_invoked(stepId)
-
       const stepObject = instance.getStepObject()
 
       // const hackSource = 'system' // Not sure why, but using dbLogbook.LOG_SOURCE_SYSTEM causes a compile error
@@ -353,19 +337,11 @@ export default class Worker2 {
    * @param {object} event
    */
   async processEvent_StepCompleted(tx, event) {
-    // console.log(`----------------------`.bgYellow)
     if (FLOW_VERBOSE > 1) console.log(`<<< Worker.processEvent_StepCompleted()`.cyan + ' ' + event.f2i)
-
-    // console.log(`tx.pretty()=`, tx.pretty())
-    // console.log(`tx=`, tx)
-    // console.log(`event=`, event)
 
 
     try {
       const worker = this
-      // const txId = event.txId
-      // const stepId = event.stepId
-      // const tx = await extractTransactionStateFromEvent(event)
 
       assert(event.eventType === Scheduler2.STEP_COMPLETED_EVENT)
       assert(typeof(event.txId) === 'string')
@@ -418,12 +394,7 @@ export default class Worker2 {
         nodeGroup: schedulerForThisNode.getNodeGroup(),
         nodeId: schedulerForThisNode.getNodeId()
       }
-      // console.log(`VOG ZARP PEW 5`)
-      // console.log(`processEvent_StepCompleted event.flowIndex=`.blue, event.flowIndex)
-      // console.log(`VOG ZARP PEW 6`)
 
-      const flowIndex = event.flowIndex
-      // const flowIndex = 999999
       const rv = await CallbackRegister.call(tx, f2[F2ATTR_CALLBACK], event.f2i, nodeInfo, worker)//MZMZMZ
       assert(rv === GO_BACK_AND_RELEASE_WORKER)
       return GO_BACK_AND_RELEASE_WORKER
@@ -525,41 +496,27 @@ export default class Worker2 {
 
 async function extractTransactionStateFromEvent(event) {
   // console.log(`extractTransactionStateFromEvent(${typeof(event)})`)
-  // if (TX_FROM_EVENT) {
 
-    // The transaction state is stored in the event
-    if (typeof(event.txState) === 'undefined') {
-      throw new Error(`SERIOUS INTERNAL ERROR: event.txState is undefined`)
-    }
-    if (typeof(event.txState) === null) {
-      throw new Error(`SERIOUS INTERNAL ERROR: event.txState is null`)
-    }
-    if (typeof(event.txState) === 'string') {
+  // The transaction state is stored in the event
+  if (typeof(event.txState) === 'undefined') {
+    throw new Error(`SERIOUS INTERNAL ERROR: event.txState is undefined`)
+  }
+  if (typeof(event.txState) === null) {
+    throw new Error(`SERIOUS INTERNAL ERROR: event.txState is null`)
+  }
+  if (typeof(event.txState) === 'string') {
 
-      // String passed through the REDIS events
-      const transactionState = new TransactionState(event.txState)
-      delete event.txState
-      return transactionState
-    }
-    if (event.txState instanceof TransactionState) {
-      // Event object passed through local in-memory queue
-      const transactionState = event.txState
-      delete event.txState
-      return transactionState
-    }
+    // String passed through the REDIS events
+    const transactionState = new TransactionState(event.txState)
+    delete event.txState
+    return transactionState
+  }
+  if (event.txState instanceof TransactionState) {
+    // Event object passed through local in-memory queue
+    const transactionState = event.txState
+    delete event.txState
+    return transactionState
+  }
 
-    throw new Error(`SERIOUS INTERNAL ERROR: event.txState of unknown type (${typeof(event.txState)}):`, event.txState)
-  // } else {
-
-  //   // We need to get the transaction state from persistent storage
-  //   console.log(`- getting tx from cache`)
-  //   const tx = await TransactionCache.getTransactionState(txId)
-  //   if (!tx) {
-  //     // This should be flagged as a serious system error.ZZZZZ
-  //     const msg = `SERIOUS ERROR: event for unknown transaction ${txId}. Step ID is ${stepId}.`
-  //     console.error(msg)
-  //     throw new Error(msg)
-  //   }
-  //   return tx
-  // }
+  throw new Error(`SERIOUS INTERNAL ERROR: event.txState of unknown type (${typeof(event.txState)}):`, event.txState)
 }//- extractTransactionStateFromEvent

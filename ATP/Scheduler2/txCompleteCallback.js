@@ -24,35 +24,7 @@ export async function txCompleteCallback (tx, f2i , nodeInfo, worker) {
   const rootF2 = tx.vf2_getF2(0)
   rootF2.ts3 = Date.now()
 
-  // console.log(`
-
-  
-
-  // FROM HERE WE NEED TO EITHER SCHEDULE REPLY VIA...
-  
-  // - WEBHOOK IF REQUESTED, and
-  
-  // - POSSIBLY LONG POLL, VIA PUB/SUB
-  
-  // Once these are requested, we've finished processing the transaction.
-  
-  // Yay!
-  
-  
-
-  // (finished ${Date.now() % 10000})
-  
-  // `.magenta)
-
-
-
-  //VOGTX
-  // console.log(`txCompleteCallback tx=`, JSON.stringify(tx.asObject(), '', 2))
   const redisLua = await RedisQueue.getRedisLua()
   await redisLua.luaTransactionCompleted(tx)
-
-
-
-
   return GO_BACK_AND_RELEASE_WORKER
 }

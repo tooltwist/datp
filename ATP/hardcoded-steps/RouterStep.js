@@ -6,9 +6,7 @@
  */
 import assert from 'assert'
 import { schedulerForThisNode } from '../..'
-import { getPipelineVersionInUse } from '../../database/dbPipelines'
 import { deepCopy } from '../../lib/deepCopy'
-import GenerateHash from '../GenerateHash'
 import { CHILD_PIPELINE_COMPLETION_CALLBACK } from '../Scheduler2/ChildPipelineCompletionCallback'
 import { flow2Msg } from '../Scheduler2/flowMsg'
 import { FLOW_VERBOSE } from '../Scheduler2/queuing/redis-lua'
@@ -17,7 +15,6 @@ import { F2ATTR_CALLBACK, F2ATTR_NODEGROUP, F2ATTR_PIPELINE, F2ATTR_STEPID, F2_P
 import { GO_BACK_AND_RELEASE_WORKER } from '../Scheduler2/Worker2'
 import Step from '../Step'
 import StepTypeRegister from '../StepTypeRegister'
-import XData from '../XData'
 
 export const ROUTERSTEP_VERBOSE = 0
 
@@ -69,32 +66,11 @@ export class RouterStep extends Step {
       return await instance.failed(`Unknown value for selection field`, { status: 'error', error: 'Invalid selector field'})
     }
 
-    // Start the child pipeline
-  //   return await this.invokeChildPipeline(instance, pipelineName, null)
-  // }//- invoke
-
-
-  // /**
-  //  * 
-  //  * @param {StepInstance} instance
-  //  * @param {string} pipelineName 
-  //  * @param {*} data 
-  //  * @returns 
-  //  */
-  // async invokeChildPipeline(instance, pipelineName, data) {
-  //   if (ROUTERSTEP_VERBOSE) {
-  //     // instance.trace(`*****`)
-  //     instance.trace(`RouterStep::invokeChildPipeline (${pipelineName})`)
-  //   }
-
     const txId = instance.getTransactionId()//ZZZZ rename
     const tx = instance._7agghtstrajj_37(txId) // This is a magical internal function that we don't want people to use.
 
 
-    // assert(data)
-    // if (!data) {
     const data = await instance.getDataAsObject()
-    // }
     if (ROUTERSTEP_VERBOSE) instance.trace(`RouterStep.invokeChildPipeline() input is `, data)
     const childData = deepCopy(data)
     if (ROUTERSTEP_VERBOSE) instance.trace(`RouterStep.invokeChildPipeline() data for child pipeline is `, childData)
@@ -105,40 +81,8 @@ export class RouterStep extends Step {
     const parentStepId = await instance.getStepId()
     const parentNodeGroup = instance.getNodeGroup() // ZZZZ shouldn't this be the current node?
     const myNodeGroup = schedulerForThisNode.getNodeGroup()
-    const myNodeId = schedulerForThisNode.getNodeId()
-    // const childStepId = GenerateHash('s')
-
-    // // Where does this pipeline run?
-    // const pipelineDetails = await getPipelineVersionInUse(pipelineName)
-    // if (ROUTERSTEP_VERBOSE) console.log(`RouterStep.invokeChildPipeline() - pipelineDetails:`, pipelineDetails)
-    // if (!pipelineDetails) {
-    //   throw new Error(`Unknown transaction type ${metadata.transactionType}`)
-    // }
-    // const childNodeGroup = pipelineDetails.nodeGroup
-    // // const childNodeId = null
 
     const childStepId = await tx.addPipelineStep(parentStepId, 0, pipelineName)
-
-    // // If this pipeline runs in a different node group, we'll start it via the group
-    // // queue for that nodeGroup. If the pipeline runs in the current node group, we'll
-    // // run it in this current node, so it'll have access to the cached transaction.
-    // let queueToNewPipeline
-    // if (childNodeGroup === myNodeGroup) {
-    //   // Run the new pipeline in this node - put the event in this node's pipeline.
-    //   queueToNewPipeline = Scheduler2.nodeRegularQueueName(myNodeGroup, myNodeId)
-    // } else {
-    //   // The new pipeline will run in a different nodeGroup. Put the event in the group queue.
-    //   queueToNewPipeline = Scheduler2.groupQueueName(childNodeGroup)
-    // }
-
-    // const queueToPipelineNode = Scheduler2.groupQueueName(parentNodeGroup)
-    // console.log(`parentNodeGroup=`, parentNodeGroup)
-    // console.log(`queueToPipelineNode=`, queueToPipelineNode)
-
-    const childFullSequence = `${instance.getFullSequence()}.1` // Start sequence at 1
-    const childVogPath = `${instance.getVogPath()},1=R.${pipelineName}` // Start sequence at 1
-
-
     if (ROUTERSTEP_VERBOSE) instance.trace(`Start child pipeline ${pipelineName}`)
     instance.syncLogs()
 
@@ -173,37 +117,17 @@ export class RouterStep extends Step {
     })
     const event = {
       eventType: Scheduler2.STEP_START_EVENT,
-      // Need either a pipeline or a nodeGroup
-      // yarpLuaPipeline: pipelineName,
       txId,
-      // nodeGroup: childNodeGroup,
-      // nodeId: childNodeGroup,
-      // stepId: childStepId,
       parentNodeGroup,
-      // parentNodeId,
-      // parentStepId,
-      // fullSequence: childFullSequence,
-      // vogPath: childVogPath,
-      // stepDefinition: pipelineName, // VOGVOGVOG
       metadata: metadata,
       data: childData,
       level: instance.getLevel() + 1,
-      // onComplete: {
-      //   nodeGroup: myNodeGroup,
-      //   // nodeId: myNodeId,
-      //   callback: CHILD_PIPELINE_COMPLETION_CALLBACK,
-      //   context: { txId, parentNodeGroup, parentStepId, childStepId }
-      // }
       f2i: childF2i,
     }
     const onComplete = {
       nodeGroup: myNodeGroup,
-      // nodeId: myNodeId,
       callback: CHILD_PIPELINE_COMPLETION_CALLBACK,
-//VOG777      context: { txId, parentNodeGroup, parentStepId, childStepId }
     }
-//ZM    const parentFlowIndex = instance.vog_getFlowIndex()
-    //VOG YARP THIS KILLS STUFF??? const parentF2i = instance.vf2_getF2i()
     const checkExternalIdIsUnique = false
     const rv = await schedulerForThisNode.enqueue_StartPipeline(tx, childStepId, event, onComplete, checkExternalIdIsUnique, workerForShortcut)
     assert(rv === GO_BACK_AND_RELEASE_WORKER)

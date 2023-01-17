@@ -19,10 +19,6 @@ const VERBOSE = 0
 export default class CallbackRegister {
   static _index = null
 
-  // constructor() {
-  //   console.log(`\n\n\n\n\n\n\n\n\n\n\n\n   ==================================== NEW CallbackRegister ====================================`)
-  //   console.log(new Error().stack);
-  // }
 
   static _checkInitialized () {
     if (CallbackRegister._index === null) {

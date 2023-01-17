@@ -5,7 +5,6 @@
  * the author or owner be liable for any claim or damages.
  */
 import assert from 'assert'
-import XData from '../XData'
 
 // export function validateEvent_StepStart(event) {
 //   assert (typeof(event.txId) === 'string')
@@ -186,36 +185,24 @@ export const EVENT_DEFINITION_STEP_START_SCHEDULED = {
 export const DEFINITION_PROCESS_STEP_START_EVENT = {
   eventType: { type: 'string' },
   txId: { type: 'string' },
-  // flowIndex: { type: 'number' },
   f2i: { type: 'number' },//ZZZZZ Should not be optional
   parentNodeGroup: { type: 'string' },
   stepDefinition: { type: 'string,object', optional: true },
-  // fullSequence: { type: 'string' },
-  // vogPath: { type: 'string' },
-  // _tmpPath: { type: 'string' },
-  // stepDefinition: { type: 'string' },
   metadata: { type: 'object' },
   data: { type: 'object' },
   level: { type: 'number' }, // YARP Is this required???
   ts: { type: 'number', optional: true }, // Not set for memory queue?
-  // txState: { type: 'object' },
 }
 
 export const DEFINITION_MATERIALIZE_STEP_EVENT = {
   eventType: { type: 'string' },
   txId: { type: 'string' },
-//ZM  flowIndex: { type: 'number' },
   parentNodeGroup: { type: 'string' },
-  // fullSequence: { type: 'string' },
-  // vogPath: { type: 'string' },
-  // _tmpPath: { type: 'string' },
-  // stepDefinition: { type: 'string' },
   stepDefinition: { type: 'string,object', optional: true },
   metadata: { type: 'object' },
   data: { type: 'object' },
   level: { type: 'number' }, // YARP Is this required???
   ts: { type: 'number', optional: true }, // Not set for memory queue?
-  // ts: { type: 'number' },
   nodeGroup: { type: 'string' },
   nodeId: { type: 'string' },
   f2i: { type: 'number' },
@@ -232,39 +219,14 @@ export const DEFINITION_STEP_COMPLETE_EVENT = {
   f2i: { type: 'number' },
 }
 
-export const FLOW_DEFINITION = {
-  i: { type: 'number' },
-  p: { type: 'number', optional: true }, // parent
-  // vogPath: { type: 'string' },
-  _tmpPath: { type: 'string' },
-  ts1: { type: 'number' },
-  ts2: { type: 'number' },
-  ts3: { type: 'number' },
-  stepId: { type: 'string' },
-  nodeId: { type: 'string', nullable: true },
-  input: { type: 'object' },
-  onComplete: { type: 'object' },
-    // "nodeGroup": "master",
-    // "callback": "txComplete"
-  note: { type: 'string', nullable: true },
-//ZM  completionStatus: { type: 'string', nullable: true },
-  output: { type: 'object', nullable: true },
-  // Used by pipelines
-  vog_nodeGroup: { type: 'string', optional: true },
-//ZM  vog_currentPipelineStep: { type: 'number', optional: true },
-}
-
 export const STEP_DEFINITION = {
   vogPath: { type: 'string' },
   vogP: { type: 'string', nullable: true }, // Parent step
   vogI: { type: 'number' }, // Index of child
   vogPath: { type: 'string' },
-  // vogPipeline: { type: 'string' },
   level: { type: 'number' },
   fullSequence: { type: 'string' },
-//ZM  vogAddedBy: { type: 'string' },
   stepDefinition: { type: 'string,object' },
-  // stepInput: { type: 'object' },
   status: { type: 'string' },
   vogStepDefinition: { type: 'object', optional: true }, // YARP Is this required???
   // For pipelines

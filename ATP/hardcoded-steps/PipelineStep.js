@@ -85,8 +85,6 @@ class Pipeline extends Step {
       childStepIds,
     }, 'pipelineStep.invoke()')
 
-    tx.vog_setNextStepId(pipelineStepId)
-
     if (PIPELINES_VERBOSE) {
       console.log(`PipelineStep.initiateChildStep()`)
       console.log(`********************************`)
@@ -102,27 +100,6 @@ class Pipeline extends Step {
     if (PIPELINES_VERBOSE)  pipelineInstance.trace(`Step #1 - begin`)
     pipelineInstance.syncLogs()
 
-    // Add all the steps to f2, with a completion handler after each.
-    // if (F2_VERBOSE) console.log(`F2: PipelineStep.invoke - add ${childStepIds.length} steps to f2`.bgBrightYellow.blue)
-    // if (F2_VERBOSE) console.log(`F2: Pipeline is ${childStepDefinition}`.bgBrightYellow.blue)
-
-    // const f2i = pipelineInstance.vog_getF2i()
-    // let firstChildF2i = -1
-    // for (let i = 0; i < childStepIds.length; i++) {
-    //   const { f2i:childF2i, f2:childF2} = tx.vf2_addF2child(f2i, F2_STEP, 'Pipeline.invoke')
-    //   childF2[F2ATTR_STEPID] = childStepId
-    //   childF2.ts1 = Date.now()
-    //   childF2.ts2 = 0
-    //   childF2.ts3 = 0
-    //   if (firstChildF2i < 0) {
-    //     firstChildF2i = childF2i
-    //   }
-    //   const { f2:completionHandlerF2 } = tx.vf2_addF2child(f2i, F2_PIPELINE_CH, 'Pipeline.invoke')
-    //   // const { f2:completionHandlerF2 } = tx.vf2_addF2sibling(f2i, F2_PIPELINE_CH, 'Pipeline.invoke')
-    //   completionHandlerF2[F2ATTR_CALLBACK] = PIPELINE_STEP_COMPLETE_CALLBACK
-    //   completionHandlerF2[F2ATTR_NODEGROUP] = schedulerForThisNode.getNodeGroup()
-    // }
-
     // Add the first child to f2
     const f2i = pipelineInstance.vog_getF2i()
     const parentF2 = tx.vf2_getF2(f2i)
@@ -133,10 +110,7 @@ class Pipeline extends Step {
     childF2.ts1 = Date.now()
     childF2.ts2 = 0
     childF2.ts3 = 0
-    // const { f2:completionHandlerF2 } = tx.vf2_addF2sibling(f2i, F2_PIPELINE_CH, 'Pipeline.invoke')
-    // const { f2:completionHandlerF2 } = tx.vf2_addF2sibling(firstChildF2i, F2_PIPELINE_CH, 'Pipeline.invoke')
     const { f2:completionHandlerF2 } = tx.vf2_addF2sibling(f2i, F2_PIPELINE_CH, 'Pipeline.invoke')
-    // const { f2:completionHandlerF2 } = tx.vf2_addF2child(f2i, F2_PIPELINE_CH, 'Pipeline.invoke')
     completionHandlerF2[F2ATTR_CALLBACK] = PIPELINE_STEP_COMPLETE_CALLBACK
     completionHandlerF2[F2ATTR_NODEGROUP] = schedulerForThisNode.getNodeGroup()
 
@@ -160,33 +134,20 @@ class Pipeline extends Step {
 
     const event = {
       eventType: Scheduler2.STEP_START_EVENT,
-      // Need either a pipeline or a nodeGroup
-      // nodeGroup: childNodeGroup,
       txId,
-      // nodeId: childNodeGroup,
-      // stepId: childStepId,
       parentNodeGroup,
-      // parentNodeId,
-      // parentStepId,
-      // fullSequence: childFullSequence,
-      // vogPath: childVogPath,
 
       //ZZZZZ Why is this here?????
       stepDefinition: childStepDefinition,
       metadata: metadata,
       data: stepInput,
       level: pipelineInstance.getLevel() + 1,
-      // parentFlowIndex: pipelineInstance.vog_getFlowIndex(),
       f2i: firstChildF2i,
     }
     const onComplete = {
       nodeGroup: myNodeGroup,
-      // nodeId: myNodeId,
       callback: PIPELINE_STEP_COMPLETE_CALLBACK,
-//VOG777      context: { txId, parentNodeGroup, parentStepId, childStepId }
     }
-
-//ZM    const parentFlowIndex = pipelineInstance.vog_getFlowIndex()
     const rv = await schedulerForThisNode.enqueue_StartStep(tx, childStepId, event, onComplete, workerForShortcut)
     assert(rv === GO_BACK_AND_RELEASE_WORKER)
 

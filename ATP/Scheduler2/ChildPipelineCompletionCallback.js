@@ -8,15 +8,11 @@ import assert from 'assert'
 import { STEP_FAILED } from '../Step'
 import { ROUTERSTEP_VERBOSE } from '../hardcoded-steps/RouterStep'
 import indentPrefix from '../../lib/indentPrefix'
-import { PIPELINES_VERBOSE } from '../hardcoded-steps/PipelineStep'
 import { schedulerForThisNode } from '../..'
-import dbLogbook from '../../database/dbLogbook'
 import { GO_BACK_AND_RELEASE_WORKER } from './Worker2'
-import Scheduler2 from './Scheduler2'
 import { FLOW_PARANOID, FLOW_VERBOSE } from './queuing/redis-lua'
 import { STEP_DEFINITION, validateStandardObject } from './eventValidation'
 import { flow2Msg } from './flowMsg'
-import { F2ATTR_SIBLING } from './TransactionState'
 
 export const CHILD_PIPELINE_COMPLETION_CALLBACK = 'childPipelineComplete'
 
@@ -33,7 +29,6 @@ export async function childPipelineCompletionCallback (tx, f2i, nodeInfo, worker
   // Get the status from the previous flow entry
   assert(f2i > 0)
   const stepStatus = tx.vf2_getStatus(f2i - 1)
-  console.log(`f2i=`, f2i)
 
   // Get the flow entry for the original pipeline.
   const pipelineF2 = tx.vf2_getF2OrSibling(f2i)
@@ -49,7 +44,6 @@ export async function childPipelineCompletionCallback (tx, f2i, nodeInfo, worker
   if (ROUTERSTEP_VERBOSE) console.log(`FINISHED child ${childStepId}`)
 
   // Get the flow entry for the pipeline that called this step
-//ZM  const parentFlowIndex = tx.vog_getParentFlowIndex(flowIndex)
   const parentStepId = tx.vf2_getStepId(f2i)
   if (ROUTERSTEP_VERBOSE) console.log(`WHICH MEANS FINISHED parent ${parentStepId}`)
   const parentStep = tx.stepData(parentStepId)
@@ -62,12 +56,6 @@ export async function childPipelineCompletionCallback (tx, f2i, nodeInfo, worker
   // Prefix to make debug messages nice
   const indent = indentPrefix(parentStep.level)
   // if (ROUTERSTEP_VERBOSE) console.log(indent + `==> Callback childPipelineCompletionCallback() context=`, callbackContext, nodeInfo)
-
-  // Tell the transaction we're back from the child pipeline, back to the RouterStep.
-  // await tx.delta(null, {
-  //   currentStepId: callbackContext.parentStepId
-  // }, 'childPipelineCompletionCallback()')
-
 
   assert(stepStatus !== STEP_FAILED) // Should not happen. Pipelines either succeed, rollback to success, or abort.
 
@@ -88,8 +76,6 @@ export async function childPipelineCompletionCallback (tx, f2i, nodeInfo, worker
 
   // Save the child status as our own
   await tx.delta(parentStepId, {
-  //   stepOutput: childFlow.output,
-  //   note: childFlow.note,
     status: stepStatus
   }, 'childPipelineCompletionCallback()')
   if (FLOW_PARANOID) {
@@ -107,21 +93,9 @@ export async function childPipelineCompletionCallback (tx, f2i, nodeInfo, worker
   //   }])
   // }
 
-  // Send the event back to whoever started this step
-//ZM  const parentNodeGroup = parentFlow.onComplete.nodeGroup
-  // console.log(`parentNodeGroup=`.red, parentNodeGroup)
-
   // Update the RouterStep F2
   pipelineF2.ts3 = Date.now()
 
-  // const event = {
-  //   eventType: Scheduler2.STEP_COMPLETED_EVENT,
-  //   txId,
-  //   // parentStepId: '-',
-  //   // stepId: parentStepId,
-  //   // completionToken: parentStep.onComplete.completionToken
-  //   flowIndex: parentFlowIndex,
-  // }
   const nextF2i = f2i + 1
   const completionToken = null
   const workerForShortcut = worker

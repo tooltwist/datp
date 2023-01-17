@@ -6,7 +6,7 @@ import { deepCopy } from '../../../lib/deepCopy';
 import pause from '../../../lib/pause';
 import { STEP_ABORTED, STEP_FAILED, STEP_INTERNAL_ERROR, STEP_SUCCESS, STEP_TIMEOUT } from '../../Step';
 import { STEP_TYPE_PIPELINE } from '../../StepTypeRegister';
-import { DEFINITION_STEP_COMPLETE_EVENT, DEFINITION_PROCESS_STEP_START_EVENT, FLOW_DEFINITION, STEP_DEFINITION, validateStandardObject } from '../eventValidation';
+import { DEFINITION_STEP_COMPLETE_EVENT, DEFINITION_PROCESS_STEP_START_EVENT, STEP_DEFINITION, validateStandardObject } from '../eventValidation';
 import { flow2Msg } from '../flowMsg';
 import Scheduler2 from '../Scheduler2';
 import TransactionState, { F2ATTR_STEPID } from '../TransactionState';
@@ -28,7 +28,6 @@ const CONNECTION_READY = 2
 let connectionStatus = CONNECTION_NONE
 
 // Connections to REDIS
-let connection_dequeue = null // mostly blocking, waiting on queue
 let connection_enqueue = null
 let connection_admin = null
 
@@ -45,7 +44,6 @@ let connection_admin = null
  */
 const EXTERNALIZE_BUT_DONT_DELETE = 0
 const EXTERNALIZE_FROM_COPY_AND_DELETE = 1 // Why doesn't this work?
-const EXTERNALIZE_AND_DELETE_BUT_PUT_BACK_IN = 2 // Why doesn't this work?
 const externalizationMode = EXTERNALIZE_BUT_DONT_DELETE
 
 
@@ -228,12 +226,6 @@ export class RedisLua {
       console.log(`ZZZZ Bad REDIS init`)
       throw new Error('Could not initialize REDIS connection #2')
     }
-    const newRedis3 = new Redis(options)
-    if (newRedis3 === null) {
-      console.log(`ZZZZ Bad REDIS init`)
-      throw new Error('Could not initialize REDIS connection #3')
-    }
-
 
     // console.log(`Set REDIS on error`)
     newRedis.on("error", function(err) {
@@ -252,22 +244,12 @@ export class RedisLua {
       console.log('ERROR=' + err);
       console.log('----------------------------------------------------')
     })
-    newRedis3.on("error", function(err) {
-      console.log('----------------------------------------------------')
-      console.log('An error occurred using REDIS connection #3:')
-      console.log('HOST=' + host)
-      console.log('PORT=' + port)
-      console.log('ERROR=' + err);
-      console.log('----------------------------------------------------')
-    })
 
     await newRedis.connect()
     await newRedis2.connect()
-    await newRedis3.connect()
 
-    connection_dequeue = newRedis
-    connection_enqueue = newRedis2
-    connection_admin = newRedis3
+    connection_enqueue = newRedis
+    connection_admin = newRedis2
 
     /*
      *  Add an event to a queue.
@@ -2207,8 +2189,6 @@ redis.call('set', '@n3', nodeGroup)
                 break
 
             }
-            // validateStandardObject('redis-lua.luaDequeue() flow', flow, FLOW_DEFINITION)
-            // validateStandardObject('redis-lua.luaDequeue() step', step, STEP_DEFINITION)
           }
 
           // Add the event and transaction state to our reply.

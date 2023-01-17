@@ -245,7 +245,7 @@ Add into 'current':
         "afield": "xyz"
       },
       "vog_nodeGroup": "master",
-      "vog_currentPipelineStep": 1
+//ZM      "vog_currentPipelineStep": 1
     },
     {
       "i": 1,
