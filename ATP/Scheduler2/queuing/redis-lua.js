@@ -1447,7 +1447,7 @@ redis.call('set', '@n3', nodeGroup)
 
     // Is this the initial transaction?
     const txStateObject = txState.asObject()
-    const isInitialTransaction = (txStateObject.flow.length < 2)
+    const isInitialTransaction = (txStateObject.f2.length <= 3)
     // console.log(`isInitialTransaction=`.gray, isInitialTransaction)
 
 
@@ -1596,7 +1596,7 @@ redis.call('set', '@n3', nodeGroup)
 
     // Is this the initial transaction?
     const txStateObject = txState.asObject()
-    const isInitialTransaction = (txStateObject.flow.length < 2)
+    const isInitialTransaction = (txStateObject.f2.length <= 3)
     // console.log(`isInitialTransaction=`.gray, isInitialTransaction)
 
 
@@ -1763,7 +1763,7 @@ redis.call('set', '@n3', nodeGroup)
 
     // Is this the initial transaction?
     const txStateObject = txState.asObject()
-    const isInitialTransaction = (txStateObject.flow.length < 2)
+    const isInitialTransaction = (txStateObject.f2.length <= 3)
     // console.log(`isInitialTransaction=`.gray, isInitialTransaction)
 
 
