@@ -11,7 +11,7 @@ import { CHILD_PIPELINE_COMPLETION_CALLBACK } from '../Scheduler2/ChildPipelineC
 import { flow2Msg } from '../Scheduler2/flowMsg'
 import { FLOW_VERBOSE } from '../Scheduler2/queuing/redis-lua'
 import Scheduler2 from '../Scheduler2/Scheduler2'
-import { F2ATTR_CALLBACK, F2ATTR_NODEGROUP, F2ATTR_PIPELINE, F2ATTR_STEPID, F2_PIPELINE, F2_PIPELINE_CH, F2_STEP, F2_VERBOSE } from '../Scheduler2/TransactionState'
+import { F2_PIPELINE, F2_PIPELINE_CH } from '../Scheduler2/TransactionState'
 import { GO_BACK_AND_RELEASE_WORKER } from '../Scheduler2/Worker2'
 import Step from '../Step'
 import StepTypeRegister from '../StepTypeRegister'
@@ -90,17 +90,16 @@ export class RouterStep extends Step {
     // Add the pipeline step as a child to f2
     const f2i = instance.vog_getF2i()
     const { f2i:childF2i, f2:childF2} = tx.vf2_addF2child(f2i, F2_PIPELINE, 'RouterStep.invoke')
-    childF2[F2ATTR_PIPELINE] = pipelineName
-    childF2[F2ATTR_STEPID] = childStepId
+    tx.setF2pipeline(childF2i, pipelineName)
+    tx.setF2stepId(childF2i, childStepId)
     childF2.input = childData
     childF2.ts1 = Date.now()
     childF2.ts2 = 0
     childF2.ts3 = 0
     // const { f2:completionHandlerF2 } = tx.vf2_addF2child(f2i, F2_PIPELINE_CH, 'RouterStep.invoke')
     const { f2:completionHandlerF2, f2i:completionHandlerF2i } = tx.vf2_addF2sibling(f2i, F2_PIPELINE_CH, 'RouterStep.invoke')
-    completionHandlerF2[F2ATTR_CALLBACK] = CHILD_PIPELINE_COMPLETION_CALLBACK
-    completionHandlerF2[F2ATTR_NODEGROUP] = parentNodeGroup
-
+    tx.setF2callback(completionHandlerF2i, CHILD_PIPELINE_COMPLETION_CALLBACK)
+    tx.setF2nodeGroup(completionHandlerF2i, parentNodeGroup)
 
     const workerForShortcut = instance.getWorker()
     //VOGGY

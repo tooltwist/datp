@@ -23,7 +23,7 @@ import { SHORTCUT_STEP_START, SHORTCUT_STEP_COMPLETE, WORKER_CHECK_INTERVAL } fr
 import { DUP_EXTERNAL_ID_DELAY, INCLUDE_STATE_IN_NODE_HOPPING_EVENTS } from '../../datp-constants'
 import { getPipelineVersionInUse } from '../../database/dbPipelines'
 import juice from '@tooltwist/juice-client'
-import TransactionState, { F2ATTR_CALLBACK, F2ATTR_NODEGROUP, F2ATTR_PIPELINE, F2ATTR_STEPID, F2_PIPELINE, F2_TRANSACTION_CH } from './TransactionState'
+import TransactionState, { F2_PIPELINE, F2_TRANSACTION_CH } from './TransactionState'
 // import dbLogbook from '../../database/dbLogbook'
 import LongPoll from './LongPoll'
 import { MemoryEventQueue } from './MemoryEventQueue'
@@ -894,15 +894,14 @@ export default class Scheduler2 {
       f2.metadata = metadataCopy
       f2.input = initialData
       const { f2i:pipelineF2i, f2:pipelineF2 } = tx.vf2_addF2child(f2i, F2_PIPELINE, 'Scheduler2.startTransaction')
-      pipelineF2[F2ATTR_PIPELINE] = pipelineName
-      pipelineF2[F2ATTR_STEPID] = stepId
+      tx.setF2pipeline(pipelineF2i, pipelineName)
+      tx.setF2stepId(pipelineF2i, stepId)
       pipelineF2.ts1 = Date.now()
       pipelineF2.ts2 = 0
       pipelineF2.ts3 = 0
       const { f2i: completionHandlerF2i, f2: completionHandlerF2 } = tx.vf2_addF2sibling(f2i, F2_TRANSACTION_CH, 'Scheduler2.startTransaction')
-      completionHandlerF2[F2ATTR_NODEGROUP] = myNodeGroup
-      // completionHandlerF2[F2ATTR_CALLBACK] = TX_COMPLETE_CALLBACK
-      tx.vf2_setF2callback(completionHandlerF2i, TX_COMPLETE_CALLBACK)
+      tx.setF2nodeGroup(completionHandlerF2i, myNodeGroup)
+      tx.setF2callback(completionHandlerF2i, TX_COMPLETE_CALLBACK)
 
       vog_event.f2i = pipelineF2i
       const checkExternalIdIsUnique = metadata.externalId ? true : false
@@ -1191,7 +1190,7 @@ export default class Scheduler2 {
 
     // Get the node group of the parent, so we know where to run the
     // completion handler callback.
-    const callbackNodeGroup = nextF2[F2ATTR_NODEGROUP]
+    const callbackNodeGroup = tx.getF2nodeGroup(nextF2i)
 
     // How to reply when complete
   

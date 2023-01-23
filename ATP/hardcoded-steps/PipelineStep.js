@@ -14,7 +14,7 @@ import { schedulerForThisNode } from '../..'
 import { GO_BACK_AND_RELEASE_WORKER } from '../Scheduler2/Worker2'
 import { FLOW_VERBOSE } from '../Scheduler2/queuing/redis-lua'
 import { flow2Msg } from '../Scheduler2/flowMsg'
-import { F2ATTR_CALLBACK, F2ATTR_CURRENT_PIPELINE_STEP, F2ATTR_NODEGROUP, F2ATTR_STEPID, F2_PIPELINE_CH, F2_STEP, F2_VERBOSE } from '../Scheduler2/TransactionState'
+import { F2_PIPELINE_CH, F2_STEP, F2_VERBOSE } from '../Scheduler2/TransactionState'
 
 export const PIPELINES_VERBOSE = 0
 
@@ -92,9 +92,6 @@ class Pipeline extends Step {
     }
 
     if (PIPELINES_VERBOSE) console.log(`childStepDefinition`, childStepDefinition)
-
-    const myNodeGroup = schedulerForThisNode.getNodeGroup()
-    const parentNodeGroup = pipelineInstance.getNodeGroup()// Shouldn't this just be the current node group?
     const childStepId = childStepIds[0]
 
     if (PIPELINES_VERBOSE)  pipelineInstance.trace(`Step #1 - begin`)
@@ -102,23 +99,24 @@ class Pipeline extends Step {
 
     // Add the first child to f2
     const f2i = pipelineInstance.vog_getF2i()
-    const parentF2 = tx.vf2_getF2(f2i)
-    parentF2[F2ATTR_CURRENT_PIPELINE_STEP] = 0
+    tx.setF2currentPipelineStep(f2i, 0)
 
     const { f2i:firstChildF2i, f2:childF2} = tx.vf2_addF2child(f2i, F2_STEP, 'Pipeline.invoke')
-    childF2[F2ATTR_STEPID] = childStepId
+    tx.setF2stepId(firstChildF2i, childStepId)
     childF2.ts1 = Date.now()
     childF2.ts2 = 0
     childF2.ts3 = 0
-    const { f2:completionHandlerF2 } = tx.vf2_addF2sibling(f2i, F2_PIPELINE_CH, 'Pipeline.invoke')
-    completionHandlerF2[F2ATTR_CALLBACK] = PIPELINE_STEP_COMPLETE_CALLBACK
-    completionHandlerF2[F2ATTR_NODEGROUP] = schedulerForThisNode.getNodeGroup()
+    const { f2:completionHandlerF2, f2i:completionHandlerF2i } = tx.vf2_addF2sibling(f2i, F2_PIPELINE_CH, 'Pipeline.invoke')
+    tx.setF2callback(completionHandlerF2i, PIPELINE_STEP_COMPLETE_CALLBACK)
+    tx.setF2nodeGroup(completionHandlerF2i, schedulerForThisNode.getNodeGroup())
 
 
     // The child will run in this node - same as this pipeline.
     // We keep the steps in a pipeline all running on the same node, so they all use
     // the same cached transaction state. We only jump to another node when we are
     // calling a pipline that runs on another node.
+    const myNodeGroup = schedulerForThisNode.getNodeGroup()
+
     const workerForShortcut = pipelineInstance.getWorker()
     //VOGGY
     if (FLOW_VERBOSE) {
@@ -135,7 +133,7 @@ class Pipeline extends Step {
     const event = {
       eventType: Scheduler2.STEP_START_EVENT,
       txId,
-      parentNodeGroup,
+      parentNodeGroup: myNodeGroup,
 
       //ZZZZZ Why is this here?????
       stepDefinition: childStepDefinition,

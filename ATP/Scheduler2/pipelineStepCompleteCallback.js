@@ -13,7 +13,7 @@ import { STEP_DEFINITION, validateStandardObject } from './eventValidation'
 import { flow2Msg } from './flowMsg'
 import { FLOW_PARANOID, FLOW_VERBOSE } from './queuing/redis-lua'
 import Scheduler2 from './Scheduler2'
-import { F2ATTR_CALLBACK, F2ATTR_CURRENT_PIPELINE_STEP, F2ATTR_NODEGROUP, F2ATTR_SIBLING, F2ATTR_STEPID, F2_PIPELINE_CH, F2_STEP, F2_VERBOSE } from './TransactionState'
+import { F2_PIPELINE_CH, F2_STEP, F2_VERBOSE } from './TransactionState'
 import { GO_BACK_AND_RELEASE_WORKER } from './Worker2'
 
 
@@ -31,10 +31,6 @@ export async function pipelineStepCompleteCallback (tx, f2i, worker) {
 
   // Get the status from the previous flow entry
   const stepStatus = tx.vf2_getStatus(f2i - 1)
-
-  // Get the flow entry for the original pipeline.
-  const pipelineF2 = tx.vf2_getF2OrSibling(f2i)
-  assert(typeof(pipelineF2[F2ATTR_CURRENT_PIPELINE_STEP]) === 'number')
 
   // Get the flow entry for the pipeline that called this step
   const parentStepId = tx.vf2_getStepId(f2i)
@@ -62,13 +58,16 @@ export async function pipelineStepCompleteCallback (tx, f2i, worker) {
   const pipelineSteps = pipelineStep.pipelineSteps
   const childStepIds = pipelineStep.childStepIds
 
+  // Get the flow entry for the original pipeline.
+  const { f2: pipelineF2, f2i: pipelineF2i } = tx.vf2_getF2OrSibling(f2i)
+
   if (stepStatus === STEP_SUCCESS) {
 
-
-
-    // Do we have any steps left
-    pipelineF2[F2ATTR_CURRENT_PIPELINE_STEP]++
-    const nextStepNo = pipelineF2[F2ATTR_CURRENT_PIPELINE_STEP]
+    // Do we have any steps left?
+    const currentStepNo = tx.getF2currentPipelineStep(pipelineF2i)
+    assert(typeof(currentStepNo) === 'number')
+    const nextStepNo = currentStepNo + 1
+    tx.setF2currentPipelineStep(pipelineF2i, nextStepNo)
     // if (PIPELINES_VERBOSE) console.log(`Which step?  ${nextStepNo} of [0...${pipelineSteps.length - 1}]`)
     if (nextStepNo >= childStepIds.length) {
 
@@ -158,14 +157,14 @@ export async function pipelineStepCompleteCallback (tx, f2i, worker) {
       assert(myF2)
 
       const { f2i:childF2i, f2:childF2} = tx.vf2_addF2child(f2i, F2_STEP, 'pipelineStepCompleteCallback')
-      childF2[F2ATTR_STEPID] = childStepId
+      tx.setF2stepId(childF2i, childStepId)
       childF2.ts1 = Date.now()
       childF2.ts2 = 0
       childF2.ts3 = 0
       const { f2i: completionHandlerF2i, f2:completionHandlerF2 } = tx.vf2_addF2sibling(f2i, F2_PIPELINE_CH, 'pipelineStepCompleteCallback')
-      // completionHandlerF2[F2ATTR_CALLBACK] = PIPELINE_STEP_COMPLETE_CALLBACK
-      tx.vf2_setF2callback(completionHandlerF2i, PIPELINE_STEP_COMPLETE_CALLBACK)
-      completionHandlerF2[F2ATTR_NODEGROUP] = schedulerForThisNode.getNodeGroup()
+      tx.setF2callback(completionHandlerF2i, PIPELINE_STEP_COMPLETE_CALLBACK)
+      // completionHandlerF2[F2ATTR_NODEGROUP] = schedulerForThisNode.getNodeGroup()
+      tx.setF2nodeGroup(completionHandlerF2i, schedulerForThisNode.getNodeGroup())
 
       const nextF2i = f2i + 1
 

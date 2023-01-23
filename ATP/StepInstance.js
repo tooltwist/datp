@@ -9,7 +9,7 @@ import Step, { STEP_ABORTED, STEP_FAILED, STEP_INTERNAL_ERROR, STEP_RUNNING, STE
 import XData, { dataFromXDataOrObject } from "./XData"
 import indentPrefix from '../lib/indentPrefix'
 import assert from 'assert'
-import TransactionState, { F2ATTR_STEPID } from './Scheduler2/TransactionState'
+import TransactionState from './Scheduler2/TransactionState'
 import { schedulerForThisNode } from '..'
 import dbLogbook from '../database/dbLogbook'
 import { DEEP_SLEEP_SECONDS, isDevelopmentMode } from '../datp-constants'
@@ -109,8 +109,8 @@ export default class StepInstance {
     this.#worker = worker
     this.#transactionState = tx
 
-    const f2 = tx.vf2_getF2(event.f2i)
-    const stepData = tx.stepData(f2[F2ATTR_STEPID])
+    const stepId = tx.getF2stepId(event.f2i)
+    const stepData = tx.stepData(stepId)
     validateStandardObject('materialize() step', stepData, STEP_DEFINITION)
 
     assert (typeof(stepData.fullSequence) === 'string')
@@ -124,7 +124,7 @@ export default class StepInstance {
     this.#txId = event.txId
     this.#nodeGroup = event.nodeGroup
     this.#nodeId = event.nodeId
-    this.#stepId = f2[F2ATTR_STEPID] //ZZZ Remove this
+    this.#stepId = stepId //ZZZ Remove this
     this.#txdata = new XData(event.data)
     this.#metadata = metadata
     this.#level = stepData.level

@@ -4,7 +4,6 @@
  * rights reserved. No warranty, explicit or implicit, provided. In no event shall
  * the author or owner be liable for any claim or damages.
  */
-import { F2ATTR_LEVEL } from "./TransactionState"
 
 export function flow2Msg(txState, msg, f2i=-1) {
   // console.log(`flow2Msg(${msg}, f2i=${f2i})`)
@@ -14,19 +13,13 @@ export function flow2Msg(txState, msg, f2i=-1) {
     level = -1
   } else if (f2i < 0) {
     // Use the latest
-    // console.log(`f2i=`, f2i)
-    const f2 = txState.vf2_getF2(flowLength - 1)
-    // console.log(`f2=`, f2)
-    // const stepRecord = txState.vog_getStepRecord(f2[F2ATTR_STEPID])
-    // console.log(`stepRecord=`, stepRecord)
-    level = f2[F2ATTR_LEVEL]
+    // const f2 = txState.vf2_getF2(flowLength - 1)
+    // level = f2[F2ATTR_LEVEL]
+    level = txState.getF2level(flowLength - 1)
   } else if (f2i < flowLength) {
-    // console.log(`f2i=`, f2i)
-    const f2 = txState.vf2_getF2(f2i)
-    // console.log(`f2=`, f2)
-    // const stepRecord = txState.vog_getStepRecord(f2[F2ATTR_STEPID])
-    // console.log(`stepRecord=`, stepRecord)
-    level = f2[F2ATTR_LEVEL]
+    // const f2 = txState.vf2_getF2(f2i)
+    // level = f2[F2ATTR_LEVEL]
+    level = txState(f2i)
   } else {
     const err = `Invalid flow index [${f2i}]`
     console.trace(err)

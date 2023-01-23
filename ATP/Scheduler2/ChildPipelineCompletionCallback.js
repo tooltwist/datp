@@ -31,7 +31,7 @@ export async function childPipelineCompletionCallback (tx, f2i, worker) {
   const stepStatus = tx.vf2_getStatus(f2i - 1)
 
   // Get the flow entry for the original pipeline.
-  const pipelineF2 = tx.vf2_getF2OrSibling(f2i)
+  const { f2: pipelineF2 } = tx.vf2_getF2OrSibling(f2i)
   console.log(`pipelineF2=`, pipelineF2)
 
 

@@ -50,18 +50,18 @@ export const F2_PIPELINE = 'PIPELINE_START'
 export const F2_PIPELINE_CH = 'PIPELINE_CALLBACK'
 
 // Flow2 attributes are defined this way, so we can use shortened versions when not debugging.
-export const F2ATTR_TYPE = '__type'
-export const F2ATTR_PARENT = '__parent'
-export const F2ATTR_SIBLING = '__sibling'
-export const F2ATTR_LEVEL = '__level'
-export const F2ATTR_NODEGROUP = '__nodeGroup'
-export const F2ATTR_NODEID = '__nodeId'
-export const F2ATTR_CALLBACK = '__callback'
-export const F2ATTR_STEPID = '__stepId'
-export const F2ATTR_DESCRIPTION = '__description'
-export const F2ATTR_TRANSACTION_TYPE = '__transactionType'
-export const F2ATTR_PIPELINE = '__pipeline'
-export const F2ATTR_CURRENT_PIPELINE_STEP = '__currentStep'
+const F2ATTR_TYPE = '__type'
+const F2ATTR_PARENT = '__parent'
+const F2ATTR_SIBLING = '__sibling'
+const F2ATTR_LEVEL = '__level'
+const F2ATTR_NODEGROUP = '__nodeGroup'
+const F2ATTR_NODEID = '__nodeId'
+const F2ATTR_CALLBACK = '__callback'
+const F2ATTR_STEPID = '__stepId'
+const F2ATTR_DESCRIPTION = '__description'
+const F2ATTR_TRANSACTION_TYPE = '__transactionType'
+const F2ATTR_PIPELINE = '__pipeline'
+const F2ATTR_CURRENT_PIPELINE_STEP = '__currentStep'
 
 export const F2_VERBOSE = 0
 
@@ -317,14 +317,65 @@ export default class TransactionState {
     return { f2i: 0, f2: entry }
   }
 
-  vf2_setF2callback(f2i, value) {
+  setF2callback(f2i, value) {
     assert(f2i >= 0 && f2i < this.#me.f2.length)
     this.#me.f2[f2i][F2ATTR_CALLBACK] = value
   }
 
-  vf2_setF2pipeline(f2i, pipeline) {
+  getF2callback(f2i) {
+    assert(f2i >= 0 && f2i < this.#me.f2.length)
+    return this.#me.f2[f2i][F2ATTR_CALLBACK]
+  }
+
+  setF2nodeGroup(f2i, value) {
+    assert(f2i >= 0 && f2i < this.#me.f2.length)
+    this.#me.f2[f2i][F2ATTR_NODEGROUP] = value
+  }
+
+  getF2nodeGroup(f2i) {
+    assert(f2i >= 0 && f2i < this.#me.f2.length)
+    return this.#me.f2[f2i][F2ATTR_NODEGROUP]
+  }
+
+  setF2nodeId(f2i, value) {
+    assert(f2i >= 0 && f2i < this.#me.f2.length)
+    this.#me.f2[f2i][F2ATTR_NODEID] = value
+  }
+
+  getF2nodeId(f2i) {
+    assert(f2i >= 0 && f2i < this.#me.f2.length)
+    return this.#me.f2[f2i][F2ATTR_NODEID]
+  }
+
+  setF2stepId(f2i, value) {
+    assert(f2i >= 0 && f2i < this.#me.f2.length)
+    this.#me.f2[f2i][F2ATTR_STEPID] = value
+  }
+
+  getF2stepId(f2i) {
+    assert(f2i >= 0 && f2i < this.#me.f2.length)
+    return this.#me.f2[f2i][F2ATTR_STEPID]
+  }
+
+  setF2currentPipelineStep(f2i, value) {
+    assert(f2i >= 0 && f2i < this.#me.f2.length)
+    this.#me.f2[f2i][F2ATTR_CURRENT_PIPELINE_STEP] = value
+  }
+
+  getF2currentPipelineStep(f2i) {
+    assert(f2i >= 0 && f2i < this.#me.f2.length)
+    return this.#me.f2[f2i][F2ATTR_CURRENT_PIPELINE_STEP]
+  }
+
+  //ZZZZZ Is this value ever used?
+  setF2pipeline(f2i, pipeline) {
     assert(f2i >= 0 && f2i < this.#me.f2.length)
     this.#me.f2[f2i][F2ATTR_PIPELINE] = pipeline
+  }
+
+  getF2level(f2i) {
+    assert(f2i >= 0 && f2i < this.#me.f2.length)
+    return this.#me.f2[f2i][F2ATTR_LEVEL]
   }
 
   /**
@@ -438,11 +489,13 @@ export default class TransactionState {
     assert(f2i >= 0 && f2i < this.#me.f2.length)
     const f2 = this.#me.f2[f2i]
     const siblingF2i = f2[F2ATTR_SIBLING]
-    if (typeof(siblingF2i) !== 'undefined') {
+    if (typeof(siblingF2i) === 'undefined') {
+      return { f2, f2i }
+    } else {
+      // Get the sibling
       assert(siblingF2i >= 0 && siblingF2i < this.#me.f2.length)
-      return this.#me.f2[siblingF2i]
+      return { f2: this.#me.f2[siblingF2i], f2i: siblingF2i }
     }
-    return f2
   }
 
   /**

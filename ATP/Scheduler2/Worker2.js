@@ -11,8 +11,8 @@ import Scheduler2 from "./Scheduler2"
 import assert from 'assert'
 import { STEP_ABORTED, STEP_FAILED, STEP_INTERNAL_ERROR, STEP_QUEUED, STEP_RUNNING, STEP_SLEEPING, STEP_SUCCESS, STEP_TIMEOUT } from "../Step"
 import { schedulerForThisNode } from "../.."
-import { CHECK_FOR_BLOCKING_WORKERS_TIMEOUT, INCLUDE_STATE_IN_NODE_HOPPING_EVENTS, SHORTCUT_STEP_START } from "../../datp-constants"
-import TransactionState, { F2ATTR_CALLBACK, F2ATTR_NODEGROUP, F2ATTR_NODEID, F2ATTR_STEPID, F2_VERBOSE } from "./TransactionState"
+import { CHECK_FOR_BLOCKING_WORKERS_TIMEOUT } from "../../datp-constants"
+import TransactionState, { F2_VERBOSE } from "./TransactionState"
 import me from "../../lib/me"
 import { DEFINITION_PROCESS_STEP_START_EVENT, STEP_DEFINITION, validateStandardObject } from "./eventValidation"
 import { FLOW_VERBOSE } from "./queuing/redis-lua"
@@ -28,7 +28,6 @@ export const GO_BACK_AND_RELEASE_WORKER = 'goback'
 export default class Worker2 {
   #workerId
   #state
-  #correctlyFinishedStep
   #reuseCounter // With shortcuts, we continue to use the same worker.
   #recentTxId // Most recent transaction ID
 
@@ -41,7 +40,6 @@ export default class Worker2 {
     // console.log(`Worker2.constructor()`)
     this.#workerId = workerId
     this.#state = Worker2.WAITING
-    // this.#correctlyFinishedStep = false
     this.#reuseCounter = 0
     this.#recentTxId = null
     if (VERBOSE) console.log(`[worker ${this.#workerId} => WAITING]`.bgRed.white)
@@ -172,8 +170,8 @@ export default class Worker2 {
     if (FLOW_VERBOSE) flow2Msg(txState, `${me()}: Worker.processEvent_StepStart`)
     // if (VERBOSE) console.log(`Worker2.processEvent_StepStart()`)
 
-    const f2 = txState.vf2_getF2(event.f2i)
-    const stepId = f2[F2ATTR_STEPID]
+    // const f2 = txState.vf2_getF2(event.f2i)
+    const stepId = txState.getF2stepId(event.f2i)
     const stepData = txState.stepData(stepId)
     validateStandardObject('processEvent_StepStart event', event, DEFINITION_PROCESS_STEP_START_EVENT)
     validateStandardObject('processEvent_StepStart step', stepData, STEP_DEFINITION)
@@ -185,8 +183,10 @@ export default class Worker2 {
     // Update the timestamp
     const myF2 = txState.vf2_getF2(event.f2i)
     myF2.ts2 = Date.now()
-    myF2[F2ATTR_NODEID] = schedulerForThisNode.getNodeId()
-    myF2[F2ATTR_NODEGROUP] = schedulerForThisNode.getNodeGroup()
+    // myF2[F2ATTR_NODEID] = schedulerForThisNode.getNodeId()
+    txState.setF2nodeId(event.f2i, schedulerForThisNode.getNodeId())
+    // myF2[F2ATTR_NODEGROUP] = schedulerForThisNode.getNodeGroup()
+    txState.setF2nodeGroup(event.f2i, schedulerForThisNode.getNodeGroup())
 
     
     
@@ -386,9 +386,10 @@ export default class Worker2 {
       const f2 = tx.vf2_getF2(event.f2i)
       f2.ts2 = Date.now()
       f2.ts3 = f2.ts2
+      const callback = tx.getF2callback(event.f2i)
 
       // Call the callback
-      const rv = await CallbackRegister.call(tx, f2[F2ATTR_CALLBACK], event.f2i, worker)
+      const rv = await CallbackRegister.call(tx, callback, event.f2i, worker)
       assert(rv === GO_BACK_AND_RELEASE_WORKER)
       return GO_BACK_AND_RELEASE_WORKER
     } catch (e) {
