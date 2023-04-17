@@ -1,5 +1,4 @@
-# datp
-Distributed Asynchronous Transaction Pipelines
+# DATP - Distributed Asynchronous Transaction Pipelines
 
 DATP augments a RESTful API framework to provide additional functionality for financial and commercial applications, including:
 
