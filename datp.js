@@ -14,8 +14,8 @@ import formserviceYarp from './restify/formservice'
 import { DATP_URL_PREFIX } from './CONVERSION/lib/constants'
 import { startTransactionRoute } from '.';
 import { addRoute } from './extras';
-import { transactionStatusByTxIdV1 } from '../genericEndpoints/routes/transactionStatus';
-import { transactionStatusByExternalIdV1 } from '../genericEndpoints/routes/transactionStatusByExternalId';
+import { transactionStatusByTxIdV1 } from './restify/transactionStatus';
+import { transactionStatusByExternalIdV1 } from './restify/transactionStatusByExternalId';
 import { isDevelopmentMode, TEST_TENANT } from './datp-constants'
 import errors, { UnauthorizedError } from 'restify-errors'
 

@@ -8,8 +8,8 @@ import query from "../../database/query";
 import TransactionIndexEntry from "../TransactionIndexEntry";
 import TransactionState from "./TransactionState";
 import { DEBUG_DB_ATP_TRANSACTION, DEBUG_DB_ATP_TRANSACTION_DELTA } from '../../datp-constants'
-import { logger } from '../../lib/pino-deltas'
-import dogapi from 'dogapi'
+// import { logger } from '../../lib/pino-deltas'
+// import dogapi from 'dogapi'
 import juice from '@tooltwist/juice-client'
 import { schedulerForThisNode } from '../..'
 import AWS from 'aws-sdk'

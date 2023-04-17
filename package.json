@@ -1,10 +1,17 @@
 {
   "name": "@tooltwist/datp",
-  "version": "1.0.0",
+  "version": "3.0.0",
   "description": "Distributed Asynchronous Transaction Pipelines",
   "main": "index.js",
   "license": "ISC",
   "private": false,
+  "repository": "https://github.com/tooltwist/datp",
+  "keywords": [
+    "async",
+    "asynchronous",
+    "webhook",
+    "transactions"
+  ],
   "scripts": {
     "dev": "node -r esm server.js",
     "test": "test/unit/run-test.sh */ava-*",
@@ -24,7 +31,9 @@
     "figlet": "^1.5.2",
     "hot-shots": "^8.5.2",
     "ioredis": "^4.28.2",
+    "lodash.isequal": "^4.5.0",
     "mysql2": "^2.3.3",
+    "pino": "^8.11.0",
     "restify": "^8.6.1",
     "restify-cors-middleware2": "^2.1.2",
     "restify-errors": "^8.0.2",
