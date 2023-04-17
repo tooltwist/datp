@@ -1,7 +1,7 @@
 {
-  "name": "uxba-pipeline",
+  "name": "@tooltwist/datp",
   "version": "1.0.0",
-  "description": "Pipeline processor for UBX Aggregator",
+  "description": "Distributed Asynchronous Transaction Pipelines",
   "main": "index.js",
   "license": "ISC",
   "private": false,
