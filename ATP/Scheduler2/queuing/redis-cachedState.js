@@ -1,8 +1,8 @@
-/* Copyright Tooltwist Innovations Limited - All Rights Reserved
- * This file is part of DATP and as such is proprietary and confidential software.
- * Unauthorized copying of this file, via any medium is strictly prohibited. All
- * rights reserved. No warranty, explicit or implicit, provided. In no event shall
- * the author or owner be liable for any claim or damages.
+/* Copyright Twist Innovations Limited - All Rights Reserved
+ * This file is part of the DATP software and subject to license restrictions.
+ * See the LICENSE file distributed with this software for details.
+ * All rights reserved. No warranty, explicit or implicit, provided. In no
+ * event shall the author or owner be liable for any claim or damages.
  */
 import { KEYSPACE_PROCESSING, KEYSPACE_SCHEDULED_WEBHOOK, KEYSPACE_SLEEPING, KEYSPACE_STATE, KEYSPACE_STATS_1, KEYSPACE_STATS_2, KEYSPACE_STATS_3, KEYSPACE_TOARCHIVE, NUMBER_OF_EXTERNALIZED_FIELDS, NUMBER_OF_READONLY_FIELDS, RedisLua, STATE_TO_REDIS_READONLY_MAPPING, STATE_TO_REDIS_EXTERNALIZATION_MAPPING, transactionStateFromJsonAndExternalizedFields, VERBOSE } from './redis-lua';
 

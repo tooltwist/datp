@@ -1,8 +1,8 @@
-/* Copyright Tooltwist Innovations Limited - All Rights Reserved
- * This file is part of DATP and as such is proprietary and confidential software.
- * Unauthorized copying of this file, via any medium is strictly prohibited. All
- * rights reserved. No warranty, explicit or implicit, provided. In no event shall
- * the author or owner be liable for any claim or damages.
+/* Copyright Twist Innovations Limited - All Rights Reserved
+ * This file is part of the DATP software and subject to license restrictions.
+ * See the LICENSE file distributed with this software for details.
+ * All rights reserved. No warranty, explicit or implicit, provided. In no
+ * event shall the author or owner be liable for any claim or damages.
  */
 import { WEBHOOK_RESULT_ABORTED, WEBHOOK_RESULT_FAILED, WEBHOOK_RESULT_SUCCESS, WEBHOOK_STATUS_ABORTED, WEBHOOK_STATUS_DELIVERED, WEBHOOK_STATUS_PROCESSING, WEBHOOK_STATUS_RETRY, WEBHOOK_STATUS_MAX_RETRIES } from '../webhooks/tryTheWebhook';
 import { KEYSPACE_SCHEDULED_WEBHOOK, KEYSPACE_STATE, MAX_WEBHOOK_RETRIES, RedisLua, VERBOSE, WEBHOOK_EXPONENTIAL_BACKOFF, WEBHOOK_INITIAL_DELAY } from './redis-lua';

@@ -1,8 +1,8 @@
-/* Copyright Tooltwist Innovations Limited - All Rights Reserved
- * This file is part of DATP and as such is proprietary and confidential software.
- * Unauthorized copying of this file, via any medium is strictly prohibited. All
- * rights reserved. No warranty, explicit or implicit, provided. In no event shall
- * the author or owner be liable for any claim or damages.
+/* Copyright Twist Innovations Limited - All Rights Reserved
+ * This file is part of the DATP software and subject to license restrictions.
+ * See the LICENSE file distributed with this software for details.
+ * All rights reserved. No warranty, explicit or implicit, provided. In no
+ * event shall the author or owner be liable for any claim or damages.
  */
 import query from '../../database/query'
 import GenerateHash from '../GenerateHash'
@@ -193,7 +193,7 @@ class TransactionCacheAndArchive {
 
     // Try to get the details from the REDIS cache
     // Try loading the transaction from our global (REDIS) cache
-    
+
     if (VERBOSE) console.log(`${me()}: TransactionCacheAndArchive.getTransactionStateStatus(${txId}): try to fetch from REDIS`)
     const withMondatDetails = false
     const cancelWebhook = false

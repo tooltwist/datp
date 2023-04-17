@@ -1,8 +1,8 @@
-/* Copyright Tooltwist Innovations Limited - All Rights Reserved
- * This file is part of DATP and as such is proprietary and confidential software.
- * Unauthorized copying of this file, via any medium is strictly prohibited. All
- * rights reserved. No warranty, explicit or implicit, provided. In no event shall
- * the author or owner be liable for any claim or damages.
+/* Copyright Twist Innovations Limited - All Rights Reserved
+ * This file is part of the DATP software and subject to license restrictions.
+ * See the LICENSE file distributed with this software for details.
+ * All rights reserved. No warranty, explicit or implicit, provided. In no
+ * event shall the author or owner be liable for any claim or damages.
  */
 import { FLOW_VERBOSE, KEYSPACE_EXCEPTION, KEYSPACE_PROCESSING, KEYSPACE_QUEUE_IN, KEYSPACE_SLEEPING, KEYSPACE_STATE, KEYSPACE_WAKEUP_PROCESSING_LOCK, MIN_WAKEUP_PROCESSING_INTERVAL, PROCESSING_STATE_QUEUED, RedisLua } from './redis-lua';
 

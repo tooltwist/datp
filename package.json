@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "description": "Pipeline processor for UBX Aggregator",
   "main": "index.js",
-  "license": "Proprietary intellectual property of Tooltwist",
-  "private": true,
+  "license": "ISC",
+  "private": false,
   "scripts": {
     "dev": "node -r esm server.js",
     "test": "test/unit/run-test.sh */ava-*",

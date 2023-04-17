@@ -1,8 +1,8 @@
-/* Copyright Tooltwist Innovations Limited - All Rights Reserved
- * This file is part of DATP and as such is proprietary and confidential software.
- * Unauthorized copying of this file, via any medium is strictly prohibited. All
- * rights reserved. No warranty, explicit or implicit, provided. In no event shall
- * the author or owner be liable for any claim or damages.
+/* Copyright Twist Innovations Limited - All Rights Reserved
+ * This file is part of the DATP software and subject to license restrictions.
+ * See the LICENSE file distributed with this software for details.
+ * All rights reserved. No warranty, explicit or implicit, provided. In no
+ * event shall the author or owner be liable for any claim or damages.
  */
 import { CHANNEL_NOTIFY, DELAY_BEFORE_ARCHIVING, EXTERNALID_UNIQUENESS_PERIOD, KEYSPACE_EXCEPTION, KEYSPACE_NODE_REGISTRATION, KEYSPACE_PROCESSING, KEYSPACE_QUEUE_ADMIN, KEYSPACE_QUEUE_IN, KEYSPACE_QUEUE_OUT, KEYSPACE_SCHEDULED_WEBHOOK, KEYSPACE_SLEEPING, KEYSPACE_STATE, KEYSPACE_STATS_1, KEYSPACE_STATS_2, KEYSPACE_STATS_3, KEYSPACE_TOARCHIVE, KEYSPACE_TOARCHIVE_LOCK1, KEYSPACE_TOARCHIVE_LOCK2, MAX_WEBHOOK_RETRIES, NUMBER_OF_EXTERNALIZED_FIELDS, NUMBER_OF_READONLY_FIELDS, PERSISTING_PERMISSION_LOCK1_PERIOD, PERSISTING_PERMISSION_LOCK2_PERIOD, PROCESSING_STATE_COMPLETE, PROCESSING_STATE_PROCESSING, PROCESSING_STATE_QUEUED, PROCESSING_STATE_SLEEPING, RedisLua, STATE_TO_REDIS_EXTERNALIZATION_MAPPING, STATE_TO_REDIS_READONLY_MAPPING, STATS_INTERVAL_1, STATS_INTERVAL_2, STATS_INTERVAL_3, STATS_RETENTION_1, STATS_RETENTION_2, STATS_RETENTION_3, WEBHOOK_EXPONENTIAL_BACKOFF, WEBHOOK_INITIAL_DELAY } from './redis-lua';
 
