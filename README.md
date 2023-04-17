@@ -12,5 +12,9 @@ DATP augments a RESTful API framework to provide additional functionality for fi
 - Deploy features and updates independantly.
 - Secure segregation of source code and access.
 
-
+### Documentation
 For more details, see https://datp.io
+
+
+### Youtube videos
+https://www.youtube.com/playlist?list=PLCCXTZLLysmUMwzJJ0RougOOmw8WIgQDr
