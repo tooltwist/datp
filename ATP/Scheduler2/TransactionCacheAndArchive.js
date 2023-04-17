@@ -8,21 +8,15 @@ import query from '../../database/query'
 import GenerateHash from '../GenerateHash'
 import XData from '../XData'
 import TransactionState from './TransactionState'
-import TransactionPersistance from './TransactionPersistance'
 import assert from 'assert'
-import { schedulerForThisNode } from '../..'
-import { isDevelopmentMode } from '../../datp-constants'
 import me from '../../lib/me'
 import { RedisQueue } from './queuing/RedisQueue-ioredis'
-import { archiveTransactionState } from './archiving/ArchiveProcessor'
+import { luaGetCachedState } from './queuing/redis-cachedState'
 
-// const PERSIST_FAST_DURATION = 10 // Almost immediately
-// const PERSIST_REGULAR_DURATION = 120 // Two minutes
-
-const USE_YARPLUA_PERSISTANCE = true
 const VERBOSE = 0
+const VERBOSE2 = 0
 
-class TransactionCache {
+class TransactionCacheAndArchive {
   #cacheId // To check we only have one cache!
 
   constructor() {
@@ -35,7 +29,7 @@ class TransactionCache {
    * @returns
    */
   async newTransaction(owner, externalId, transactionType) {
-    // console.log(`TransactionCache.newTransaction(${owner}, ${externalId}, ${transactionType})`)
+    // console.log(`TransactionCacheAndArchive.newTransaction(${owner}, ${externalId}, ${transactionType})`)
 
     assert(owner)
     assert(transactionType)
@@ -57,7 +51,6 @@ class TransactionCache {
     return tx
   }
 
-
   /**
    *
    * @param {string} txId
@@ -76,7 +69,7 @@ class TransactionCache {
     // if (tx) {
 
     //   // Already in our in-memory cache
-    //   if (VERBOSE) console.log(`TransactionCache.getTransactionState(${txId}): found in local memory cache`)
+    //   if (VERBOSE) console.log(`TransactionCacheAndArchive.getTransactionState(${txId}): found in local memory cache`)
     //   return tx
     // }
 
@@ -90,12 +83,12 @@ class TransactionCache {
 
     // Not in our in-memory cache
     // Try loading the transaction from our global (REDIS) cache
-    if (VERBOSE) console.log(`${me()}: TransactionCache.getTransactionState(${txId}): try to fetch from REDIS`)
+    if (VERBOSE) console.log(`${me()}: TransactionCacheAndArchive.getTransactionState(${txId}): try to fetch from REDIS`)
     // await pause(20)//ZZZZZZ Hack to give REDIS time to sync or flush or whatever...
     // const tx1 = await schedulerForThisNode.getTransactionStateFromREDIS(txId)
 
-    const redisLua = await RedisQueue.getRedisLua()
-    const reply = await redisLua.getState(txId)
+    const withMondatDetails = false
+    const reply = await luaGetCachedState(txId, withMondatDetails)
     if (reply) {
       const tx1 = reply.txState
 
@@ -126,13 +119,14 @@ class TransactionCache {
         // }
         // YARP248
         // console.log(`${schedulerForThisNode.getNodeId()}: yarp loaded ${txId} from REDIS (${tx1.getDeltaCounter()})`)
+        // return tx1
         return tx1
       }
     }
 
     // Not found in the global (REDIS) cache.
     // Try to select from the database.
-    if (VERBOSE) console.log(`${me()}: TransactionCache.getTransactionState(${txId}): try to fetch from database`)
+    if (VERBOSE) console.log(`${me()}: TransactionCacheAndArchive.getTransactionState(${txId}): try to fetch from database`)
     const sql = `SELECT json FROM atp_transaction_state WHERE transaction_id=?`
     const params = [ txId ]
     // console.log(`sql=`, sql)
@@ -145,6 +139,14 @@ class TransactionCache {
       const json = rows[0].json
       try {
         const tx2 = new TransactionState(json)
+        // console.log(`tx2=`, tx2)
+        // console.log(`tx2=`, typeof tx2)
+  
+        // Save the transaction state in REDIS.
+        if (saveInLocalMemoryCache) {
+          console.log(`NEED TO SAVE STATE TO REDIS!!!!!`)
+        }
+        // return tx2
         return tx2
       } catch (e) {
         // Serious error - notify the administrator
@@ -153,25 +155,131 @@ class TransactionCache {
       }
     }
 
-    // Not in the database. Can we reconstruct it from the deltas?
-    const tx3 = await TransactionPersistance.reconstructTransaction(txId)
-    // console.log(`tx3=`, tx3)
-    if (tx3) {
-      //ZZZZZ This should be raised as an administrator's notification.
-      console.log(`WARNING: Transaction ${txId} had to be resurrected from deltas. Did the server die?`)
-      // if (saveInLocalMemoryCache) {
-      //   this.#cache.set(txId, tx3)
-      // }
+    // Not found anywhere
+    return null
+  }//- getTransactionState
 
-      // Save the transaction state in REDIS, and schedule it to be
-      // saved to long term storage (and removal from REDIS).
-      await schedulerForThisNode.saveTransactionState_level1(tx3)
-      return tx3
+
+  /**
+   *
+   * @param {string} txId
+   * @param {boolean} loadIfNecessary If true, load the memory from persistant
+   * storage, if it is there
+   * @returns {Promise<TransactionState>} A Transaction if it is found, or null if it is not in the cache,
+   * and is also not in persistant storage if loadIfNecessary is true.
+   */
+  async getTransactionStateStatus(txId, loadIfNecessary = true, saveInLocalMemoryCache = true) {
+
+    if (VERBOSE2) console.log(`getTransactionStateStatus(txId=${txId}, loadIfNecessary=${loadIfNecessary}, saveInLocalMemoryCache=${saveInLocalMemoryCache})`)
+    assert(typeof(txId) === 'string')
+    assert(typeof(loadIfNecessary) === 'boolean')
+    assert(typeof(saveInLocalMemoryCache) === 'boolean')
+
+    // let tx = this.#cache.get(txId)
+    // if (tx) {
+
+    //   // Already in our in-memory cache
+    //   if (VERBOSE) console.log(`TransactionCacheAndArchive.getTransactionState(${txId}): found in local memory cache`)
+    //   return tx
+    // }
+
+    // if (!loadIfNecessary) {
+    //   return null
+    // }
+
+    // console.log(`--------  --------  --------  --------  --------  --------  --------  --------  --------  --------  --------  --------  -------- `)
+    // console.log(``)
+    // console.log(`getTransactionState(txId=${txId}, loadIfNecessary=${loadIfNecessary}, saveInLocalMemoryCache=${saveInLocalMemoryCache})`)
+
+    // Try to get the details from the REDIS cache
+    // Try loading the transaction from our global (REDIS) cache
+    
+    if (VERBOSE) console.log(`${me()}: TransactionCacheAndArchive.getTransactionStateStatus(${txId}): try to fetch from REDIS`)
+    const withMondatDetails = false
+    const cancelWebhook = false
+    const markAsReplied = false
+    const fromRedis = await luaGetCachedState(txId, withMondatDetails, markAsReplied, cancelWebhook)
+    if (VERBOSE2) console.log(`getTransactionStateStatus: fromRedis=`, fromRedis)
+
+    // Try to get details from the DB archive
+    const sql = `SELECT json FROM atp_transaction_state WHERE transaction_id=?`
+    const params = [ txId ]
+    // console.log(`sql=`, sql)
+    // console.log(`params=`, params)
+    const fromArchive = await query(sql, params)
+    // console.log(`getTransactionStateStatus: fromArchive=`, fromArchive)
+
+
+
+
+
+    if (fromRedis.cached) {
+      const cachedState = fromRedis.txState
+      if (VERBOSE2) console.log(`cachedState=`, cachedState)
+      if (VERBOSE2) console.log(`cachedState=`, typeof cachedState)
+      if (cachedState) {
+        // Found in the REDIS cache
+        // if (saveInLocalMemoryCache) {
+        //   this.#cache.set(txId, cachedState)
+        // }
+        return {
+          inCache: true,
+          inArchive: fromArchive.length > 0,
+          state: cachedState.asObject(),
+          processingState: fromRedis.processingState,
+          inProcessingList: fromRedis.inProcessingList,
+          toArchive: fromRedis.toArchive,
+          inWebhookList: fromRedis.inWebhookList,
+          inSleepingList: fromRedis.inSleepingList,
+          nodeGroup: fromRedis.nodeGroup,
+          pipeline: fromRedis.pipeline,
+          queue: fromRedis.queue,
+          ts: fromRedis.ts,
+        }
+      }
+    }
+
+    // Not found in the global (REDIS) cache.
+    if (fromArchive.length > 0) {
+      // Found in the Database
+      if (VERBOSE) console.log(`${me()}: Transaction state was found in the database`)
+      const json = fromArchive[0].json
+      try {
+        const archivedState = new TransactionState(json)
+        // console.log(`archivedState=`, archivedState)
+        // console.log(`archivedState=`, typeof archivedState)
+  
+        // Save the transaction state in REDIS.
+        if (saveInLocalMemoryCache) {
+          console.log(`NEED TO SAVE STATE TO REDIS!!!!!`)
+        }
+        // return tx2
+        return {
+          inCache: false,
+          inArchive: true,
+          state: archivedState.asObject(),
+          processingState: fromRedis.processingState,
+          inProcessingList: fromRedis.inProcessingList,
+          toArchive: fromRedis.toArchive,
+          inWebhookList: fromRedis.inWebhookList,
+          inSleepingList: fromRedis.inSleepingList,
+          ts: 0,
+        }
+      } catch (e) {
+        // Serious error - notify the administrator
+        //ZZZZZZ
+        console.log(`Internal Error: Invalid JSON in atp_transaction_state [${txId}]`)
+      }
     }
 
     // Not found anywhere
-    return null
-  }
+    // return null
+    return {
+      inCache: false,
+      inArchive: false,
+      state: null
+    }
+}//- getTransactionStateStatus
 
   /**
    *
@@ -200,4 +308,4 @@ class TransactionCache {
   }
 }
 
-export default TransactionCache = new TransactionCache()
+export default TransactionCacheAndArchive = new TransactionCacheAndArchive()

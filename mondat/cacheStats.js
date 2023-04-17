@@ -5,7 +5,7 @@
  * the author or owner be liable for any claim or damages.
  */
 import { schedulerForThisNode } from '..';
-import TransactionCache from '../ATP/Scheduler2/txState-level-1';
+import TransactionCacheAndArchive from '../ATP/Scheduler2/TransactionCacheAndArchive';
 import LongPoll from '../ATP/Scheduler2/LongPoll'
 import Scheduler2 from '../ATP/Scheduler2/Scheduler2'
 import { getNodeGroups } from '../database/dbNodeGroup';

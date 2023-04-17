@@ -40,7 +40,7 @@ export async function db_getPipelineTypesV1 () {
 
 
 export async function myPipelines() {
-  // console.log(`myPipelines()`)
+  console.log(`myPipelines()`.brightRed)
 
   let sql = `SELECT name, version FROM atp_pipeline`
   const list = await query(sql)
@@ -51,6 +51,8 @@ export async function myPipelines() {
   return list
 }
 
+
+//ZZZZZ Is this used?
 export async function getPipelineVersionInUse(name) {
   // if (VERBOSE)
   console.trace(`dbPipelines.getPipelineVersionInUse(name=${name})`)
@@ -110,9 +112,7 @@ export async function getPipelines(name, version=null) {
   // console.log(`sql=`, sql)
   // console.log(`params=`, params)
   const list = await query(sql, params)
-  if (VERBOSE) {
-    console.log(`getPipelines():`, list)
-  }
+  if (VERBOSE) console.log(`getPipelines():`, list)
   return list
 }
 
@@ -315,8 +315,8 @@ export async function createPipeline(name) {
   // Create the new pipeline
   const sql = `INSERT INTO atp_pipeline (name, version, steps_json, notes, status, commit_comments, tags) VALUES (?, ?, ?, ?, ?, ?, ?)`
   const params = [ name, version, stepsJson, notes, status, commitComments, tags ]
-  console.log(`sql=`, sql)
-  console.log(`params=`, params)
+  // console.log(`sql=`, sql)
+  // console.log(`params=`, params)
   const result = await dbupdate(sql, params)
-  console.log(`result=`, result)
+  // console.log(`result=`, result)
 }//- createPipeline

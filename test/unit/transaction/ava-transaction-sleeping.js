@@ -8,7 +8,7 @@ import test from 'ava'
 import createTestTransaction from '../helpers/createTestTransaction'
 import query from '../../../database/query'
 import TransactionPersistance from '../../../ATP/Scheduler2/TransactionPersistance'
-import TransactionCache from '../../../ATP/Scheduler2/txState-level-1'
+import TransactionCacheAndArchive from '../../../ATP/Scheduler2/TransactionCacheAndArchive'
 import { STEP_RUNNING, STEP_SLEEPING, STEP_SUCCESS } from '../../../ATP/Step'
 
 
@@ -323,10 +323,10 @@ test.serial('Reconstruct sleep fields from database', async t => {
   t.is(tx2.getWakeSwitch(), 'abc')
 
   // Remove it from the cache and check again
-  await TransactionCache.removeFromCache(txId)
-  tx2 = await TransactionCache.getTransactionState(txId, false)
+  await TransactionCacheAndArchive.removeFromCache(txId)
+  tx2 = await TransactionCacheAndArchive.getTransactionState(txId, false)
   t.falsy(tx2)
-  tx2 = await TransactionCache.getTransactionState(txId, true)
+  tx2 = await TransactionCacheAndArchive.getTransactionState(txId, true)
   t.truthy(tx2)
   t.is(tx2.getRetryCounter(), 1)
   t.not(tx2.getSleepingSince(), null)

@@ -10,6 +10,7 @@ import { deepCopy } from '../../lib/deepCopy'
 import { CHILD_PIPELINE_COMPLETION_CALLBACK } from '../Scheduler2/ChildPipelineCompletionCallback'
 import { flow2Msg } from '../Scheduler2/flowMsg'
 import { FLOW_VERBOSE } from '../Scheduler2/queuing/redis-lua'
+import { luaEnqueue_startStep } from '../Scheduler2/queuing/redis-startStep'
 import Scheduler2 from '../Scheduler2/Scheduler2'
 import { F2_PIPELINE, F2_PIPELINE_CH } from '../Scheduler2/TransactionState'
 import { GO_BACK_AND_RELEASE_WORKER } from '../Scheduler2/Worker2'
@@ -91,7 +92,7 @@ export class RouterStep extends Step {
     const f2i = instance.vog_getF2i()
     const { f2i:childF2i, f2:childF2} = tx.vf2_addF2child(f2i, F2_PIPELINE, 'RouterStep.invoke')
     tx.setF2pipeline(childF2i, pipelineName)
-    tx.setF2stepId(childF2i, childStepId)
+    tx.setF2stepId(childF2i, childStepId)// Remove this, it can be derived from f2i => f2 [=> sibling] => stepId
     childF2.input = childData
     childF2.ts1 = Date.now()
     childF2.ts2 = 0
@@ -120,16 +121,13 @@ export class RouterStep extends Step {
       parentNodeGroup,
       metadata: metadata,
       data: childData,
-      level: instance.getLevel() + 1,
+      // level: instance.getLevel() + 1,
       f2i: childF2i,
     }
-    const onComplete = {
-      nodeGroup: myNodeGroup,
-      callback: CHILD_PIPELINE_COMPLETION_CALLBACK,
-    }
-    const checkExternalIdIsUnique = false
-    const rv = await schedulerForThisNode.enqueue_StartPipeline(tx, childStepId, event, onComplete, checkExternalIdIsUnique, workerForShortcut)
-    assert(rv === GO_BACK_AND_RELEASE_WORKER)
+    const delayBeforeQueueing = 0
+    const result = await luaEnqueue_startStep('start-pipeline', tx, event, delayBeforeQueueing)
+    // console.log(`luaEnqueue_startStep() result=`, result)
+
 
     // We need to tell the instance that we are returning without calling succeeded(), failed(), etc.
     // After this step completes, CHILD_PIPELINE_COMPLETION_CALLBACK will be called, and it

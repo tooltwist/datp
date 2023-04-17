@@ -23,8 +23,8 @@ export const DEBUG_DB_ATP_LOGBOOK = 0
 
 
 // Options to bypass queueing if an event occurs on the same node.
-export const SHORTCUT_STEP_START = false
-export const SHORTCUT_STEP_COMPLETE = false
+export const SHORTCUT_STEP_START = true
+export const SHORTCUT_STEP_COMPLETE = true
 // export const SHORTCUT_TX_COMPLETION = false
 
 // Check for steps/workers taking longer than X seconds

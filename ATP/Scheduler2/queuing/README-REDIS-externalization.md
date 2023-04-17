@@ -40,7 +40,7 @@ Most of the state information is stored as JSON in a field named `stateJSON`, ho
 |&nbsp;&nbsp;&nbsp;&nbsp;wakeTime      |**retry_wakeTime**      |                         |*1666008833005*|
 |&nbsp;&nbsp;&nbsp;&nbsp;wakeSwitch    |**retry_wakeSwitch**    |                         |*haveResult*|
 |&nbsp;&nbsp;&nbsp;&nbsp;wakeNodeGroup |**retry_wakeNodeGroup** |                         |*slave-1*|
-|&nbsp;&nbsp;&nbsp;&nbsp;wakeStepId    |**retry_wakeStepId**    |                         |*s-6aefe6aefe6aefe....*|
+|&nbsp;&nbsp;&nbsp;&nbsp;wakeF2i       |**retry_wakeF2i**       |                         |*3*|
 |}||
 |progressReport                        |**progressReport**      |progressReport           | **&lt;JSON>** |
 |                                      |**ts**                  |                         |*1665936047516*|

@@ -26,9 +26,11 @@ import dbupdate from "../../database/dbupdate"
 import me from "../../lib/me"
 import GenerateHash from "../GenerateHash"
 import assert from 'assert'
-import TransactionCache from "./txState-level-1"
+import TransactionCacheAndArchive from "./TransactionCacheAndArchive"
 import { STEP_DEFINITION, validateStandardObject } from "./eventValidation"
 import { RedisQueue } from "./queuing/RedisQueue-ioredis"
+import { luaFindTransactions } from "./queuing/redis-transactions"
+import { luaGetSwitch, luaSetSwitch } from "./queuing/redis-retry"
 
 
 export const TX_STATUS_RUNNING = 'running'
@@ -53,7 +55,7 @@ export const F2_PIPELINE_CH = 'PIPELINE_CALLBACK'
 const F2ATTR_TYPE = '__type'
 const F2ATTR_PARENT = '__parent'
 const F2ATTR_SIBLING = '__sibling'
-const F2ATTR_LEVEL = '__level'
+// const F2ATTR_LEVEL = '__level'
 const F2ATTR_NODEGROUP = '__nodeGroup'
 const F2ATTR_NODEID = '__nodeId'
 const F2ATTR_CALLBACK = '__callback'
@@ -68,7 +70,7 @@ export const F2_VERBOSE = 0
 
 // Debug stuff
 const VERBOSE = 0
-const SUPPRESS = true
+const SUPPRESS = 0
 require('colors')
 
 let countTxCoreUpdate = 0
@@ -118,7 +120,8 @@ export default class TransactionState {
         notifiedTime: 0,
         transactionInput: {},
         transactionOutput: {},
-        metadata: { }
+        metadata: { },
+        switches: ''
       }//- transactionData
     }
 
@@ -131,7 +134,7 @@ export default class TransactionState {
         sleepCounter: 0,
         wakeTime: 0,
         wakeSwitch: null,
-        wakeNodeGroup: null,
+        // wakeNodeGroup: null,
         //wakeStepId: null //ZZZZ Shouldn't we just use flowIndex???
       }
     }
@@ -165,11 +168,6 @@ export default class TransactionState {
 
   getStatus() {
     return this.#me.transactionData.status
-  }
-
-  // Do not use this. It is exclusively a hack while getting events via a LUA script.
-  _patchInStatus(status) {
-    this.#me.transactionData.status = status
   }
 
   getSequenceOfUpdate() {
@@ -307,7 +305,7 @@ export default class TransactionState {
     entry[F2ATTR_DESCRIPTION] = this.vf2_typeDescription(F2_TRANSACTION)
     entry[F2ATTR_TRANSACTION_TYPE] = pipelineName
     entry[F2ATTR_TYPE] = F2_TRANSACTION
-    entry[F2ATTR_LEVEL] = 0
+    // entry[F2ATTR_LEVEL] = 0
     entry[F2ATTR_PARENT] = -1
     this.#me.f2.push(entry)
 
@@ -375,7 +373,33 @@ export default class TransactionState {
 
   getF2level(f2i) {
     assert(f2i >= 0 && f2i < this.#me.f2.length)
-    return this.#me.f2[f2i][F2ATTR_LEVEL]
+    // return this.#me.f2[f2i][F2ATTR_LEVEL]
+
+    let level = 0
+    for (let f2 = this.#me.f2[f2i]; ; ) {
+      // console.log(`f2=`, f2)
+      if (typeof(f2.__sibling) !== 'undefined') {
+        // The parent will be in the sibling
+        // console.log(`- get sibling ${f2.__sibling}`)
+        f2 = this.#me.f2[f2.__sibling]
+      } else if (typeof(f2.__parent) !== 'undefined') {
+        // Check out the parent
+        if (f2.__parent < 0) {
+          // At the root
+          // console.log(`level=`, level)
+          return level
+        } else {
+          // Up a level to the parent
+          // console.log(`- jump to parent ${f2.__parent}`)
+          level++
+          f2 = this.#me.f2[f2.__parent]
+        }
+      } else {
+        // Should not happen
+        alert('Internal error 277362551 - No sibling or parent in f2')
+      }
+    }
+
   }
 
   /**
@@ -405,9 +429,9 @@ export default class TransactionState {
     }
     newF2[F2ATTR_DESCRIPTION] = this.vf2_typeDescription(type)
     newF2[F2ATTR_TYPE] = type
-    newF2[F2ATTR_LEVEL] = thisF2[F2ATTR_LEVEL]
+    // newF2[F2ATTR_LEVEL] = thisF2[F2ATTR_LEVEL]
     newF2[F2ATTR_SIBLING] = siblingF2i
-    newF2._addedBy = addedBy
+    newF2.__addedBy = addedBy
     this.#me.f2.splice(newPos, 0, newF2)
 
     if (F2_VERBOSE > 1) console.log(`F2: vf2_addF2sibling: ${newPos}/${this.#me.f2.length}: ADDING SIBLING: ${type}`.bgBrightRed.black + ` by ${addedBy}`)
@@ -440,8 +464,8 @@ export default class TransactionState {
     childF2[F2ATTR_DESCRIPTION] = this.vf2_typeDescription(type)
     childF2[F2ATTR_TYPE] = type
     childF2[F2ATTR_PARENT] = parentF2i
-    childF2[F2ATTR_LEVEL] = parent[F2ATTR_LEVEL] + 1
-    childF2._addedBy = addedBy
+    // childF2[F2ATTR_LEVEL] = parent[F2ATTR_LEVEL] + 1
+    childF2.__addedBy = addedBy
     this.#me.f2.splice(childF2i, 0, childF2)
 
     if (F2_VERBOSE > 1) console.log(`F2: vf2_addF2child: ${childF2i}/${this.#me.f2.length}: ADDING CHILD ${type}`.bgBrightRed.black + ` by ${addedBy}`)
@@ -575,19 +599,30 @@ export default class TransactionState {
     this.#me.progressReport = object
   }
 
-  vog_setStatusToSleeping(wakeSwitch, sleepDuration, stepId) {
-    this.#me.transactionData.status = STEP_SLEEPING
-    this.#me.retry.wakeSwitch = wakeSwitch
-    if (!SUPPRESS) console.log(`vog_setStatusToSleeping() - Not sure what to do with the sleepDuration`.magenta)
-    this.#me.retry.wakeStepId = wakeStepId
+  vogSetWakeSwitch(nameOfSwitch) {
+    this.#me.retry.wakeSwitch = nameOfSwitch
   }
+
+  // vog_setStatusToSleeping(wakeSwitch, sleepDuration, wakeStepId) {
+  //   this.#me.transactionData.status = STEP_SLEEPING
+  //   this.#me.retry.wakeSwitch = wakeSwitch
+  //   if (!SUPPRESS) console.log(`vog_setStatusToSleeping() - Not sure what to do with the sleepDuration`.magenta)
+  //   this.#me.retry.wakeStepId = wakeStepId
+  // }
+
+  // vog_setStatusToSuccess() {
+  //   this.#me.transactionData.status = STEP_SLEEPING
+  //   this.#me.retry.wakeSwitch = wakeSwitch
+  //   if (!SUPPRESS) console.log(`vog_setStatusToSleeping() - Not sure what to do with the sleepDuration`.magenta)
+  //   this.#me.retry.wakeStepId = wakeStepId
+  // }
 
   vog_setTransactionType(transactionType) {
     this.#me.transactionData.transactionType = transactionType
   }
-  vog_setStatusToQueued() {
-    this.#me.transactionData.status = TX_STATUS_QUEUED
-  }
+  // vog_setStatusToQueued() {
+  //   this.#me.transactionData.status = TX_STATUS_QUEUED
+  // }
   vog_setStatusToRunning() {
     this.#me.transactionData.status = TX_STATUS_RUNNING
   }
@@ -614,7 +649,6 @@ export default class TransactionState {
     this.#me.transactionData.lastUpdated = now
     this.#me.progressReport = null
   }
-
 
 
   vog_getStepDefinitionFromParent(parentStepId, childIndex) {
@@ -749,8 +783,10 @@ export default class TransactionState {
   async delta(stepId, data, note='', replayingPastDeltas=false) {
     // let id = stepId ? stepId.substring(2, 10) : 'tx'
     // console.log(`delta - ${note} - ${id}`)
-    if (VERBOSE) console.log(`\n*** delta(${stepId}, data, replayingPastDeltas=${replayingPastDeltas})`, data)
+    if (VERBOSE) console.log(`\n*** delta(${stepId}, data, replayingPastDeltas=${replayingPastDeltas})`.brightRed, data)
 // console.log(`YARP delta - #${this.#deltaCounter}`)
+
+console.log(`YAMYAP: delta: 1`.brightRed)
 
     // Check that this function is not already in action, because someone forgot an 'await'.
     if (this.#processingDelta) {
@@ -759,6 +795,7 @@ export default class TransactionState {
       throw new Error(`delta() was called again before it completed. Missing 'await'?`)
     }
     this.#processingDelta = true
+    console.log(`YAMYAP: delta: 2`.brightRed)
     try {
 
       // Next sequence number
@@ -786,20 +823,21 @@ export default class TransactionState {
             case STEP_ABORTED:
             case STEP_TIMEOUT:
             case STEP_INTERNAL_ERROR:
+              console.log(`YAMYAP: delta changing status`.brightRed)
               if (this.#me.transactionData.status !== data.status) {
                 if (VERBOSE) console.log(`Setting transaction status to ${data.status}`)
                 coreValuesChanged = true
                 this.#me.transactionData.status = data.status
               }
               // We are no longer in a sleep loop
-              if (this.#me.retry.counter!==0 || this.#me.retry.sleepingSince!==null || this.#me.retry.wakeTime!==null || this.#me.retry.wakeSwitch!==null) {
+              if (this.#me.retry.sleepCounter!==0 || this.#me.retry.sleepingSince!==null || this.#me.retry.wakeTime!==null || this.#me.retry.wakeSwitch!==null) {
                 coreValuesChanged = true
-                this.#me.retry.counter = 0
+                this.#me.retry.sleepCounter = 0
                 this.#me.retry.sleepingSince = null
                 this.#me.retry.wakeTime = null
                 this.#me.retry.wakeSwitch = null
-                this.#me.retry.wakeNodeGroup = null
-                this.#me.retry.wakeStepId = null
+                // this.#me.retry.wakeNodeGroup = null
+                // this.#me.retry.wakeStepId = null
                 if (VERBOSE) console.log(`Resetting sleep values`)
               }
               break
@@ -812,13 +850,13 @@ export default class TransactionState {
                 this.#me.transactionData.status = data.status
                 if (this.#me.retry.sleepingSince === null) {
                   if (VERBOSE) console.log(`Initializing sleep fields`)
-                  this.#me.retry.counter = 1
+                  this.#me.retry.sleepCounter = 1
                   this.#me.retry.sleepingSince = new Date()
-                  this.#me.retry.wakeNodeGroup = schedulerForThisNode.getNodeGroup()
-                  this.#me.retry.wakeStepId = data.wakeStepId
+                  // this.#me.retry.wakeNodeGroup = schedulerForThisNode.getNodeGroup()
+                  // this.#me.retry.wakeStepId = data.wakeStepId
                 } else {
                   if (VERBOSE) console.log(`Incrementing sleep counter`)
-                  this.#me.retry.counter++
+                  this.#me.retry.sleepCounter++
                 }
               }
               // if (typeof(data.wakeTime) !== 'undefined' && this.#me.retry.wakeTime !== data.wakeTime) {
@@ -847,8 +885,8 @@ export default class TransactionState {
                   if (VERBOSE) console.log(`Setting wakeTime to +${newWakeTime}`)
                   coreValuesChanged = true
                   this.#me.retry.wakeTime = newWakeTime
-                  this.#me.retry.wakeNodeGroup = schedulerForThisNode.getNodeGroup()
-                  this.#me.retry.wakeStepId = data.wakeStepId
+                  // this.#me.retry.wakeNodeGroup = schedulerForThisNode.getNodeGroup()
+                  // this.#me.retry.wakeStepId = data.wakeStepId
                 }
               }
               if (typeof(data.wakeSwitch) !== 'undefined' && this.#me.retry.wakeSwitch !== data.wakeSwitch) {
@@ -856,8 +894,8 @@ export default class TransactionState {
                 if (data.wakeSwitch === null || typeof(data.wakeSwitch) === 'string') {
                   coreValuesChanged = true
                   this.#me.retry.wakeSwitch = data.wakeSwitch
-                  this.#me.retry.wakeNodeGroup = schedulerForThisNode.getNodeGroup()
-                  this.#me.retry.wakeStepId = data.wakeStepId
+                  // this.#me.retry.wakeNodeGroup = schedulerForThisNode.getNodeGroup()
+                  // this.#me.retry.wakeStepId = data.wakeStepId
                 } else {
                   throw new Error('Invalid data.wakeSwitch')
                 }
@@ -902,6 +940,7 @@ export default class TransactionState {
 
             // } else if (this.#me.transactionData.status === STEP_ || this.#me.transactionData.status === STEP_SLEEPING)
 
+            console.log(`YAMYAP: delta: coreValuesChanged=${coreValuesChanged}`.brightRed)
 
         // If the core values were changed, update the database
         if (coreValuesChanged) {
@@ -931,16 +970,19 @@ export default class TransactionState {
               transactionOutputJSON,
               this.#me.transactionData.completionTime,
               this.#deltaCounter,
-              this.#me.retry.counter,
+              this.#me.retry.sleepCounter,
               this.#me.retry.sleepingSince,
               this.#me.retry.wakeTime,
               this.#me.retry.wakeSwitch,
-              this.#me.retry.wakeNodeGroup,
-              this.#me.retry.wakeStepId
+              // this.#me.retry.wakeNodeGroup,
+              // this.#me.retry.wakeStepId
             ]
             sql += ` WHERE transaction_id=? AND owner=?`
             params.push(this.#me.txId)
             params.push(this.#me.owner)
+
+            console.log(`YAMYAP: delta: Updating`.brightRed, sql)
+
             // console.log(`sql=`, sql)
             // console.log(`params=`, params)
             const response = await dbupdate(sql, params)
@@ -1011,7 +1053,7 @@ export default class TransactionState {
     // console.log(`getSummary(${owner}, ${txId})`)
 
     // Get the transaction state
-    const txState = await TransactionCache.getTransactionState(txId)
+    const txState = await TransactionCacheAndArchive.getTransactionState(txId)
 
     // console.log(`txState=`, txState)
     if (txState === null) {
@@ -1109,42 +1151,70 @@ export default class TransactionState {
     // console.log(`summary=`, summary)
 
     return summary
-  }
+  }//- getSummaryByExternalId
 
 
-  static async getSwitches(owner, txId) {
-    const sql = `SELECT
-      sequence_of_update,
-      switches
-      FROM atp_transaction2
-      WHERE owner=? AND transaction_id=?`
-    const params = [ owner, txId ]
-    const rows = await query(sql, params)
-    if (rows.length < 1) {
-      return [ ]
+  /*************************************************************************************************************************
+   *
+   *    SPECIAL SWITCHES SECTION
+   * 
+    Throughout the lifecycle of a transaction, the current transaction state alternates
+    from being in REDIS (while queued or sleeping) an being in memory (while a step is
+    processing). Control is carefully passed back and forth.
+    
+    Switches however can be set independantly of the transaction lifecycle, for example
+    by a route that decides to set the state.
+    
+    A typical usecase is when we call an external API to do something, and it calls us
+    back to a webhook in our application (not in DATP) to tell us the result of that
+    operation.
+    
+    Since switches can be set in various places we enforce the following:
+     1. Any time we want to know the switch value, we MUST get it from REDIS using a Lua script.
+     2. Any time a switch value is changed, we update it in REDIS using a Lua script.
+     3. We can set the wakeSwitch here, but we must immediately push it up to REDIS with luaEnqueue_startStep().
+     4. We need to make sure the transaction state is in REDIS before any of these actions. We do this by
+        first requesting the transaction state, which will resurrect it from the arcive if necessary.
+     5. Normal archiving will return the switch and wakeSwitch to the archive if it is changed. To ensure
+        this we add the transaction to the archive list if the status is sleeping.
+     6. If the processingState is 'complete', we do not update switch or wakeSwitch.
+   * 
+   */
+
+  static async getSwitch(owner, txId, switchName) {
+    console.log(`getSwitch(${owner}, ${txId}, ${switchName})`)
+
+    // Get the transaction state, resurrecting from the archive if necessary.
+    // We don't actually want the transaction state, but this is a way to ensure the state is currently in REDIS.
+    const resurrectIfNecessary = true
+    const updateCacheIfResurrected = true
+    const tx = await TransactionCacheAndArchive.getTransactionState(txId, resurrectIfNecessary, updateCacheIfResurrected)
+
+    // Check the owner is correct (this is a safety measure)
+    if (tx.getOwner() !== owner) {
+      throw new Error(`Unknown transaction for owner ${owner} [${txId}]`)
     }
 
-    let switches = { }
-    try {
-      if (rows[0].switches) {
-        switches = JSON.parse(rows[0].switches)
-      }
-    } catch (e) {
-      //ZZZZZ report alert
-      const description = `Corrupt switches for transaction ${owner}, ${txId}`
-      console.log(description)
-      throw new Error(description)
-    }
-    return { sequenceOfUpdate: rows[0].sequence_of_update, switches }
+    // Although the tx contains a value for switches, it may be out of date.
+    // Always go direct to REDIS, via the lua script.
+    const acknowledgeValue = false // Is only acknowledged by a step
+    const result = await luaGetSwitch(this.#me.txId, switchName, acknowledgeValue)
+    console.log(`result=`, result)
+    return result
   }
 
-  static async getSwitch(owner, txId, name) {
-    const { switches } = await TransactionState.getSwitches(owner, txId)
-    if (typeof(switches[name]) === 'undefined') {
-      return null
-    }
-    return switches[name]
-  }
+  // /**
+  //  *  This TransactionState object contains a value for switches, but it can easily be
+  //  *  out of date. Always use this function instead, which goes direct to REDIS.
+  //  *
+  //  *  Note: this is an internal function and should not be called except by DATP
+  //  *  code. Steps should use `StepInstance.getSwitch()` instead.
+  //  */
+  // async vog_getSwitch(switchName, acknowledgeValue=false) {
+  //   const result = await luaGetSwitch(this.#me.txId, switchName, acknowledgeValue)
+  //   console.log(`result=`, result)
+  //   return result
+  // }
 
   /**
    * Set a transaction switch value
@@ -1156,50 +1226,59 @@ export default class TransactionState {
    * if we successfully change the switch value. If the transaction is currently sleeping, this will
    * cause the current sleeping step to be immediately retried.
    */
-  static async setSwitch(owner, txId, name, value, triggerNudgeEvent=false) {
-    const { switches, sequenceOfUpdate } = await TransactionState.getSwitches(owner, txId)
-    if (value === null || typeof(value) === 'undefined') {
+  static async setSwitch(owner, txId, name, value) {
+    console.log(`setSwitch(${owner}, ${txId}, ${name}, ${value})`)
 
-      // Remove the switch
-      delete switches[name]
-    } else {
+    // Get the transaction state, resurrecting from the archive if necessary.
+    // We don't actually want the transaction state, but this is a way to ensure the state is currently in REDIS.
+    const resurrectIfNecessary = true
+    const updateCacheIfResurrected = true
+    const tx = await TransactionCacheAndArchive.getTransactionState(txId, resurrectIfNecessary, updateCacheIfResurrected)
 
-      // Add the switch
-      switch (typeof(value)) {
-        case 'string':
-          if (value.length > 32) {
-            throw new Error(`Switch exceeds maximum length (${name}: ${value})`)
-          }
-          switches[name] = value
-          break
-
-        case 'boolean':
-        case 'number':
-          switches[name] = value
-          break
-
-        default:
-          throw new Error(`Switch can only be boolean, number, or string (< 32 chars)`)
-      }
+    // Check the owner is correct (this is a safety measure)
+    if (tx.getOwner() !== owner) {
+      throw new Error(`Unknown transaction for owner ${owner} [${txId}]`)
     }
 
-    const json = JSON.stringify(switches, '', 0)
-
-    // Update the transaction, ensuring nobody has changed the transaction before us
-    if (DEBUG_DB_ATP_TRANSACTION) console.log(`TX UPDATE ${countTxCoreUpdate++} (switch)`)
-    const sql = `UPDATE atp_transaction2 SET switches=?, sequence_of_update=? WHERE owner=? AND transaction_id=? AND sequence_of_update=?`
-    const params = [ json, sequenceOfUpdate+1, owner, txId, sequenceOfUpdate ]
-    const reply = await dbupdate(sql, params)
-    // console.log(`reply=`, reply)
-    if (reply.changedRows !== 1) {
-      throw new Error('Concurrent attempts to set transaction switches - switch not set')
-    }
-
-    // Trigger an event for this change?
-    if (triggerNudgeEvent) {
-      console.log(`YARP Event not triggered`)
-    }
+    // Set the switch
+    tx.setSwitch(name, value)
   }
+
+  async setSwitch(name, value) {
+
+    // Check the switch value is acceptable
+    switch (typeof(value)) {
+      case 'string':
+        if (value.length > 32) {
+          throw new Error(`Switch exceeds maximum length (${name}: ${value})`)
+        }
+        break
+
+      case 'boolean':
+      case 'number':
+        break
+
+      default:
+        throw new Error(`Switch can only be boolean, number, or string (< 32 chars)`)
+    }
+
+    // Set the switch in REDIS
+    const result = await luaSetSwitch(this.#me.txId, name, value)
+    console.log(`result=`, result)
+    return result
+  }
+
+  /**
+   * Set a "wake switch". After setting this "wake switch" the transaction must be immediately put to
+   * sleep using luaEnqueue_startStep('retry-step'). If the switch is already set, or once the value
+   * of the switch changes, the transaction will be immediately requeued to be run.
+   * 
+   * @param {String} name Name of the switch
+   */
+  async vog_setWakeSwitch(name) {
+    this.#me.wakeSwitch = name
+  }
+
 
   /**
    *
@@ -1214,7 +1293,7 @@ export default class TransactionState {
    * @returns
    */
   getRetryCounter() {
-    return this.#me.retry.counter
+    return this.#me.retry.sleepCounter
   }
 
   /**
@@ -1233,13 +1312,27 @@ export default class TransactionState {
     return this.#me.retry.wakeSwitch
   }
 
-  getWakeNodeGroup() {
-    return this.#me.retry.wakeNodeGroup
-  }
+  // getWakeNodeGroup() {
+  //   return this.#me.retry.wakeNodeGroup
+  // }
 
-  getWakeStepId() {
-    return this.#me.retry.wakeStepId
-  }
+  // getWakeStepId() {
+  //   return this.#me.retry.wakeStepId
+  // }
+
+  // clearRetryValues() {
+  //   console.log(`TransactionState.clearRetryValues() - DOING NOTHING`.yellow)
+
+  //   // These values can only get updated in the state cache by the LUA scripts,
+  //   // and get reset whenever a new pipeline is enqueued, or the existing pipeline
+  //   // is nested and returns back to it's caller.
+  //   // However we reset the retry values in this memory copy of the transaction state
+  //   // here, so a delay in one step does not influence other steps in the same pipeline.
+  //   this.#me.retry.sleepCounter = 0
+  //   this.#me.retry.sleepingSince = null
+  //   this.#me.retry.wakeTime = null
+  //   this.#me.retry.wakeSwitch = null
+  // }
 
   getNodeGroupForStep(stepId) {
     for (let s = stepId; s; ) {
@@ -1264,13 +1357,13 @@ export default class TransactionState {
    * @returns
    */
   static async findTransactions(archived, pagesize=20, offset=0, filter='', statusList=[STEP_SUCCESS, STEP_FAILED, STEP_ABORTED]) {
-    // console.log(`TransactionState.findTransactions()`, archived)
+    // console.log(`TransactionState.findTransactions(archived=${archived})`)
 
     archived = false
     if (!archived) {
       const redisLua = await RedisQueue.getRedisLua()
       if (offset == 0) {
-        const result = await redisLua.findTransactions(filter, statusList)
+        const result = await luaFindTransactions(filter, statusList)
         // const result = [ ]
         return result
       }
@@ -1477,10 +1570,10 @@ export default class TransactionState {
       }
       const f2 = this.#me.f2[i]
       let num = `${i}`; while (num.length < 3) num = ` ${num}`
-      let l = ''; for (let i = 0; i < f2[F2ATTR_LEVEL]; i++) l += '  ';
+      let l = ''; for (let i = 0; i < this.getF2level(i); i++) l += '  ';
       let p = f2[F2ATTR_PARENT] ? ` p${f2[F2ATTR_PARENT]}` : ''
       let s = f2[F2ATTR_SIBLING] ? `s${f2[F2ATTR_SIBLING]}` : ''
-      let by = f2._addedBy ? f2._addedBy : ''
+      let by = f2.__addedBy ? f2.__addedBy : ''
       switch (f2[F2ATTR_TYPE]) {
         case F2_PIPELINE:
           console.log(`${pointer} ${num}:${l} ${f2[F2ATTR_TYPE]} (${f2[F2ATTR_PIPELINE]})` + `   [${p} ${s} ${by}]`.gray)

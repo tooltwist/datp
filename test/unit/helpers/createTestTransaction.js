@@ -4,7 +4,7 @@
  * rights reserved. No warranty, explicit or implicit, provided. In no event shall
  * the author or owner be liable for any claim or damages.
  */
-import TransactionCache from "../../../ATP/Scheduler2/txState-level-1"
+import TransactionCacheAndArchive from "../../../ATP/Scheduler2/TransactionCacheAndArchive"
 import XData from "../../../ATP/XData"
 
 export default async function createTestTransaction () {
@@ -31,7 +31,7 @@ export default async function createTestTransaction () {
   // })
 
   // console.log(`input 111=`, input)
-  const tx = await TransactionCache.newTransaction(owner, externalId, transactionType)
+  const tx = await TransactionCacheAndArchive.newTransaction(owner, externalId, transactionType)
   const txId = tx.getTxId()
   return { txId, externalId, tx, owner }
 }

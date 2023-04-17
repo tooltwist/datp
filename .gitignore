@@ -2,3 +2,5 @@
 /test/barrage-tester/node_modules
 .DS_Store
 *-junk
+*-safe
+*.zip

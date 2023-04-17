@@ -160,7 +160,7 @@ export const EVENT_DEFINITION_STEP_START_SCHEDULED = {
   stepDefinition: { type: 'string,object', optional: true },
   metadata: { type: 'object' },
   data: { type: 'object' },
-  level: { type: 'number' }, // YARP Is this required???
+  // level: { type: 'number' }, // YARP Is this required???
   f2i: { type: 'number', optional: true },//ZZZZZ Should not be optional
 }
 
@@ -190,7 +190,7 @@ export const DEFINITION_PROCESS_STEP_START_EVENT = {
   stepDefinition: { type: 'string,object', optional: true },
   metadata: { type: 'object' },
   data: { type: 'object' },
-  level: { type: 'number' }, // YARP Is this required???
+  // level: { type: 'number' }, // YARP Is this required???
   ts: { type: 'number', optional: true }, // Not set for memory queue?
 }
 
@@ -201,7 +201,7 @@ export const DEFINITION_MATERIALIZE_STEP_EVENT = {
   stepDefinition: { type: 'string,object', optional: true },
   metadata: { type: 'object' },
   data: { type: 'object' },
-  level: { type: 'number' }, // YARP Is this required???
+  // level: { type: 'number' }, // YARP Is this required???
   ts: { type: 'number', optional: true }, // Not set for memory queue?
   nodeGroup: { type: 'string' },
   nodeId: { type: 'string' },

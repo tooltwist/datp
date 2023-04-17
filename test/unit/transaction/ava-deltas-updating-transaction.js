@@ -6,7 +6,7 @@
  */
 import test from 'ava'
 import { STEP_QUEUED, STEP_RUNNING, STEP_SUCCESS } from '../../../ATP/Step'
-import TransactionCache from '../../../ATP/Scheduler2/txState-level-1'
+import TransactionCacheAndArchive from '../../../ATP/Scheduler2/TransactionCacheAndArchive'
 import createTestTransaction from '../helpers/createTestTransaction'
 import { schedulerForThisNode, prepareForUnitTesting } from '../../..'
 
@@ -70,10 +70,10 @@ test.serial('Changing status updates transaction', async t => {
   t.is(tx.getCompletionTime(), null)
 
   // Check the values were persisted
-  await TransactionCache.removeFromCache(txId)
-  let tx2 = await TransactionCache.getTransactionState(txId, false)
+  await TransactionCacheAndArchive.removeFromCache(txId)
+  let tx2 = await TransactionCacheAndArchive.getTransactionState(txId, false)
   t.falsy(tx2)
-  tx2 = await TransactionCache.getTransactionState(txId, true)
+  tx2 = await TransactionCacheAndArchive.getTransactionState(txId, true)
   t.truthy(tx2)
   t.is(tx.getDeltaCounter(), 3)
   t.is(tx.getSequenceOfUpdate(), 3)
@@ -102,10 +102,10 @@ test.serial('Changing progressReport updates transaction', async t => {
   t.is(tx.getCompletionTime(), null)
 
   // Check the values were persisted
-  await TransactionCache.removeFromCache(txId)
-  let tx2 = await TransactionCache.getTransactionState(txId, false)
+  await TransactionCacheAndArchive.removeFromCache(txId)
+  let tx2 = await TransactionCacheAndArchive.getTransactionState(txId, false)
   t.falsy(tx2)
-  tx2 = await TransactionCache.getTransactionState(txId, true)
+  tx2 = await TransactionCacheAndArchive.getTransactionState(txId, true)
   t.truthy(tx2)
   t.is(tx2.getDeltaCounter(), 1)
   t.is(tx2.getSequenceOfUpdate(), 1)
@@ -134,10 +134,10 @@ test.serial('Changing transactionOutput updates transaction', async t => {
   t.is(tx.getCompletionTime(), null)
 
   // Check the values were persisted
-  await TransactionCache.removeFromCache(txId)
-  let tx2 = await TransactionCache.getTransactionState(txId, false)
+  await TransactionCacheAndArchive.removeFromCache(txId)
+  let tx2 = await TransactionCacheAndArchive.getTransactionState(txId, false)
   t.falsy(tx2)
-  tx2 = await TransactionCache.getTransactionState(txId, true)
+  tx2 = await TransactionCacheAndArchive.getTransactionState(txId, true)
   t.truthy(tx2)
   t.is(tx2.getDeltaCounter(), 1)
   t.is(tx2.getSequenceOfUpdate(), 1)
@@ -167,10 +167,10 @@ test.serial('Changing completionTime updates transaction', async t => {
   t.is(tx.getCompletionTime(), completionTime)
 
   // Check the values were persisted
-  await TransactionCache.removeFromCache(txId)
-  let tx2 = await TransactionCache.getTransactionState(txId, false)
+  await TransactionCacheAndArchive.removeFromCache(txId)
+  let tx2 = await TransactionCacheAndArchive.getTransactionState(txId, false)
   t.falsy(tx2)
-  tx2 = await TransactionCache.getTransactionState(txId, true)
+  tx2 = await TransactionCacheAndArchive.getTransactionState(txId, true)
   t.truthy(tx2)
   t.is(tx2.getDeltaCounter(), 1)
   t.is(tx2.getSequenceOfUpdate(), 1) // Not changed
@@ -195,10 +195,10 @@ test.serial('Reject invalid completionTime', async t => {
   }, { instanceOf: Error, message: 'data.completionTime parameter must be of type Date'})
 
   // Check the values were persisted
-  await TransactionCache.removeFromCache(txId)
-  let tx2 = await TransactionCache.getTransactionState(txId, false)
+  await TransactionCacheAndArchive.removeFromCache(txId)
+  let tx2 = await TransactionCacheAndArchive.getTransactionState(txId, false)
   t.falsy(tx2)
-  tx2 = await TransactionCache.getTransactionState(txId, true)
+  tx2 = await TransactionCacheAndArchive.getTransactionState(txId, true)
   t.truthy(tx2)
   t.is(tx2.getDeltaCounter(), 0)
   t.is(tx2.getSequenceOfUpdate(), 0)
@@ -218,10 +218,10 @@ test.serial('Changing other stuff does not update transaction', async t => {
   t.is(JSON.stringify(tx.txData()), '{"status":"running","stuff":"to not save transaction"}')
 
   // Check the values were persisted
-  await TransactionCache.removeFromCache(txId)
-  let tx2 = await TransactionCache.getTransactionState(txId, false)
+  await TransactionCacheAndArchive.removeFromCache(txId)
+  let tx2 = await TransactionCacheAndArchive.getTransactionState(txId, false)
   t.falsy(tx2)
-  tx2 = await TransactionCache.getTransactionState(txId, true)
+  tx2 = await TransactionCacheAndArchive.getTransactionState(txId, true)
   t.truthy(tx2)
   t.is(tx2.getDeltaCounter(), 1)
   t.is(tx2.getSequenceOfUpdate(), 0) // Not changed

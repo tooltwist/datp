@@ -5,13 +5,10 @@
  * the author or owner be liable for any claim or damages.
  */
 import juice from '@tooltwist/juice-client'
-import assert from 'assert'
-import TransactionState from '../TransactionState'
 import Scheduler2 from '../Scheduler2';
 import { schedulerForThisNode } from '../../..';
-import { RedisLua } from './redis-lua';
+import { KEYSPACE_NODE_REGISTRATION, RedisLua } from './redis-lua';
 import pause from '../../../lib/pause';
-import { archiveTransactionState } from '../archiving/ArchiveProcessor';
 const Redis = require('ioredis');
 
 // This adds colors to the String class
@@ -19,7 +16,7 @@ require('colors')
 
 const STRING_PREFIX = 'string:::'
 const KEYPREFIX_EVENT_QUEUE = 'datp:event-queue:LIST:'
-const KEYPREFIX_NODE_REGISTRATION = 'datp:node-registration:RECORD:'
+// const KEYSPACE_NODE_REGISTRATION = 'datp:node-registration:RECORD:'
 const POP_TIMEOUT = 0
 
 const KEYPREFIX_TRANSACTION_STATE = 'datp:transaction-state:RECORD:'
@@ -218,86 +215,86 @@ export class RedisQueue {
     await connection_enqueue.rpush(key, value)
   }
 
-  /**
-   *
-   */
-  static async dequeue(queues, numEvents, blocking=true) {
-    if (VERBOSE) console.log(`RedisCache.dequeue(${queues}, num=${numEvents}, blocking=${blocking})`.brightBlue)
-    assert(numEvents > 0)
+  // /**
+  //  *
+  //  */
+  // static async dequeue(queues, numEvents, blocking=true) {
+  //   if (VERBOSE) console.log(`RedisCache.dequeue(${queues}, num=${numEvents}, blocking=${blocking})`.brightBlue)
+  //   assert(numEvents > 0)
 
-    // Check we are connected to REDIS
-    await RedisQueue._checkLoaded()
+  //   // Check we are connected to REDIS
+  //   await RedisQueue._checkLoaded()
 
-    // We read from multiple lists
-    const keys = [ ]
-    for (const queueName of queues) {
-      const key = listName(queueName)
-      keys.push(key)
-    }
+  //   // We read from multiple lists
+  //   const keys = [ ]
+  //   for (const queueName of queues) {
+  //     const key = listName(queueName)
+  //     keys.push(key)
+  //   }
 
-    let arr = [ ]
-    if (blocking) {
-      // Blocking read. We'll use this in idle mode to sleep until something happens.
-      const list = keys[0] //ZZZZ temporary hack
-      arr = await connection_dequeue.blpop(list, POP_TIMEOUT)
-    } else {
+  //   let arr = [ ]
+  //   if (blocking) {
+  //     // Blocking read. We'll use this in idle mode to sleep until something happens.
+  //     const list = keys[0] //ZZZZ temporary hack
+  //     arr = await connection_dequeue.blpop(list, POP_TIMEOUT)
+  //   } else {
 
-      // Non-blocking read of numEvents elements from any of the specified queues
-      let remaining = numEvents
-      for (const key of keys) {
+  //     // Non-blocking read of numEvents elements from any of the specified queues
+  //     let remaining = numEvents
+  //     for (const key of keys) {
 
-        if (remaining <= 0) {
-          break
-        }
+  //       if (remaining <= 0) {
+  //         break
+  //       }
 
-        const result = await connection_dequeue.lpop(key, remaining)
-        if (result) {
-          if (VERBOSE && result.length > 0) {
-            console.log(`{dequeued ${result.length} from ${key}}`.gray)
-          }
-          arr.push(...result)
-          remaining -= result.length
-        }
-      }
-      // if (arr.length > 0) console.log(`arr=`, arr)
+  //       const result = await connection_dequeue.lpop(key, remaining)
+  //       if (result) {
+  //         if (VERBOSE && result.length > 0) {
+  //           console.log(`{dequeued ${result.length} from ${key}}`.gray)
+  //         }
+  //         arr.push(...result)
+  //         remaining -= result.length
+  //       }
+  //     }
+  //     // if (arr.length > 0) console.log(`arr=`, arr)
 
-      // LMPOP would be ideal, but isn't available until REDIS v7, which isn't supported by npm module.
-      // // LMPOP numkeys key [key ...] LEFT|RIGHT [COUNT count]
-      // // See https://redis.io/commands/lmpop
-      // const params = [ keys.length, ...keys, 'LEFT', numEvents ]
-      // const reply = await connection_dequeue.lmpop(...params)
-      // console.log(`reply=`, reply)
-      // // Return value: Null, or a two-element array with the first element being the name of the
-      // // key from which elements were popped, and the second element is an array of elements.
-      // arr = reply ? reply[1] : []
-    }
+  //     // LMPOP would be ideal, but isn't available until REDIS v7, which isn't supported by npm module.
+  //     // // LMPOP numkeys key [key ...] LEFT|RIGHT [COUNT count]
+  //     // // See https://redis.io/commands/lmpop
+  //     // const params = [ keys.length, ...keys, 'LEFT', numEvents ]
+  //     // const reply = await connection_dequeue.lmpop(...params)
+  //     // console.log(`reply=`, reply)
+  //     // // Return value: Null, or a two-element array with the first element being the name of the
+  //     // // key from which elements were popped, and the second element is an array of elements.
+  //     // arr = reply ? reply[1] : []
+  //   }
 
-    if (!arr || arr.length === 0) {
-      return [ ]
-    }
-    // console.log(`arr=`, arr)
-    // console.log(`Dequeued ${arr.length} of ${numEvents}`)
+  //   if (!arr || arr.length === 0) {
+  //     return [ ]
+  //   }
+  //   // console.log(`arr=`, arr)
+  //   // console.log(`Dequeued ${arr.length} of ${numEvents}`)
 
-    // Convert from either string or JSON
-    const convertedArr = [ ]
-    for (const value of arr) {
-      // console.log(`  value=`, value)
-      // console.log(`  value=`, typeof value)
-      if (value.startsWith(STRING_PREFIX)) {
-        // This is a non-JSON string
-        const nval = value.substring(STRING_PREFIX.length)
-        convertedArr.push(nval)
-        if (VERBOSE) console.log(`{dequeued ${nval}}`.gray)
-    } else {
-        // JSON value
-        const nval = JSON.parse(value)
-        convertedArr.push(nval)
-        if (VERBOSE) console.log(`{dequeued ${nval.eventType}}`.gray)
-      }
-    }
-    // console.log(`dequeued ${convertedArr.length} item from queue`)
-    return convertedArr
-  }
+  //   // Convert from either string or JSON
+  //   const convertedArr = [ ]
+  //   for (const value of arr) {
+  //     // console.log(`  value=`, value)
+  //     // console.log(`  value=`, typeof value)
+  //     if (value.startsWith(STRING_PREFIX)) {
+  //       // This is a non-JSON string
+  //       const nval = value.substring(STRING_PREFIX.length)
+  //       convertedArr.push(nval)
+  //       if (VERBOSE) console.log(`{dequeued ${nval}}`.gray)
+  //   } else {
+  //       // JSON value
+  //       const nval = JSON.parse(value)
+  //       convertedArr.push(nval)
+  //       if (VERBOSE) console.log(`{dequeued ${nval.eventType}}`.gray)
+  //     }
+  //   }
+  //   // console.log(`dequeued ${convertedArr.length} item from queue`)
+  //   return convertedArr
+  // }
 
   /**
    *
@@ -373,32 +370,32 @@ export class RedisQueue {
     if (VERBOSE) console.log(` - ${await connection_enqueue.llen(list)} after`)
   }
 
-  /**
-   * Move elements from one queue to another.
-   * This is typically called when a node has died, to move elements from the
-   * element's regular and express queues to the group queue, so they can be
-   * processed by another node.
-   *
-   * @param {string} fromQueue
-   * @param {string} toQueue
-   * @returns Number of elements moved
-   */
-  static async moveElementsToAnotherQueue(fromQueueName, toQueueName) {
-    // console.log(`moveElementsToAnotherQueue(${fromQueueName}, ${toQueueName})`)
-    const fromQueue = listName(fromQueueName)
-    const toQueue = listName(toQueueName)
-    // console.log(`fromQueue=`, fromQueue)
-    // console.log(`toQueue=`, toQueue)
-    for (let i = 0; ; i++) {
-      const value = await connection_admin.lmove(fromQueue, toQueue, 'left', 'right')
-      if (!value) {
-        // None left
-        console.log(`- moved ${i} events.`)
-        return i
-      }
-// return 1
-    }
-  }
+//   /**
+//    * Move elements from one queue to another.
+//    * This is typically called when a node has died, to move elements from the
+//    * element's regular and express queues to the group queue, so they can be
+//    * processed by another node.
+//    *
+//    * @param {string} fromQueue
+//    * @param {string} toQueue
+//    * @returns Number of elements moved
+//    */
+//   static async moveElementsToAnotherQueue(fromQueueName, toQueueName) {
+//     // console.log(`moveElementsToAnotherQueue(${fromQueueName}, ${toQueueName})`)
+//     const fromQueue = listName(fromQueueName)
+//     const toQueue = listName(toQueueName)
+//     // console.log(`fromQueue=`, fromQueue)
+//     // console.log(`toQueue=`, toQueue)
+//     for (let i = 0; ; i++) {
+//       const value = await connection_admin.lmove(fromQueue, toQueue, 'left', 'right')
+//       if (!value) {
+//         // None left
+//         console.log(`- moved ${i} events.`)
+//         return i
+//       }
+// // return 1
+//     }
+//   }
 
   /**
    * Detect if something happens more than once, within the specified number of seconds.
@@ -479,7 +476,7 @@ export class RedisQueue {
   static async registerNodeInREDIS(nodeGroup, nodeId, status) {
     // console.log(`registerNodeInREDIS(nodeGroup=${nodeGroup}, nodeId=${nodeId}) status=`, status)
     await RedisQueue._checkLoaded()
-    const key = `${KEYPREFIX_NODE_REGISTRATION}${nodeGroup}:${nodeId}`
+    const key = `${KEYSPACE_NODE_REGISTRATION}${nodeGroup}:${nodeId}`
     status.timestamp = Date.now()
     const json = JSON.stringify(status, '', 2)
     await connection_admin.set(key, json, 'ex', NODE_REGISTRATION_INTERVAL + 30)
@@ -515,7 +512,7 @@ export class RedisQueue {
    */
   static async getDetailsOfActiveNodesfromREDIS(withStepTypes=false) {
     // console.log(`getDetailsOfActiveNodesfromREDIS(withStepTypes=${withStepTypes})`)
-    const keys = await connection_admin.keys(`${KEYPREFIX_NODE_REGISTRATION}*`)
+    const keys = await connection_admin.keys(`${KEYSPACE_NODE_REGISTRATION}*`)
     // console.log(`keys=`, keys)
 
     // Group by nodeGroup
@@ -622,7 +619,7 @@ export class RedisQueue {
    */
   static async getNodeDetailsFromREDIS(nodeGroup, nodeId) {
     // console.log(`getNodeDetailsFromREDIS(${nodeGroup}, ${nodeId})`)
-    const key = `${KEYPREFIX_NODE_REGISTRATION}${nodeGroup}:${nodeId}`
+    const key = `${KEYSPACE_NODE_REGISTRATION}${nodeGroup}:${nodeId}`
     const json = await connection_admin.get(key)
     // console.log(`json=`, json)
     try {
@@ -651,146 +648,146 @@ export class RedisQueue {
   }
 
 
-  /**
-   * Store a transaction to REDIS.
-   * 
-   * @param {TransactionState} transaction
-   * @param {persistAfter} duration Time before it is written to long term storage (seconds)
-   */
-  static async saveTransactionState_level1(transactionState) {
-    // console.log(`saveTransaction(${transactionState.getTxId()}, persistAfter=${persistAfter}) - ${transactionState.getDeltaCounter()}`)
-    // console.log(`typeof(transactionState)=`, typeof(transactionState))
-    // console.log(`transactionState=`, transactionState)
+  // /**
+  //  * Store a transaction to REDIS.
+  //  * 
+  //  * @param {TransactionState} transaction
+  //  * @param {persistAfter} duration Time before it is written to long term storage (seconds)
+  //  */
+  // static async saveTransactionState_level1(transactionState) {
+  //   // console.log(`saveTransaction(${transactionState.getTxId()}, persistAfter=${persistAfter}) - ${transactionState.getDeltaCounter()}`)
+  //   // console.log(`typeof(transactionState)=`, typeof(transactionState))
+  //   // console.log(`transactionState=`, transactionState)
 
-    await RedisQueue._checkLoaded()
+  //   await RedisQueue._checkLoaded()
 
-    // Save the transactionState as JSON
-    const txId = transactionState.getTxId()
-    const json = transactionState.stringify()
-    // await connection_admin.set(key, value, 'ex', duration)
+  //   // Save the transactionState as JSON
+  //   const txId = transactionState.getTxId()
+  //   const json = transactionState.stringify()
+  //   // await connection_admin.set(key, value, 'ex', duration)
 
-    // console.log(`SAVING TO REDIS: json=`, JSON.stringify(JSON.parse(json), '', 2))
-    // console.log(`SAVINF ${json.length} TO REDIS WITH KEY ${key}`)
-    const key = `${KEYPREFIX_TRANSACTION_STATE}${txId}`
-    // await connection_admin.set(key, json, 'ex', A_VERY_LONG_TIME)
-    await connection_admin.pipeline().set(key, json, 'ex', A_VERY_LONG_TIME).exec()
+  //   // console.log(`SAVING TO REDIS: json=`, JSON.stringify(JSON.parse(json), '', 2))
+  //   // console.log(`SAVINF ${json.length} TO REDIS WITH KEY ${key}`)
+  //   const key = `${KEYPREFIX_TRANSACTION_STATE}${txId}`
+  //   // await connection_admin.set(key, json, 'ex', A_VERY_LONG_TIME)
+  //   await connection_admin.pipeline().set(key, json, 'ex', A_VERY_LONG_TIME).exec()
 
 
-    // Add it to a queue to be persisted to the database later (by a separate server)
-    // See https://developpaper.com/redis-delay-queue-ive-completely-straightened-it-out-this-time/
-    const persistTimeMs = Date.now() + TIME_TILL_GLOBAL_CACHE_ENTRY_IS_PERSISTED_TO_DB
-    await connection_admin.zadd(KEYPREFIX_STATES_TO_PERSIST, persistTimeMs, txId)
-  }
+  //   // Add it to a queue to be persisted to the database later (by a separate server)
+  //   // See https://developpaper.com/redis-delay-queue-ive-completely-straightened-it-out-this-time/
+  //   const persistTimeMs = Date.now() + TIME_TILL_GLOBAL_CACHE_ENTRY_IS_PERSISTED_TO_DB
+  //   await connection_admin.zadd(KEYPREFIX_STATES_TO_PERSIST, persistTimeMs, txId)
+  // }
 
-  /**
-   * Working in conjunction with _saveTransactionState_, this function is run
-   * periodically to find transaction states that need to be shifted from the
-   * global (REDIS) cache, up to long term storage in the database.
-   */
-  static async persistTransactionStatesToLongTermStorage() {
-    // console.log(`RedisQueue-ioredis::persistTransactionStatesToLongTermStorage()`)
+  // /**
+  //  * Working in conjunction with _saveTransactionState_, this function is run
+  //  * periodically to find transaction states that need to be shifted from the
+  //  * global (REDIS) cache, up to long term storage in the database.
+  //  */
+  // static async persistTransactionStatesToLongTermStorage() {
+  //   // console.log(`RedisQueue-ioredis::persistTransactionStatesToLongTermStorage()`)
 
-    await RedisQueue._checkLoaded()
+  //   await RedisQueue._checkLoaded()
 
-    // // Save the transactionState as JSON
-    // const txId = transactionState.getTxId()
-    // const json = transactionState.stringify()
-    // // await connection_admin.set(key, value, 'ex', duration)
+  //   // // Save the transactionState as JSON
+  //   // const txId = transactionState.getTxId()
+  //   // const json = transactionState.stringify()
+  //   // // await connection_admin.set(key, value, 'ex', duration)
 
-    // // console.log(`SAVING TO REDIS: json=`, JSON.stringify(JSON.parse(json), '', 2))
-    // // console.log(`SAVINF ${json.length} TO REDIS WITH KEY ${key}`)
-    // const key = `${KEYPREFIX_TRANSACTION_STATE}${txId}`
-    // await connection_admin.set(key, json, 'ex', A_VERY_LONG_TIME)
+  //   // // console.log(`SAVING TO REDIS: json=`, JSON.stringify(JSON.parse(json), '', 2))
+  //   // // console.log(`SAVINF ${json.length} TO REDIS WITH KEY ${key}`)
+  //   // const key = `${KEYPREFIX_TRANSACTION_STATE}${txId}`
+  //   // await connection_admin.set(key, json, 'ex', A_VERY_LONG_TIME)
 
-    // Add it to a queue to be persisted to the database later (by a separate server)
-    // See https://developpaper.com/redis-delay-queue-ive-completely-straightened-it-out-this-time/
-    const min = '-inf'
-    const max = Date.now()
-    const result = await connection_admin.zrange(KEYPREFIX_STATES_TO_PERSIST, min, max, 'BYSCORE')
-    // console.log(`result=`, result)
+  //   // Add it to a queue to be persisted to the database later (by a separate server)
+  //   // See https://developpaper.com/redis-delay-queue-ive-completely-straightened-it-out-this-time/
+  //   const min = '-inf'
+  //   const max = Date.now()
+  //   const result = await connection_admin.zrange(KEYPREFIX_STATES_TO_PERSIST, min, max, 'BYSCORE')
+  //   // console.log(`result=`, result)
 
-    for (const txId of result) {
-      if (VERBOSE) console.log(`Persisting state of ${txId} to long term storage`)
-      const key = `${KEYPREFIX_TRANSACTION_STATE}${txId}`
-      let json = await connection_admin.get(key)
-      if (json === null) {
-        // Transaction state not in the REDIS cache
-        // May have been deleted by another server also doing the persisting.
-        await connection_admin.zrem(KEYPREFIX_STATES_TO_PERSIST, txId)
-        continue
-      }
+  //   for (const txId of result) {
+  //     if (VERBOSE) console.log(`Persisting state of ${txId} to long term storage`)
+  //     const key = `${KEYPREFIX_TRANSACTION_STATE}${txId}`
+  //     let json = await connection_admin.get(key)
+  //     if (json === null) {
+  //       // Transaction state not in the REDIS cache
+  //       // May have been deleted by another server also doing the persisting.
+  //       await connection_admin.zrem(KEYPREFIX_STATES_TO_PERSIST, txId)
+  //       continue
+  //     }
 
-      // console.log(`json=`, json)
+  //     // console.log(`json=`, json)
 
-      await archiveTransactionState(txId, json)
+  //     await archiveTransactionState(txId, json)
 
-      // try {
-      //   /*
-      //    *  Insert transaction state into the database.
-      //    */
-      //   let sql = `INSERT INTO atp_transaction_state (transaction_id, json) VALUES (?, ?)`
-      //   let params = [ txId, json ]
-      //   let result2 = await dbupdate(sql, params)
-      //   // console.log(`result2=`, result2)
-      //   if (result2.affectedRows !== 1) {
-      //     //ZZZZZZ Notify the admin
-      //     console.log(`SERIOUS ERROR: persistTransactionStatesToLongTermStorage: could not insert into DB [${txId}]`, e)
-      //     continue
-      //   }
+  //     // try {
+  //     //   /*
+  //     //    *  Insert transaction state into the database.
+  //     //    */
+  //     //   let sql = `INSERT INTO atp_transaction_state (transaction_id, json) VALUES (?, ?)`
+  //     //   let params = [ txId, json ]
+  //     //   let result2 = await dbupdate(sql, params)
+  //     //   // console.log(`result2=`, result2)
+  //     //   if (result2.affectedRows !== 1) {
+  //     //     //ZZZZZZ Notify the admin
+  //     //     console.log(`SERIOUS ERROR: persistTransactionStatesToLongTermStorage: could not insert into DB [${txId}]`, e)
+  //     //     continue
+  //     //   }
 
-      // } catch (e) {
-      //   if (e.code !== 'ER_DUP_ENTRY') {
-      //     //ZZZZZZ Notify the admin
-      //     console.log(`SERIOUS ERROR: persistTransactionStatesToLongTermStorage: could not insert into DB [${txId}]`, e)
-      //     continue
-      //   }
+  //     // } catch (e) {
+  //     //   if (e.code !== 'ER_DUP_ENTRY') {
+  //     //     //ZZZZZZ Notify the admin
+  //     //     console.log(`SERIOUS ERROR: persistTransactionStatesToLongTermStorage: could not insert into DB [${txId}]`, e)
+  //     //     continue
+  //     //   }
 
-      //   /*
-      //    *  Already in DB - need to update
-      //    */
-      //   // console.log(`Need to update`)
-      //   const sql = `UPDATE atp_transaction_state SET json=? WHERE transaction_id=?`
-      //   const params = [ json, txId ]
-      //   const result2 = await dbupdate(sql, params)
-      //   // console.log(`result2=`, result2)
-      //   if (result2.affectedRows !== 1) {
-      //     //ZZZZZZ Notify the admin
-      //     console.log(`SERIOUS ERROR: persistTransactionStatesToLongTermStorage: could not update DB [${txId}]`, e)
-      //     continue
-      //   }
-      // }
+  //     //   /*
+  //     //    *  Already in DB - need to update
+  //     //    */
+  //     //   // console.log(`Need to update`)
+  //     //   const sql = `UPDATE atp_transaction_state SET json=? WHERE transaction_id=?`
+  //     //   const params = [ json, txId ]
+  //     //   const result2 = await dbupdate(sql, params)
+  //     //   // console.log(`result2=`, result2)
+  //     //   if (result2.affectedRows !== 1) {
+  //     //     //ZZZZZZ Notify the admin
+  //     //     console.log(`SERIOUS ERROR: persistTransactionStatesToLongTermStorage: could not update DB [${txId}]`, e)
+  //     //     continue
+  //     //   }
+  //     // }
 
-      // We've either inserted or updated the database.
-      // We can now remove from REDIS.
-      if (VERBOSE) console.log(`Removing transaction state from REDIS [${txId}]`)
-      await connection_admin.zrem(KEYPREFIX_STATES_TO_PERSIST, txId)
-      await connection_admin.del(key)
+  //     // We've either inserted or updated the database.
+  //     // We can now remove from REDIS.
+  //     if (VERBOSE) console.log(`Removing transaction state from REDIS [${txId}]`)
+  //     await connection_admin.zrem(KEYPREFIX_STATES_TO_PERSIST, txId)
+  //     await connection_admin.del(key)
 
-      // If we are shutting down now, quit immediately.
-      if (schedulerForThisNode.shuttingDown()) {
-        return
-      }
-    }// next txId
-  }
+  //     // If we are shutting down now, quit immediately.
+  //     if (schedulerForThisNode.shuttingDown()) {
+  //       return
+  //     }
+  //   }// next txId
+  // }
 
-  /**
-   * Access a value saved using _setTemporaryValue_. If the expiry duration for
-   * the temporary value has passed, null will be returned.
-   *
-   * @param {string} key
-   * @returns The value saved using _setTemporaryValue_.
-   */
-  static async getTransactionState(txId) {
-    await RedisQueue._checkLoaded()
-    const key = `${KEYPREFIX_TRANSACTION_STATE}${txId}`
-    let json = await connection_admin.get(key)
-    if (json === null) {
-      // Transaction state not in the REDIS cache
-      return null
-    } else {
-      return new TransactionState(json)
-    }
-  }//- getTransactionState
+  // /**
+  //  * Access a value saved using _setTemporaryValue_. If the expiry duration for
+  //  * the temporary value has passed, null will be returned.
+  //  *
+  //  * @param {string} key
+  //  * @returns The value saved using _setTemporaryValue_.
+  //  */
+  // static async getTransactionState(txId) {
+  //   await RedisQueue._checkLoaded()
+  //   const key = `${KEYPREFIX_TRANSACTION_STATE}${txId}`
+  //   let json = await connection_admin.get(key)
+  //   if (json === null) {
+  //     // Transaction state not in the REDIS cache
+  //     return null
+  //   } else {
+  //     return new TransactionState(json)
+  //   }
+  // }//- getTransactionState
 
   static async queueStats() {
 
@@ -823,7 +820,7 @@ export class RedisQueue {
     }
 
     // Get details from the node keep-alives in REDIS
-    let nodes = await connection_admin.keys(`${KEYPREFIX_NODE_REGISTRATION}*`)
+    let nodes = await connection_admin.keys(`${KEYSPACE_NODE_REGISTRATION}*`)
     // console.log(`nodes=`, nodes)
     for (const key of nodes) {
       const arr = key.split(':')

@@ -16,18 +16,18 @@ import juice from '@tooltwist/juice-client'
 import { RouterStep as RouterStepInternal } from './ATP/hardcoded-steps/RouterStep'
 import Pause from './lib/pause'
 import Scheduler2 from './ATP/Scheduler2/Scheduler2'
-import TransactionState from './ATP/Scheduler2/TransactionState'
 import { deepCopy } from './lib/deepCopy'
 import LongPoll from './ATP/Scheduler2/LongPoll'
-import DatpCron from './cron/cron'
 import { generateErrorByName, registerErrorLibrary } from './lib/errorCodes'
 import errors_datp_EN from './lib/errors-datp-EN'
 import errors_datp_FIL from './lib/errors-datp-FIL'
 import { registerReplyConverter, convertReply } from './ATP/Scheduler2/ReplyConverter'
 import { WebhookProcessor } from './ATP/Scheduler2/webhooks/WebhookProcessor'
-import { ArchiveProcessor } from './ATP/Scheduler2/archiving/ArchiveProcessor'
 import { requiresWebhookReply, RETURN_TX_STATUS_CALLBACK_ZZZ } from './ATP/Scheduler2/webhooks/tryTheWebhook'
 import { DuplicateExternalIdError } from './ATP/Scheduler2/DuplicateExternalIdError'
+import { ArchiveProcessor } from './ATP/Scheduler2/archiving/ArchiveProcessor'
+import DatpCron from './cron/cron'
+import { WakeupProcessor } from './ATP/Scheduler2/WakeupProcessor'
 
 const VERBOSE = 0
 
@@ -43,6 +43,7 @@ export const query = dbQuery
 export let schedulerForThisNode = null
 export let webhookProcessor = null
 export let archiveProcessor = null
+export let wakeupProcessor = null
 export let cron = null
 
 async function restifySlaveServer(options) {
@@ -79,6 +80,10 @@ export async function goLive(server) {
 
   archiveProcessor = new ArchiveProcessor()
   await archiveProcessor.start()
+console.log(`-------------->>>>>>> YARP`)
+
+  wakeupProcessor = new WakeupProcessor()
+  await wakeupProcessor.start()
 
   // Cron
   cron = new DatpCron()

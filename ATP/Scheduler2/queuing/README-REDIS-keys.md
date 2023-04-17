@@ -5,36 +5,109 @@ Here's a description of the various keys used to store data in REDIS.
 
 We use a suffix to describe the type of key, which matches the initial letter of the REDIS commands associated with that type.
 
-H - hash
-L - list
-Z - sorted list
+H = hash,
+L = list,
+Z = sorted list  
 
 
 
 |Prefix|Suffix|Contains|enqueue|dequeue|getState|sleep|completed|
 |------:|---|-------|------|-----|------|-----|---|
-|pipelineH:|Pipeline name|Pipeline definition|
 |stateH:|txId|Transaction state|set||
-|processingZ|-|List of txIds currently running|delete|add||delete|delete|
+|processingZ:|-|List of txIds currently running|delete|add||delete|delete|
 |qInL:|nodeGroup|Event to start pipeline|push|pop||||
 |qOutL:|nodeGroup|Event to end pipeline|push|pop||||
 |qAdminL:|nodeGroup|Admin event queue|||||
 |externalId:|externalId|externalId->txId, dissappears after<br>EXTERNALID_UNIQUENESS_PERIOD|Set during first event for the transaction.||||
-|stats1H:|time|Fine level statistics|||||
-|stats2H:|time|Medium level statistics|||||
-|stats3H:|time|Coarse level statistics|||||
+|metric1H:|time|Fine level statistics|||||
+|metric2H:|time|Medium level statistics|||||
+|metric3H:|time|Coarse level statistics|||||
 |sleepingZ:|-|Short duration sleeping||||add||
-|toArchiveZ|-|List of transactions that need to be<br>persisted to the database.||
-|toArchiveLock1<br>toArchiveLock2|-|nodeId currently assigned the role<br>of persisting transaction states.|||
-|webhooksZ|-|IDs of completed transactions<br>that need a reply via webhook.|||May be deleted by longpoll.||Add|
-|webhookCounter:|url|Count of failed attempts|||||
+|toArchiveZ:|-|List of transactions that need to be<br>persisted to the database.||
+|toArchiveLock1:<br>toArchiveLock2:|-|nodeId currently assigned the role<br>of persisting transaction states.|||
+|webhooksZ:|-|IDs of completed transactions<br>that need a reply via webhook.|||May be deleted by longpoll.||Add|
+|webhookFail:|url|Count of failed attempts|||||
+|pipelineH:|Pipeline name|Pipeline definition|
+|datp-notify:|-|Channel for notifications|
 |
 
 
 
+
+# Class RedisLua
+
+This class provides the queueing functionality that is central to DATP, using REDIS in-memory data store.
+The basic operand is a pipeline. A transaction is queued to start the pipeline. If that pipelibe
+
+## luaEnqueue_startStep
+Called when a pipeline needs to be started.
+
+## Enqueue Pipeline End
+zzzzz
+
+## Enqueue continue
+NOTYET
+This is not implemented yet, but will allow a transaction that has been paused (etc going to sleep) to be restarted.
+
+## findTransactions
+zzzzz
+
+## getState()
+zzzzz
+
+## getMetrics()
+zzzzz
+
+## luaTransactionCompleted()
+zzzzz
+
+## deleteZZZ() ????
+zzzzz
+
+## luaDequeue()
+zzzzz
+
+## luaTransactionsToArchive()
+zzzzz
+
+## luaGetWebhooksToProcess()
+zzzzz
+
+## luaListenToNotifications()
+zzzzz
+
+## notify()
+zzzzz
+
+## uploadPipelineDefinitions()
+zzzzz
+
+## flushPipelineDefinitions()
+zzzzz
+
+# Javascript Utility functions
+
+
+## externalizeTransactionState()
+zzzzz
+
+## de_externalizeTransactionState()
+zzzzz
+
+## transactionStateFromJsonAndExternalizedFields
+zzzzz
+
+## externaliseStateField_extractValue()
+zzzzz
+
+## externaliseStateField_setValue()
+zzzzz
+
+
 # Lifecycle Steps / Lua Functions
 
-## Enqueue
+## Enqueue (datp_enqueue)
+
 This has a combined function of saving the transaction state, and (optionally) putting the transaction
 into a queue to be handled by a specific nodeGroup.
 
@@ -46,7 +119,7 @@ into a queue to be handled by a specific nodeGroup.
 
 4. Decide a queue based on the `queueType` and `nodeGroup`.
 
-5. Save the state as JSON and a bunch of externalized fields.
+5. Save the state as JSON and a bunch of externalized fields (see the "Externalizing" section below).
 
 6. If an event is provided, push it to the queue worked out above.
 
@@ -55,7 +128,7 @@ into a queue to be handled by a specific nodeGroup.
 8. Update statistics for this pipeline/nodeGroup/owner.
 
 
-## Dequeue
+## Dequeue (datp_dequeue)
 This function pulls events off the queues for a specified node group.
 
 The three queues only contain the transaction IDs - the actual events are saved in the transaction's KEYSPACE_STATE.
@@ -79,7 +152,12 @@ until it is re-queued, or the transaction completes. The sort value in this list
 and we can use this in MONDAT to find transactions that started, but don't appear to have completed.
 
 
-## getState
+## datp_metrics
+
+## datp_findTransactions
+
+
+## datp_getState
 1. If `markAsReplied` is true, this has been called by a longpoll about to reply.
 We can set `notifiedTime` in the KEYSPACE_STATE hash for the transaction, knowing the reply will be sent as soon as this function returns.
 
@@ -91,7 +169,7 @@ In this case we remove this transaction from the KEYSPACE_WEBHOOK_ZZZ list.
 
 1. Return the transaction state.
 
-## completeTransaction
+## datp_completeTransaction
 1. Sanity check: Make sure the transaction already has it's state saved in `KEYSPACE_STATE`.
 1. Sanity check: check the existing completion status. The transaction can only be completed if it is currently running.
 1. Sanity check: check the _new_ completion status is valid.
@@ -105,8 +183,8 @@ and it's faster if we don't have to pull it out of the archive.
 1. We publish the transaction completion on `CHANNEL_NOTIFY`. Each node subscribes to this channel, and monitors
 for the completion (or progress reports) of transactions that are currently long-polling on that node.
 
-## transactionsToArchive
-This function is called by the _ArchiveProcessor_ - the background task that moves trnsaction states from
+## datp_transactionsToArchive
+This function is called by the _ArchiveProcessor_ - the background task that moves transaction states from
 REDIS to long term storage (e.g. a database).
 
 When a bunch of transactions are passed to an ArchiveProcessor to archive, they are not actually removed from
@@ -144,7 +222,7 @@ At the time we return the transaction IDs from our list, we also return the JSON
 transactions.
 
 
-## webhooksToProcess
+## datp_webhooksToProcess
 Returns a list of transactions where the client needs to be sent a notification using a webhook.
 
 Transaction IDs are added to the `KEYSPACE_WEBHOOK` queue if a webhook was provided, and then either
@@ -164,16 +242,16 @@ If we reach `MAX_WEBHOOK_RETRIES` attempts and still fail, we stop trying.
 Note: If a transaction is started with `cancelWebhook` specified in the metadata, then a longpoll that
 returns the transaction status will also remove the transaction from this `KEYSPACE_WEBHOOK` queue.
 
-Similar to `transactionsToArchive` above, this function is called repeatedly from a node's
+Similar to `luaTransactionsToArchive` above, this function is called repeatedly from a node's
 `WebhookProcessor`.
 On each call, the Webhookprocessor tells this function which webhooks it has attempted (and the result)
 and asks for a new batch of webhook calls to try.
-As with `transactionsToArchive`, this function uses a locking mechanism to grant just one node
+As with `luaTransactionsToArchive`, this function uses a locking mechanism to grant just one node
 the role of calling webhooks.
 
 
 TODO:
-1. When MAX_WEBHOOK_RETRIES are reached, send a notification to th administrator. ZZZZZ
+1. When MAX_WEBHOOK_RETRIES are reached, send a notification to the administrator. ZZZZZ
 
 1. Use `KEYSPACE_WEBHOOK_FAIL_COUNTER` to count the number of failed attempts to a specific URL. This counts
 the failures of a specific webhook URL, rather than attempts to call the webhook for a specific transaction.
@@ -181,3 +259,12 @@ If a specific webhook URL fails to work for `KEYSPACE_WEBHOOK_FAIL_LIMIT` succes
 `KEYSPACE_WEBHOOK_FAIL_PERIOD` seconds, then we reschedule any webhooks to that URL for
 `KEYSPACE_WEBHOOK_DISABLE_PERIOD` seconds. ZZZZZ
 And notify the administrator. ZZZZZ
+
+
+
+# Externalizing the Transaction State
+The state of the transaction is stored as JSON, which is flexible, but prevents the LUA scripts from
+understanding what is going on inside the transaction, without parsing the JSON, which is a slow operation.
+
+To allow LUA code to access specific transaction state values, we remove them from the JSON and store
+them as individual fields in the transaction, which is stored as a REDIS hash.

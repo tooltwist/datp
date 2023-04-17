@@ -9,7 +9,7 @@ import StepTypes from '../StepTypeRegister'
 import pause from '../../lib/pause'
 import StepInstance from "../StepInstance"
 
-const VERBOSE = 0
+const VERBOSE = 1
 
 class RandomDelayStep extends Step {
   #minDelay
@@ -69,6 +69,8 @@ class RandomDelayStep extends Step {
 
     // If this is the first time this step has been called, do the sleep.
     const counter = await instance.getRetryCounter()
+    console.log(`counter=`, counter)
+
     if (counter === 0) {
 
       if (VERBOSE) console.log(`Delay ${delayMs}ms ${minmax}`)
@@ -105,7 +107,7 @@ class RandomDelayStep extends Step {
 }//- class RandomDelayStep
 
 async function register() {
-  await StepTypes.register(myDef, 'util/delay', 'Delay a random period of time')
+  await StepTypes.register(myDef, 'util/delay', 'Delay a random period of time (ms)')
 }//- register
 
 async function defaultDefinition() {

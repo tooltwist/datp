@@ -31,12 +31,13 @@ import { mondatRoute_saveTestCasesV1 } from '../mondat/testCases';
 import { mondatRoute_deleteTransactionMappingsV1 } from '../mondat/transactionMapping';
 import { mondatRoute_getTransactionMappingsV1 } from '../mondat/transactionMapping';
 import { mondatRoute_saveTransactionMappingsV1 } from '../mondat/transactionMapping';
-import { mondatRoute_transactionStatusV1, mondatRoute_transactionStateV1 } from '../mondat/transactions';
-import { mondatRoute_transactionsV1 } from '../mondat/transactions';
-import { mondatRoute_handleOrphanQueuesV1 } from '../mondat/handleOrphanQueues';
+import { mondatRoute_transactionStatusV1, mondatRoute_transactionStateStatusV1, mondatRoute_transactionsInPlayV1, mondatRoute_archivedTransactionsV1, mondatRoute_transactionStateV1, mondatRoute_transactionsSleepingV1, mondatRoute_exceptionTransactionsV1 } from '../mondat/transactions';
+import { mondatRoute_recentTransactionsV1 } from '../mondat/transactions';
+// import { mondatRoute_handleOrphanQueuesV1 } from '../mondat/handleOrphanQueues';
 import { mondatRoute_cacheStatsV1 } from '../mondat/cacheStats';
 import { mondatRoute_setEventloopWorkersV1 } from '../mondat/setNumWorkers';
 import { mondatRoute_getMetricsV1 } from '../mondat/metrics';
+import { mondatRoute_manuallySetSwitchV1, mondatRoute_manuallyWakeV1, mondatRoute_zzzGetSwitchV1 } from '../mondat/manuallyWake';
 
 
 async function registerRoutes(server) {
@@ -46,9 +47,24 @@ async function registerRoutes(server) {
     { versions: '1.0 - 1.0', handler: mondatRoute_getPipelinesTypesV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
 
+  defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/transactions/inPlay', [
+    { versions: '1.0 - 1.0', handler: mondatRoute_transactionsInPlayV1, auth: LOGIN_IGNORED, noTenant: true }
+  ])
 
-  defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/transactions', [
-    { versions: '1.0 - 1.0', handler: mondatRoute_transactionsV1, auth: LOGIN_IGNORED, noTenant: true }
+  defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/transactions/sleeping', [
+    { versions: '1.0 - 1.0', handler: mondatRoute_transactionsSleepingV1, auth: LOGIN_IGNORED, noTenant: true }
+  ])
+
+  defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/transactions/recent', [
+    { versions: '1.0 - 1.0', handler: mondatRoute_recentTransactionsV1, auth: LOGIN_IGNORED, noTenant: true }
+  ])
+
+  defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/transactions/archived', [
+    { versions: '1.0 - 1.0', handler: mondatRoute_archivedTransactionsV1, auth: LOGIN_IGNORED, noTenant: true }
+  ])
+
+  defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/transactions/exception', [
+    { versions: '1.0 - 1.0', handler: mondatRoute_exceptionTransactionsV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
 
   defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/stepInstance/:stepId', [
@@ -60,6 +76,18 @@ async function registerRoutes(server) {
   ])
   defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/transaction/:txId/state', [
     { versions: '1.0 - 1.0', handler: mondatRoute_transactionStateV1, auth: LOGIN_IGNORED, noTenant: true }
+  ])
+  defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/transaction/:txId/stateStatus', [
+    { versions: '1.0 - 1.0', handler: mondatRoute_transactionStateStatusV1, auth: LOGIN_IGNORED, noTenant: true }
+  ])
+  defineRoute(server, 'post', false, MONITOR_URL_PREFIX, '/manuallyWake/:txId', [
+    { versions: '1.0 - 1.0', handler: mondatRoute_manuallyWakeV1, auth: LOGIN_IGNORED, noTenant: true }
+  ])
+  defineRoute(server, 'post', false, MONITOR_URL_PREFIX, '/manuallySetSwitch/:txId/:switchName/:value', [
+    { versions: '1.0 - 1.0', handler: mondatRoute_manuallySetSwitchV1, auth: LOGIN_IGNORED, noTenant: true }
+  ])
+  defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/zzzGetSwitch/:txId/:switchName', [
+    { versions: '1.0 - 1.0', handler: mondatRoute_zzzGetSwitchV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
   defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/pipelines', [
     { versions: '1.0 - 1.0', handler: mondatRoute_listPipelinesV1, auth: LOGIN_IGNORED, noTenant: true }
@@ -173,10 +201,7 @@ async function registerRoutes(server) {
   /*
    *  Admin functions
    */
-  defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/handleOrphanQueues/:nodeGroup/:nodeId', [
-    { versions: '1.0 - 1.0', handler: mondatRoute_handleOrphanQueuesV1, auth: LOGIN_IGNORED, noTenant: true }
-  ])
-  defineRoute(server, 'put', false, MONITOR_URL_PREFIX, '/nodeGroup/:nodeGroup/seteventloopWorkers', [
+  defineRoute(server, 'put', false, MONITOR_URL_PREFIX, '/nodeGroup/:nodeGroup/setNumWorkers', [
     { versions: '1.0 - 1.0', handler: mondatRoute_setEventloopWorkersV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
 

@@ -11,8 +11,10 @@ import { db_updatePipelineType, getPipelineType } from '../database/dbTransactio
 import crypto from 'crypto'
 
 export async function mondatRoute_getPipelinesTypesV1(req, res, next) {
-  // console.log(`mondatRoute_getPipelinesTypesV1()`)
+  console.log(`mondatRoute_getPipelinesTypesV1()`.brightRed)
   const list = await db_getPipelineTypesV1()
+  // console.log(`list=`, list)
+
   res.send(list)
   return next();
 }

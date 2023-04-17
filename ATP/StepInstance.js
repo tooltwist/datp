@@ -15,11 +15,13 @@ import dbLogbook from '../database/dbLogbook'
 import { DEEP_SLEEP_SECONDS, isDevelopmentMode } from '../datp-constants'
 import isEqual  from 'lodash.isequal'
 import { GO_BACK_AND_RELEASE_WORKER } from './Scheduler2/Worker2'
-import me from '../lib/me'
 import { DEFINITION_MATERIALIZE_STEP_EVENT, STEP_DEFINITION, validateStandardObject } from './Scheduler2/eventValidation'
 import { FLOW_VERBOSE } from './Scheduler2/queuing/redis-lua'
 import { requiresWebhookProgressReports, sendStatusByWebhook, WEBHOOK_EVENT_PROGRESS } from './Scheduler2/webhooks/tryTheWebhook'
 import { flow2Msg } from './Scheduler2/flowMsg'
+import Scheduler2 from './Scheduler2/Scheduler2'
+import { luaEnqueue_startStep } from './Scheduler2/queuing/redis-startStep'
+import { luaGetSwitch } from './Scheduler2/queuing/redis-retry'
 require('colors')
 
 const VERBOSE = 0
@@ -32,11 +34,11 @@ export default class StepInstance {
   #transactionState
 
   #txId
-  #nodeGroup  // Cluster of redundant servers, performing the same role
+  // #nodeGroup  // Cluster of redundant servers, performing the same role
   #nodeId     // Specific server
   #stepId
   #stepDefinition
-  #txdata
+  #txdata // data passed to the step
   #metadata
   #fullSequence
   #vogPath
@@ -46,11 +48,11 @@ export default class StepInstance {
 
   #level
   #indent
-  #flowIndex
+  // #flowIndex
   #f2i
 
   // What to do after the step completes {nodeId, completionToken}
-  #onComplete
+  // #onComplete
 
   #waitingForCompletionFunction
 
@@ -58,7 +60,7 @@ export default class StepInstance {
     // console.log(`StepInstance.materialize()`, options)
     this.#worker = null
 
-    this.#nodeGroup = null
+    // this.#nodeGroup = null
     this.#nodeId = null
     // Definition
     this.#stepId = null
@@ -69,12 +71,12 @@ export default class StepInstance {
     // this.privateData = { }
     // Debug stuff
     this.#level = 0
-    this.#flowIndex = -1
+    // this.#flowIndex = -1
     this.#f2i = -1
     this.#fullSequence = ''
     this.#vogPath = ''
     // Step completion handling
-    this.#onComplete = null
+    // this.#onComplete = null
 
     this.#rollingBack = false
     this.#logBuffer = [ ] // Temporary store of log entries
@@ -121,19 +123,19 @@ export default class StepInstance {
 
     const metadata = tx.vog_getMetadata()
 
-    this.#txId = event.txId
-    this.#nodeGroup = event.nodeGroup
-    this.#nodeId = event.nodeId
+    this.#txId = tx.getTxId()
+    // this.#nodeGroup = Scheduler2.getNodeGroup()
+    this.#nodeId = schedulerForThisNode.getNodeId()
     this.#stepId = stepId //ZZZ Remove this
     this.#txdata = new XData(event.data)
     this.#metadata = metadata
     this.#level = stepData.level
-    this.#flowIndex = event.flowIndex
+    // this.#flowIndex = event.flowIndex
     this.#f2i = event.f2i
     this.#fullSequence = stepData.fullSequence
     this.#vogPath = stepData.vogPath
 
-    this.#onComplete = event.onComplete
+    // this.#onComplete = event.onComplete
     // this.#completionToken = event.completionToken
 
     // Log this step being materialized
@@ -190,7 +192,8 @@ export default class StepInstance {
   }
 
   getNodeGroup() {
-    return this.#nodeGroup
+    const nodeGroup = schedulerForThisNode.getNodeGroup()
+    return nodeGroup
   }
 
   getNodeId() {
@@ -242,9 +245,9 @@ export default class StepInstance {
     return this.#fullSequence
   }
 
-  vog_getFlowIndex() {
-    return this.#flowIndex
-  }
+  // vog_getFlowIndex() {
+  //   return this.#flowIndex
+  // }
 
   vog_getF2i() {
     return this.#f2i
@@ -312,13 +315,14 @@ export default class StepInstance {
 
     const myStepOutput = this._sanitizedOutput(stepOutput)
     if (VERBOSE) console.log(`succeeded: step out is `.magenta, myStepOutput)
-    if (VERBOSE > 1) console.log(`this.#onComplete=`, this.#onComplete)
+    // if (VERBOSE > 1) console.log(`this.#onComplete=`, this.#onComplete)
 
     // Sync any buffered logs
     if (VERBOSE) this.trace(`Step succeeded - ${note}`, dbLogbook.LOG_SOURCE_SYSTEM)
     await this.syncLogs()
 
     // Quick sanity check - make sure this step is actually running, and has not already exited.
+//ZZZZZ YARP use f2i!!!!
     const stepData = tx.stepData(this.#stepId)
     if (stepData.status !== STEP_RUNNING) {
       //ZZZ Write to the log
@@ -327,7 +331,12 @@ export default class StepInstance {
       throw new Error(description)
     }
 
+    // Not sleeping any more
+    // tx.clearRetryValues()
+
     // Persist the result and new status
+    // tx.vog_setStatusToSuceeded()
+    console.log(`YAMYAP: succeeded calling delta`.brightRed)
     await tx.delta(this.#stepId, {
       status: STEP_SUCCESS,
     }, 'stepInstance.succeeded()')
@@ -373,6 +382,9 @@ export default class StepInstance {
       console.log(description)
       throw new Error(description)
     }
+
+    // Not sleeping any more
+    // tx.clearRetryValues()
 
     // Persist the result and new status
     await tx.delta(this.#stepId, {
@@ -430,6 +442,9 @@ export default class StepInstance {
       throw new Error(description)
     }
 
+    // Not sleeping any more
+    // tx.clearRetryValues()
+
     // Persist the result and new status
     // await tx.delta(null, {
     //   progressReport: {}
@@ -483,6 +498,9 @@ export default class StepInstance {
       transactionId: this.#txId,
       stepId: this.#stepId
     }
+
+    // Not sleeping any more
+    // tx.clearRetryValues()
 
     // Save the step status
     const note = `Internal error: bad pipeline definition. Please notify system administrator.`
@@ -552,6 +570,9 @@ export default class StepInstance {
       transactionId: this.#txId,
       stepId: this.#stepId
     }
+
+    // Not sleeping any more
+    // tx.clearRetryValues()
 
     // Update the status
     const note = `Internal error: exception in step. Please notify system administrator.`
@@ -629,85 +650,95 @@ export default class StepInstance {
    * @param {string} nameOfSwitch Retry immediately if the value of this switch changes
    * @param {number} sleepDuration Number of seconds after which to retry (defaults to two minutes)
    */
-  async retryLater(nameOfSwitch=null, sleepDuration=120, forceDeepSleep=false) {
+  async retryLater(nameOfSwitch=null, sleepDuration=0, forceDeepSleep=false) {
     sleepDuration = Math.round(sleepDuration)
-    if (VERBOSE_16aug22) console.log(`\n\n${me()}: **************************** RETRY LATER!!!!`)
-    if (VERBOSE) console.log(`StepInstance.retryLater(nameOfSwitch=${nameOfSwitch}, sleepDuration=${sleepDuration})`)
+    if (VERBOSE) console.log(`StepInstance.retryLater(nameOfSwitch=${nameOfSwitch}, sleepDuration=${sleepDuration} seconds)`)
     this.#waitingForCompletionFunction = false
 
-    const wakeTime = new Date(Date.now() + (sleepDuration * 1000))
+    // const txState = this.#transactionState.asObject()
+    // console.log(`txState=`, txState)
+    // console.log(`this.#txId=`, this.#txId)
+    // const parentNodeGroup = schedulerForThisNode.getNodeGroup()
+    // console.log(`parentNodeGroup=`, parentNodeGroup)
+    // const metadata = txState.transactionData.metadata
+    // console.log(`metadata=`, metadata)
+    // console.log(`this.#txdata=`, this.#txdata.getJson())
+    // console.log(`this.#f2i=`, this.#f2i)
+
+    const DEFAULT_SLEEP_FOR_SWITCH = 2 * 60 * 60 // 2 hours
+    const DEFAULT_SLEEP_FOR_RETRY = 5 * 60 // 5 minutes
+
+
+    // Are we waiting for a switch?
+    if (nameOfSwitch) {
+      nameOfSwitch = nameOfSwitch.trim()
+      // this.#transactionState.vog_setWakeSwitch(nameOfSwitch)
+      if (!sleepDuration) {
+        sleepDuration = DEFAULT_SLEEP_FOR_SWITCH
+      }
+      if (VERBOSE) console.log(`WILL WAIT FOR SWITCH ${nameOfSwitch} or for ${sleepDuration} seconds`)
+    } else {
+      if (!sleepDuration) {
+        sleepDuration = DEFAULT_SLEEP_FOR_RETRY
+        if (VERBOSE) console.log(`WILL SLEEP FOR ${nameOfSwitch} seconds`)
+      }
+    }
+
+    /*
+     *  This event will ultimately be handled by Worker2.processEvent(), which gets
+     *  fed in various ways:
+     * 
+     *    1. Via memory queues, loaded by Scheduler2.enqueue_StartStepOnThisNode().
+     *    2. When Scheduler2.enqueue_StartStepOnThisNode() calls the function directly by
+     *       reusing the current worker thread.
+     *    3. Via REDIS queues, fed by luaEnqueue_startStep()
+     *    4. From here
+
+     *  1. Scheduler2.enqueue_StartStepOnThisNode() either via memory queues, or by reusing
+     *  the current worker thread.
+     * 
+     */
+    const event = {
+      eventType: Scheduler2.STEP_START_EVENT,
+      txId: this.#txId,
+      parentNodeGroup: schedulerForThisNode.getNodeGroup(),
+      stepDefinition: this.#stepDefinition,
+      metadata: this.#transactionState.vog_getMetadata(),
+      data: this.#txdata.getData(),
+      f2i: this.#f2i,
+    }
+    // console.log(`event=`, event)
+
+
+    const delayBeforeQueueing = sleepDuration * 1000
 
     // Sync any buffered logs
+    const wakeTime = new Date(Date.now() + (sleepDuration * 1000))
     this.trace(`Retry in ${sleepDuration} seconds at ${wakeTime.toLocaleTimeString('PST')}`, dbLogbook.LOG_SOURCE_SYSTEM)
     await this.syncLogs()
 
-    // Update the transaction status
-    const tx = this.#transactionState
-    if (VERBOSE_16aug22) tx.xoxYarp('retryLater', this.#stepId)
-    // await tx.delta(null, {
-    //   status: STEP_SLEEPING,
-    //   wakeSwitch: nameOfSwitch,
-    //   sleepDuration: sleepDuration,
-    //   wakeStepId: this.#stepId
-    // }, 'stepInstance.retryLater()')
-
-    tx.vog_setStatusToSleeping(nameOfSwitch, sleepDuration, this.#stepId)
-
-    await tx.delta(this.#stepId, {
-      status: STEP_SLEEPING,
-    }, 'stepInstance.retryLater()')
-    tx.vog_flowRecordStep_sleep(this.#stepId, STEP_SLEEPING, wakeSwitch, sleepDuration)
-
-    // Update flow2
-    //ZZZZZ
-    console.log(`this.#f2i=`.bgRed, this.#f2i)
-    console.log(`f2 not updated`.bgRed.white)
-    // const f2 = tx.vf2_getF2(this.#f2i)
-    // f2.status = STEP_FAILED
-    // f2.note = note
-    // f2.output = stepOutput
-    // f2.ts3 = Date.now()
-    // console.log(`f2=`.bgRed, f2)
-
-    const nodeGroup = this.#nodeGroup
-    const txId = this.#txId
-    const stepId = this.#stepId
-    if (sleepDuration < DEEP_SLEEP_SECONDS && !forceDeepSleep) {
-      if (VERBOSE) console.log(`Step will NAP for ${sleepDuration} seconds till ${wakeTime.toLocaleTimeString('PST')}`)
-      if (VERBOSE) console.log(`    tx: ${txId}`)
-      if (VERBOSE) console.log(`  step: ${stepId}`)
-      setTimeout(async() => {
-        if (VERBOSE) console.log(`Restarting step after a nap of ${sleepDuration} seconds.`)
-        if (VERBOSE) console.log(`    tx: ${txId}`)
-        if (VERBOSE) console.log(`  step: ${stepId}`)
-        await schedulerForThisNode.enqueue_StepRestart(tx, nodeGroup, txId, stepId)
-      }, sleepDuration * 1000)
-    } else {
-      // Long term sleep - will be woken by our cron process.
-      // We need to persist the transaction state, so the step can pick it up when it retries.
-      if (VERBOSE) console.log(`Step will SLEEP for ${sleepDuration} seconds till ${wakeTime.toLocaleTimeString('PST')}`)
-      if (VERBOSE) console.log(`    tx: ${txId}`)
-      if (VERBOSE) console.log(`  step: ${stepId}`)
-    }
+    const result = await luaEnqueue_startStep('retry-step', this.#transactionState, event, delayBeforeQueueing, nameOfSwitch)
+    // console.log(`StepInstance.retryLater(): luaEnqueue_startStep() result=`, result)
     return GO_BACK_AND_RELEASE_WORKER
-  }
+  }//- retryLater
 
   /**
    *
-   * @param {*} name
+   * @param {*} switchName
    * @returns
    */
-  async getSwitch(name) {
-    if (VERBOSE) console.log(`StepInstance.getSwitch(${name})`)
-    const tx = this.#transactionState
-    const value = await TransactionState.getSwitch(tx.getOwner(), this.#txId, name)
-    return value
+  async getSwitch(switchName) {
+    if (VERBOSE) console.log(`StepInstance.getSwitch(${switchName})`)
+    // Remove any 'unacknowledged' marker from the switch (! prefix)
+    // See README-switches.md for details.
+    const acknowledgeValue = true
+    const result = await luaGetSwitch(this.#txId, switchName, acknowledgeValue)
+    return result
   }
 
   async setSwitch(name, value) {
     if (VERBOSE) console.log(`StepInstance.getSwitch(${name})`)
-    const tx = this.#transactionState
-    await TransactionState.setSwitch(tx.getOwner(), this.#txId, name, value, false)
+    return this.#transactionState.setSwitch(name, value)
   }
 
   async getRetryCounter() {

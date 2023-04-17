@@ -139,14 +139,14 @@ class Pipeline extends Step {
       stepDefinition: childStepDefinition,
       metadata: metadata,
       data: stepInput,
-      level: pipelineInstance.getLevel() + 1,
+      // level: pipelineInstance.getLevel() + 1,
       f2i: firstChildF2i,
     }
     const onComplete = {
       nodeGroup: myNodeGroup,
       callback: PIPELINE_STEP_COMPLETE_CALLBACK,
     }
-    const rv = await schedulerForThisNode.enqueue_StartStep(tx, childStepId, event, onComplete, workerForShortcut)
+    const rv = await schedulerForThisNode.enqueue_StartStepOnThisNode(tx, childStepId, event, onComplete, workerForShortcut)
     assert(rv === GO_BACK_AND_RELEASE_WORKER)
 
     //ZZZZ Handling of sync steps???

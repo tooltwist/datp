@@ -28,6 +28,7 @@ import MapFieldsStep from './hardcoded-steps/MapFieldsStep'
 import ConvertDatesStep from './hardcoded-steps/ConvertDatesStep'
 import RouterStep from './hardcoded-steps/RouterStep'
 import WaitStep from './hardcoded-steps/WaitStep'
+import LongRunningTestStep from './hardcoded-steps/LongRunningTestStep'
 
 // Database stuff
 import colors from 'colors'
@@ -133,6 +134,7 @@ class AsynchronousTransactionEngine {
     await ConvertDatesStep.register()
     await RouterStep.register()
     await WaitStep.register()
+    await LongRunningTestStep.register()
 
 
     // await ResultReceiver.register(ATP_TRANSACTION_COMPLETION_HANDLER_NAME, new AtpTransactionCompletionHandler())

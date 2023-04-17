@@ -181,7 +181,6 @@ export async function pipelineStepCompleteCallback (tx, f2i, worker) {
         stepDefinition: pipelineSteps[nextStepNo].definition,
         metadata: metadataForNewStep,
         data: inputForNewStep,
-        level: pipelineStep.level + 1,
         f2i: nextF2i,
       }
       const onComplete = {
@@ -191,7 +190,7 @@ export async function pipelineStepCompleteCallback (tx, f2i, worker) {
 
       if (F2_VERBOSE) console.log(`F2: pipelineStepCompleteCallback: On to next step ${nextF2i}`.bgBrightBlue.white)
 
-      const rv = await schedulerForThisNode.enqueue_StartStep(tx, childStepId, event, onComplete, worker)
+      const rv = await schedulerForThisNode.enqueue_StartStepOnThisNode(tx, childStepId, event, onComplete, worker)
       assert(rv === GO_BACK_AND_RELEASE_WORKER)
       return GO_BACK_AND_RELEASE_WORKER
     }//- initiate the next step

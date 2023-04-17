@@ -17,6 +17,7 @@ import me from "../../lib/me"
 import { DEFINITION_PROCESS_STEP_START_EVENT, STEP_DEFINITION, validateStandardObject } from "./eventValidation"
 import { FLOW_VERBOSE } from "./queuing/redis-lua"
 import { flow2Msg } from "./flowMsg"
+import { RedisQueue } from "./queuing/RedisQueue-ioredis"
 
 const VERBOSE = 0
 const VERBOSE_16aug22 = 0
@@ -126,7 +127,9 @@ export default class Worker2 {
         //   break
 
         default:
-          throw new Error(`Unknown event type ${eventType}`)
+          const redisLua = await RedisQueue.getRedisLua()
+          await redisLua.luaMarkAsException(event.txId, `Unknown event type [${eventType}]`, 'Worker.js:processEvent()')
+          throw new Error(`Unknown event type ${eventType} for tx ${event.txId}`)
       }
 
       // Was the state changed to shutdown while we were off processing this event?
@@ -406,7 +409,7 @@ export default class Worker2 {
    * @returns
    */
    async processEvent_TransactionChanged(event) {
-    if (VERBOSE > 1) console.log(`<<< processEvent_TransactionChanged()`.brightYellow, event)
+    if (VERBOSE > 1) console.log(`<<< processEvent_TransactionChanged()`.yellow, event)
 
     try {
       const worker = this
@@ -451,7 +454,7 @@ export default class Worker2 {
   //  * @returns
   //  */
   //  async processEvent_TransactionCompleted(event) {
-  //   if (VERBOSE > 1) console.log(`<<< processEvent_TransactionCompleted()`.brightYellow, event)
+  //   if (VERBOSE > 1) console.log(`<<< processEvent_TransactionCompleted()`.yellow, event)
 
   //   assert(typeof(event.flowIndex) === 'number')
   //   try {

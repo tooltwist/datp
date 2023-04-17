@@ -8,6 +8,8 @@ import { schedulerForThisNode } from "../../.."
 import { getNodeGroup } from "../../../database/dbNodeGroup"
 import { RedisLua } from "../queuing/redis-lua"
 import dbupdate from "../../../database/dbupdate"
+import query from "../../../database/query"
+import { luaTransactionsToArchive } from "../queuing/redis-transactions"
 
 
 const IDLE_EMPTY_BATCHES = 10 // We switch to idle mode after this many empty batches
@@ -47,13 +49,13 @@ export class ArchiveProcessor {
     this.#archivePauseIdle = Math.max(group.archivePauseIdle, 1000)
 
     if (this.#batchSize < 1) {
-      console.log(` ✖ `.red + `archiving transaction states`)
+      console.log(` ✖ `.red + `archive daemon`)
     } else {
-      console.log(` ✔ `.brightGreen + `archiving transaction states`)
+      console.log(` ✔ `.brightGreen + `archive daemon`)
       // console.log(`ArchiveProcessor:`)
-      console.log(`      batchSize:`, this.#batchSize)
-      console.log(`          pause:`, this.#archivePause)
-      console.log(`           idle:`, this.#archivePauseIdle)
+      console.log(`          batchSize:`, this.#batchSize)
+      console.log(`         pause (ms):`, this.#archivePause)
+      console.log(`          idle (ms):`, this.#archivePauseIdle)
     }
   }
 
@@ -72,7 +74,7 @@ export class ArchiveProcessor {
       // tell REDIS what we've already compeleted.
       if (schedulerForThisNode.shuttingDown()) {
         const batchSize = 0
-        await lua.transactionsToArchive(persistedInPreviousIteration, nodeId, batchSize)
+        await luaTransactionsToArchive(persistedInPreviousIteration, nodeId, batchSize)
         return
       }
 
@@ -80,7 +82,7 @@ export class ArchiveProcessor {
       await this.checkConfig()
       if (this.#batchSize < 1) {
         // We aren't archiving from this node, but maybe that will change.
-        setTimeout(persistLoop, 10 * 1000).unref()
+        setTimeout(persistLoop, 30 * 1000).unref()
         return
       }
       // console.log(`-----------------------`.red)
@@ -92,7 +94,7 @@ export class ArchiveProcessor {
         // Note that the LUA script will designate just one node at a time as allowed
         // to do the archiving. During that period of time all other nodes will get
         // an empty list of transaction states if they ask.
-        const transactions = await lua.transactionsToArchive(persistedInPreviousIteration, nodeId, this.#batchSize)
+        const transactions = await luaTransactionsToArchive(persistedInPreviousIteration, nodeId, this.#batchSize)
         persistedInPreviousIteration = [ ]
 
         // If there are no transactions to be persisted, we might want to go into idle mode.
@@ -102,7 +104,7 @@ export class ArchiveProcessor {
           // Empty batch
           this.#emptyBatchCount++
           if (this.#emptyBatchCount >= IDLE_EMPTY_BATCHES) {
-            if (this.#emptyBatchCount === IDLE_EMPTY_BATCHES) console.log(`Archiving entering IDLE MODE`)
+            // if (this.#emptyBatchCount === IDLE_EMPTY_BATCHES) console.log(`Archiving entering IDLE MODE`)
             // console.log(`sleep a lot`)
             setTimeout(persistLoop, this.#archivePauseIdle).unref()
           } else {
@@ -177,14 +179,14 @@ export async function archiveTransactionState(txId, json) {
     // console.log(`result2=`, result2)
     if (result2.affectedRows !== 1) {
       //ZZZZZZ Notify the admin
-      console.log(`SERIOUS ERROR: persistTransactionStatesToLongTermStorage: could not insert into DB [${txId}]`, e)
+      console.log(`SERIOUS ERROR: archiveTransactionState: could not insert into DB [${txId}]`, e)
       return
     }
 
   } catch (e) {
     if (e.code !== 'ER_DUP_ENTRY') {
       //ZZZZZZ Notify the admin
-      console.log(`SERIOUS ERROR: persistTransactionStatesToLongTermStorage: could not insert into DB [${txId}]`, e)
+      console.log(`SERIOUS ERROR: archiveTransactionState: could not insert into DB [${txId}]`, e)
       return
     }
 
@@ -198,9 +200,40 @@ export async function archiveTransactionState(txId, json) {
     // console.log(`result2=`, result2)
     if (result2.affectedRows !== 1) {
       //ZZZZZZ Notify the admin
-      console.log(`SERIOUS ERROR: persistTransactionStatesToLongTermStorage: could not update DB [${txId}]`, e)
+      console.log(`SERIOUS ERROR: archiveTransactionState: could not update DB [${txId}]`, e)
       return
     }
   }
+}//- archiveTransactionState
 
+export async function findArchivedTransactions(page, pagesize, status, filter) {
+  const sql = `SELECT
+    transaction_id AS txId, ` +
+    // json,
+    `creation_time AS created,
+    update_time AS updated
+  FROM atp_transaction_state
+  ORDER BY created DESC LIMIT ?, ?`
+
+  const params = [ page, pagesize ]
+  const result = await query(sql, params)
+  // console.log(`result=`, result)
+  return result
 }
+
+// export async function getArchivedTransactionState(txId) {
+//   console.log(`getArchivedTransactionState(${txId})`)
+
+//   const sql = `SELECT
+//     transaction_id AS txId,
+//     json,
+//     creation_time AS created,
+//     update_time AS updated
+//   FROM atp_transaction_state
+//   WHERE transaction_id = ?`
+
+//   const params = [ txId ]
+//   const result = await query(sql, params)
+//   console.log(`result=`, result)
+//   return result
+// }

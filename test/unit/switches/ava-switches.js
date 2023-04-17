@@ -6,7 +6,7 @@
  */
 import test from 'ava'
 import TransactionState from '../../../ATP/Scheduler2/TransactionState'
-import TransactionCache from '../../../ATP/Scheduler2/txState-level-1'
+import TransactionCacheAndArchive from '../../../ATP/Scheduler2/TransactionCacheAndArchive'
 
 const OWNER = 'fred'
 const TRANSACTION_TYPE = 'example'
@@ -21,7 +21,7 @@ test.serial('Selecting switches', async t => {
   // Create the transaction with an external ID
   const num = Math.round(Math.random() * 100000000000)
   const externalId = `e-${num}`
-  const tx = await TransactionCache.newTransaction(OWNER, externalId, TRANSACTION_TYPE)
+  const tx = await TransactionCacheAndArchive.newTransaction(OWNER, externalId, TRANSACTION_TYPE)
   const txId = tx.getTxId()
   // console.log(`txId=`, txId)
 
@@ -40,7 +40,7 @@ test.serial('Set a boolean switch to true', async t => {
   // Create the transaction with an external ID
   const num = Math.round(Math.random() * 100000000000)
   const externalId = `e-${num}`
-  const tx = await TransactionCache.newTransaction(OWNER, externalId, TRANSACTION_TYPE)
+  const tx = await TransactionCacheAndArchive.newTransaction(OWNER, externalId, TRANSACTION_TYPE)
   const txId = tx.getTxId()
   // console.log(`txId=`, txId)
 
@@ -71,7 +71,7 @@ test.serial('Set a boolean switch to off', async t => {
   // Create the transaction with an external ID
   const num = Math.round(Math.random() * 100000000000)
   const externalId = `e-${num}`
-  const tx = await TransactionCache.newTransaction(OWNER, externalId, TRANSACTION_TYPE)
+  const tx = await TransactionCacheAndArchive.newTransaction(OWNER, externalId, TRANSACTION_TYPE)
   const txId = tx.getTxId()
   // console.log(`txId=`, txId)
 
@@ -100,7 +100,7 @@ test.serial('Set a string switch', async t => {
   // Create the transaction with an external ID
   const num = Math.round(Math.random() * 100000000000)
   const externalId = `e-${num}`
-  const tx = await TransactionCache.newTransaction(OWNER, externalId, TRANSACTION_TYPE)
+  const tx = await TransactionCacheAndArchive.newTransaction(OWNER, externalId, TRANSACTION_TYPE)
   const txId = tx.getTxId()
   // console.log(`txId=`, txId)
 
@@ -143,7 +143,7 @@ test.serial('Set multiple switches', async t => {
   // Create the transaction with an external ID
   const num = Math.round(Math.random() * 100000000000)
   const externalId = `e-${num}`
-  const tx = await TransactionCache.newTransaction(OWNER, externalId, TRANSACTION_TYPE)
+  const tx = await TransactionCacheAndArchive.newTransaction(OWNER, externalId, TRANSACTION_TYPE)
   const txId = tx.getTxId()
   // console.log(`txId=`, txId)
 
@@ -191,7 +191,7 @@ test.serial('Set switch to invalid type', async t => {
   // Create the transaction with an external ID
   const num = Math.round(Math.random() * 100000000000)
   const externalId = `e-${num}`
-  const tx = await TransactionCache.newTransaction(OWNER, externalId, TRANSACTION_TYPE)
+  const tx = await TransactionCacheAndArchive.newTransaction(OWNER, externalId, TRANSACTION_TYPE)
   const txId = tx.getTxId()
   // console.log(`txId=`, txId)
 
@@ -216,7 +216,7 @@ test.serial('Set switch with excessive length string value', async t => {
   // Create the transaction with an external ID
   const num = Math.round(Math.random() * 100000000000)
   const externalId = `e-${num}`
-  const tx = await TransactionCache.newTransaction(OWNER, externalId, TRANSACTION_TYPE)
+  const tx = await TransactionCacheAndArchive.newTransaction(OWNER, externalId, TRANSACTION_TYPE)
   const txId = tx.getTxId()
   // console.log(`txId=`, txId)
 
@@ -241,7 +241,7 @@ test.serial('Delete switches', async t => {
   // Create the transaction with an external ID
   const num = Math.round(Math.random() * 100000000000)
   const externalId = `e-${num}`
-  const tx = await TransactionCache.newTransaction(OWNER, externalId, TRANSACTION_TYPE)
+  const tx = await TransactionCacheAndArchive.newTransaction(OWNER, externalId, TRANSACTION_TYPE)
   const txId = tx.getTxId()
   // console.log(`txId=`, txId)
 

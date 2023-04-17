@@ -7,6 +7,7 @@
 import { schedulerForThisNode } from "../../.."
 import { getNodeGroup } from "../../../database/dbNodeGroup"
 import { RedisLua } from "../queuing/redis-lua"
+import { luaGetWebhooksToProcess } from "../queuing/redis-webhooks"
 import { tryTheWebhook } from "./tryTheWebhook"
 
 const VERBOSE = 0
@@ -64,9 +65,9 @@ export class WebhookProcessor {
       this.#requiredWorkers = 0
     }
     if (this.#requiredWorkers < 1) {
-      console.log(` ✖ `.red + `webook processing`)
+      console.log(` ✖ `.red + `webhook daemon`)
     } else {
-      console.log(` ✔ `.brightGreen + `webook processing`)
+      console.log(` ✔ `.brightGreen + `webhook daemon`)
       // console.log(`WebhookProcessor:`)
       console.log(`        workers:`, this.#requiredWorkers)
       console.log(`          pause:`, this.#webhookPause)
@@ -143,7 +144,7 @@ export class WebhookProcessor {
 // numRequired = Math.min(1, numRequired)
       let numStarted = 0
       if (numRequired > 0) {
-        const batch = await lua.getWebhooksToProcess(previousResults, numRequired)
+        const batch = await luaGetWebhooksToProcess(previousResults, numRequired)
 
         // console.log(`batch.length=`, batch.length)
         if (batch.length === 0) {

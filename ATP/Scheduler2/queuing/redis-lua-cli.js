@@ -1,5 +1,15 @@
+/* Copyright Tooltwist Innovations Limited - All Rights Reserved
+ * This file is part of DATP and as such is proprietary and confidential software.
+ * Unauthorized copying of this file, via any medium is strictly prohibited. All
+ * rights reserved. No warranty, explicit or implicit, provided. In no event shall
+ * the author or owner be liable for any claim or damages.
+ */
 import { archiveTransactionState } from '../archiving/ArchiveProcessor'
+import { luaGetCachedState } from './redis-cachedState'
 import {RedisLua} from './redis-lua'
+import { luaListenToNotifications, luaNotify } from './redis-notifications'
+import { luaTransactionsToArchive } from './redis-transactions'
+import { luaTransactionCompleted } from './redis-txCompleted'
 
 function needArgs(num) {
   if (process.argv.length < num) {
@@ -56,7 +66,8 @@ async function main() {
     case 'state':
       needArgs(4)
       const txId2 = process.argv[3]
-      const state = await lua.getState(txId2)
+      const withMondatDetails = false
+      const state = await luaGetCachedState(txId2, withMondatDetails)
       // console.log(`state=`, state)
       break
       
@@ -64,7 +75,7 @@ async function main() {
     //   needArgs(5)
     //   const txId3 = process.argv[3]
     //   const status3 = process.argv[4]
-    //   const result3 = await lua.luaTransactionCompleted(txId3, status3)
+    //   const result3 = await luaTransactionCompleted(txId3, status3)
     //   console.log(`result3=`, result3)
     //   break
 
@@ -81,7 +92,7 @@ async function main() {
       break
 
     case 'subscribe':
-      await lua.listenToNotifications((type, txId, status) => {
+      await luaListenToNotifications((type, txId, status) => {
         console.log(`Transaction ${txId} has ${type}. Status=${status}`)
       })
       return 'keep-running'
@@ -89,7 +100,7 @@ async function main() {
     case 'notify':
       needArgs(4)
       const txId5 = process.argv[3]
-      await lua.notify(txId5)
+      await luaNotify(txId5)
       break
       
     case 'archive':
@@ -99,7 +110,7 @@ async function main() {
       const persisted = [ ]
       const nodeId = 'me'
       const numRequired = 50
-      const result5 = await lua.transactionsToArchive(persisted, nodeId, numRequired)
+      const result5 = await luaTransactionsToArchive(persisted, nodeId, numRequired)
 
       for (const item of result5) {
         if (item[0] === 'transaction') {
@@ -117,7 +128,7 @@ async function main() {
         }
       }
       // Remove the states from REDIS
-      const result6 = await lua.transactionsToArchive(persisted, nodeId, 0)
+      const result6 = await luaTransactionsToArchive(persisted, nodeId, 0)
       console.log(`result6=`, result6)
 
       break

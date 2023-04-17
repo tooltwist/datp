@@ -19,7 +19,7 @@ export function flow2Msg(txState, msg, f2i=-1) {
   } else if (f2i < flowLength) {
     // const f2 = txState.vf2_getF2(f2i)
     // level = f2[F2ATTR_LEVEL]
-    level = txState(f2i)
+    level = txState.getF2level(f2i)
   } else {
     const err = `Invalid flow index [${f2i}]`
     console.trace(err)
@@ -33,7 +33,7 @@ export function flow2Msg(txState, msg, f2i=-1) {
       break
 
     case 0:
-      console.log(`${msg}`.brightYellow)
+      console.log(`${msg}`.yellow)
       break
 
     case 1:

@@ -7,6 +7,8 @@
 import { GO_BACK_AND_RELEASE_WORKER } from "./Worker2"
 import { RedisQueue } from "./queuing/RedisQueue-ioredis"
 import { FLOW_VERBOSE } from "./queuing/redis-lua"
+import { flow2Msg } from "./flowMsg"
+import { luaTransactionCompleted } from "./queuing/redis-txCompleted"
 
 
 export const TX_COMPLETE_CALLBACK = `txComplete`
@@ -24,7 +26,6 @@ export async function txCompleteCallback (tx, f2i, worker) {
   const rootF2 = tx.vf2_getF2(0)
   rootF2.ts3 = Date.now()
 
-  const redisLua = await RedisQueue.getRedisLua()
-  await redisLua.luaTransactionCompleted(tx)
+  await luaTransactionCompleted(tx)
   return GO_BACK_AND_RELEASE_WORKER
 }

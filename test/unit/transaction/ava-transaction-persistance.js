@@ -9,7 +9,7 @@ import createTestTransaction from '../helpers/createTestTransaction'
 import query from '../../../database/query'
 import TransactionIndexEntry from '../../../ATP/TransactionIndexEntry'
 import TransactionPersistance from '../../../ATP/Scheduler2/TransactionPersistance'
-import TransactionCache from '../../../ATP/Scheduler2/txState-level-1'
+import TransactionCacheAndArchive from '../../../ATP/Scheduler2/TransactionCacheAndArchive'
 
 
 // https://github.com/avajs/ava/blob/master/docs/01-writing-tests.md
@@ -68,7 +68,7 @@ test.serial('persist transaction details', async t => {
     value2: 'bbb',
   })
 
-  // await TransactionCache.persist(txId)
+  // await TransactionCacheAndArchive.persist(txId)
 
   // Check the database
   const sql = `SELECT * FROM atp_transaction_delta WHERE transaction_id=?`
@@ -192,16 +192,16 @@ test.serial('find hibernated transaction', async t => {
   await tx.delta(stepId1, { big: 999999999.999 })
 
   // Check it is in the cache
-  let tx2 = await TransactionCache.getTransactionState(txId, true)
+  let tx2 = await TransactionCacheAndArchive.getTransactionState(txId, true)
   t.truthy(tx2)
 
   // Remove the from the cache and check it is no longer in the cache
-  await TransactionCache.removeFromCache(txId)
-  tx2 = await TransactionCache.getTransactionState(txId, false)
+  await TransactionCacheAndArchive.removeFromCache(txId)
+  tx2 = await TransactionCacheAndArchive.getTransactionState(txId, false)
   t.falsy(tx2)
 
   // Check it gets put back in the cache
-  tx2 = await TransactionCache.getTransactionState(txId, true)
+  tx2 = await TransactionCacheAndArchive.getTransactionState(txId, true)
   t.truthy(tx2)
 
   // console.log(`tx 2=`, tx2.toString())
@@ -270,15 +270,15 @@ test.serial('persist transaction values changed by a delta', async t => {
   await tx.delta(stepId1, { big: 999999999.999 })
 
   // Persist the transaction
-  // await TransactionCache.persist(txId)
-  TransactionCache.removeFromCache(txId)
+  // await TransactionCacheAndArchive.persist(txId)
+  TransactionCacheAndArchive.removeFromCache(txId)
 
   // Check it is no longer in the cache
-  let tx2 = await TransactionCache.getTransactionState(txId, false)
+  let tx2 = await TransactionCacheAndArchive.getTransactionState(txId, false)
   t.falsy(tx2)
 
 
-  tx2 = await TransactionCache.getTransactionState(txId, true)
+  tx2 = await TransactionCacheAndArchive.getTransactionState(txId, true)
   t.truthy(tx2)
   // console.log(`tx 2=`, tx2.toString())
 

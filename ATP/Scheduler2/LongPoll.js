@@ -6,6 +6,7 @@
  */
 import dbupdate from "../../database/dbupdate"
 import query from "../../database/query"
+import { luaGetCachedState } from "./queuing/redis-cachedState"
 import { RedisQueue } from "./queuing/RedisQueue-ioredis"
 import { convertReply } from "./ReplyConverter"
 import TransactionState from "./TransactionState"
@@ -99,10 +100,10 @@ export default class LongPoll {
 
       // We can assume the transaction state is still in Lua, because something
       // recently changed the transaction status, and that is why we are here.
-      const redisLua = await RedisQueue.getRedisLua()
+      const withMondatDetails = false
       const markAsCompleted = true
       const cancelWebhook = !!entry.cancelWebhook
-      const result2 = await redisLua.getState(txId, markAsCompleted, cancelWebhook)
+      const result2 = await luaGetCachedState(txId, withMondatDetails, markAsCompleted, cancelWebhook)
       const txState = result2.txState
       const txStateObject = txState.asObject()
       const summary2 = {

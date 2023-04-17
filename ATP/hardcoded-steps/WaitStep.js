@@ -4,8 +4,28 @@
  * rights reserved. No warranty, explicit or implicit, provided. In no event shall
  * the author or owner be liable for any claim or damages.
  */
+import pause from "../../lib/pause"
 import Step from "../Step"
 import StepTypes from '../StepTypeRegister'
+
+/*
+ *  There is a potential concurrency problem in the following scenario:
+ *  1. The step asks for a switch value.
+ *  2. Some other code sets the switch value.
+ *  3. The step calls instance.retry to wait for the step to change value.
+ *  4. The previous change is not recognised, so the step does not retry.
+ * 
+ *  We handle this with "unacknowledged switch values". These appear in the
+ *  switches ass a switch name prefixed by !, and the LUA retry logic takes
+ *  them into account. See README-switches.md for details.
+ * 
+ *  If we set this value below, this step pauses long enough that we can test
+ *  (2) above, but setting the switch value from MONDAT. If we are not testing,
+ *  this flag should not be set.
+ */
+const TESTING_UNACKNOWLEDGED_SWITCH_CHANGES = false
+
+const VERBOSE = 1
 
 /**
  * This class represents a type of step, not an actual instance of a step
@@ -41,20 +61,21 @@ class WaitStep extends Step {
    * @param {StepInstance} instance
    */
   async invoke(instance) {
-    // instance.trace(`WaitStep (${instance.getStepId()})`)
-    // const data = instance.getDataAsObject()
+    if (VERBOSE) console.log(`-----------------------------------`.green)
+    if (VERBOSE) console.log(`WaitStep START`.green)
 
     // Do something here
     const input = instance.getDataAsObject()
-    // const switch = input.switch
-    // instance.trace(`#switch is [${this.#switch}]`)
+    if (VERBOSE) console.log(`Switch name is ${this.#switch}`.green)
 
+    const { value } = await instance.getSwitch(this.#switch)
 
-    const value = await instance.getSwitch(this.#switch)
-    // instance.trace(`switch value=`, value)
+    instance.trace(`switch value=`, value)
+    if (VERBOSE) console.log(`Switch value is ${value}`.green)
 
     // switch is set, we can proceed to the next step
     if (value) {
+      if (VERBOSE) console.log(`MOVE ON TO THE NEXT STEP`.green)
       // Time to complete the step and send a result
       const note = `SWITCH ${this.#switch} IS SET - PROCEED TO THE NEXT STEP`
       instance.trace(note)
@@ -64,10 +85,17 @@ class WaitStep extends Step {
       delete output.qrcode
       return await instance.succeeded(note, output)
     } else {
+      if (VERBOSE) console.log(`SWITCH HAS NO VALUE...`.green)
+      if (VERBOSE) console.log(`NEED TO WAIT FOR SWITCH TO BE SET`.green)
       instance.trace(`NEED TO WAIT FOR SWITCH ${this.#switch}`)
+
+      if (TESTING_UNACKNOWLEDGED_SWITCH_CHANGES) {
+        console.log(`PAUSING, TO GIVE TIME TO CHANGE SWITCH VALUE IN MONDAT`.bgMagenta)
+        await pause(20000)
+        console.log(`CONTINUING`.bgMagenta)
+      }
       return await instance.retryLater(this.#switch)
     }
-
   }
 
   // /**

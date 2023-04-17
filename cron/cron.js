@@ -7,11 +7,11 @@
 import { schedulerForThisNode } from ".."
 import { STEP_SLEEPING } from "../ATP/Step"
 import query from "../database/query"
-import TransactionCache from '../ATP/Scheduler2/txState-level-1'
+import TransactionCacheAndArchive from '../ATP/Scheduler2/TransactionCacheAndArchive'
 import dbupdate from "../database/dbupdate"
 
-export const CRON_INTERVAL = 15 // seconds
-const VERBOSE = 1
+export const CRON_INTERVAL = 5 // seconds
+const VERBOSE = 0
 
 export default class DatpCron {
 
@@ -107,7 +107,7 @@ export default class DatpCron {
         // This prevents multiple crons restarting the transaction
         if (result.affectedRows === 1) {
 
-          const txState = await TransactionCache.getTransactionState(tx.txId)
+          const { state: txState } = await TransactionCacheAndArchive.getTransactionStateStatus(tx.txId)
           if (VERBOSE) console.log(`Restarting transaction [${tx.txId}]`)
           await schedulerForThisNode.enqueue_StepRestart(txState, nodeGroup, tx.txId, tx.wakeStepId)
         } else {
@@ -198,7 +198,7 @@ export default class DatpCron {
   //       // Note that the LUA script will designate just one node at a time as allowed
   //       // to do the archiving. During that period of time all other nodes will be
   //       // returned an empty list of transaction states when they ask.
-  //       const transactions = await lua.transactionsToArchive(persisted, nodeId, num)
+  //       const transactions = await luaTransactionsToArchive(persisted, nodeId, num)
 
   //       // Archive each transaction's state
   //       persisted = [ ]
