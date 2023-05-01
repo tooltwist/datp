@@ -31,6 +31,7 @@ import { STEP_DEFINITION, validateStandardObject } from "./eventValidation"
 import { RedisQueue } from "./queuing/RedisQueue-ioredis"
 import { luaFindTransactions } from "./queuing/redis-transactions"
 import { luaGetSwitch, luaSetSwitch } from "./queuing/redis-retry"
+import { YAMYAP_VERBOSE } from "../StepInstance"
 
 
 export const TX_STATUS_RUNNING = 'running'
@@ -786,7 +787,7 @@ export default class TransactionState {
     if (VERBOSE) console.log(`\n*** delta(${stepId}, data, replayingPastDeltas=${replayingPastDeltas})`.brightRed, data)
 // console.log(`YARP delta - #${this.#deltaCounter}`)
 
-console.log(`YAMYAP: delta: 1`.brightRed)
+    if (YAMYAP_VERBOSE) console.log(`YAMYAP: delta: 1`.brightRed)
 
     // Check that this function is not already in action, because someone forgot an 'await'.
     if (this.#processingDelta) {
@@ -795,7 +796,7 @@ console.log(`YAMYAP: delta: 1`.brightRed)
       throw new Error(`delta() was called again before it completed. Missing 'await'?`)
     }
     this.#processingDelta = true
-    console.log(`YAMYAP: delta: 2`.brightRed)
+    if (YAMYAP_VERBOSE) console.log(`YAMYAP: delta: 2`.brightRed)
     try {
 
       // Next sequence number
@@ -823,7 +824,7 @@ console.log(`YAMYAP: delta: 1`.brightRed)
             case STEP_ABORTED:
             case STEP_TIMEOUT:
             case STEP_INTERNAL_ERROR:
-              console.log(`YAMYAP: delta changing status`.brightRed)
+              if (YAMYAP_VERBOSE) console.log(`YAMYAP: delta changing status`.brightRed)
               if (this.#me.transactionData.status !== data.status) {
                 if (VERBOSE) console.log(`Setting transaction status to ${data.status}`)
                 coreValuesChanged = true
@@ -940,7 +941,7 @@ console.log(`YAMYAP: delta: 1`.brightRed)
 
             // } else if (this.#me.transactionData.status === STEP_ || this.#me.transactionData.status === STEP_SLEEPING)
 
-            console.log(`YAMYAP: delta: coreValuesChanged=${coreValuesChanged}`.brightRed)
+            if (YAMYAP_VERBOSE) console.log(`YAMYAP: delta: coreValuesChanged=${coreValuesChanged}`.brightRed)
 
         // If the core values were changed, update the database
         if (coreValuesChanged) {
@@ -981,7 +982,7 @@ console.log(`YAMYAP: delta: 1`.brightRed)
             params.push(this.#me.txId)
             params.push(this.#me.owner)
 
-            console.log(`YAMYAP: delta: Updating`.brightRed, sql)
+            if (YAMYAP_VERBOSE) console.log(`YAMYAP: delta: Updating`.brightRed, sql)
 
             // console.log(`sql=`, sql)
             // console.log(`params=`, params)

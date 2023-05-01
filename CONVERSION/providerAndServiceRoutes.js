@@ -56,8 +56,8 @@ async function init(server) {
   defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/metadata/services', [
     { versions: '1.0 - 1.0', auth: LOGIN_IGNORED, noTenant: true, handler: async (req, res, next) => {
 
-      console.log(`---------------------------------`)
-      console.log(`/metadata/services`)
+      // console.log(`---------------------------------`)
+      // console.log(`/metadata/services`)
 
       const sql = `
         SELECT S.service, S.description, C.category, C.description AS category_description

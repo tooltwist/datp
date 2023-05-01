@@ -10,8 +10,10 @@ import errors from 'restify-errors'
 import { db_updatePipelineType, getPipelineType } from '../database/dbTransactionType'
 import crypto from 'crypto'
 
+const VERBOSE = 0
+
 export async function mondatRoute_getPipelinesTypesV1(req, res, next) {
-  console.log(`mondatRoute_getPipelinesTypesV1()`.brightRed)
+  if (VERBOSE) console.log(`mondatRoute_getPipelinesTypesV1()`.brightRed)
   const list = await db_getPipelineTypesV1()
   // console.log(`list=`, list)
 

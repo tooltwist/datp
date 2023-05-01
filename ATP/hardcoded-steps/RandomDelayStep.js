@@ -69,7 +69,7 @@ class RandomDelayStep extends Step {
 
     // If this is the first time this step has been called, do the sleep.
     const counter = await instance.getRetryCounter()
-    console.log(`counter=`, counter)
+    // console.log(`counter=`, counter)
 
     if (counter === 0) {
 

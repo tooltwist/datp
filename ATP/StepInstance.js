@@ -25,8 +25,7 @@ import { luaGetSwitch } from './Scheduler2/queuing/redis-retry'
 require('colors')
 
 const VERBOSE = 0
-const VERBOSE_16aug22 = 0
-
+export const YAMYAP_VERBOSE = 0
 
 export default class StepInstance {
   #worker
@@ -336,7 +335,7 @@ export default class StepInstance {
 
     // Persist the result and new status
     // tx.vog_setStatusToSuceeded()
-    console.log(`YAMYAP: succeeded calling delta`.brightRed)
+    if (YAMYAP_VERBOSE) console.log(`YAMYAP: succeeded calling delta`.brightRed)
     await tx.delta(this.#stepId, {
       status: STEP_SUCCESS,
     }, 'stepInstance.succeeded()')

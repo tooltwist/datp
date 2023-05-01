@@ -6,6 +6,7 @@
  */
 import { serveMondatWebapp, startDatpServer } from './restify/startServer'
 import step from './ATP/Step'
+import stepInstance from './ATP/StepInstance'
 import stepTypeRegister from './ATP/StepTypeRegister'
 import conversionHandler from './CONVERSION/lib/ConversionHandler'
 import formsAndFields from './CONVERSION/lib/formsAndFields'
@@ -32,6 +33,7 @@ import { WakeupProcessor } from './ATP/Scheduler2/WakeupProcessor'
 const VERBOSE = 0
 
 export const Step = step
+export const StepInstance = stepInstance
 export const StepTypes = stepTypeRegister
 export const ConversionHandler = conversionHandler
 export const FormsAndFields = formsAndFields
@@ -80,7 +82,6 @@ export async function goLive(server) {
 
   archiveProcessor = new ArchiveProcessor()
   await archiveProcessor.start()
-console.log(`-------------->>>>>>> YARP`)
 
   wakeupProcessor = new WakeupProcessor()
   await wakeupProcessor.start()
