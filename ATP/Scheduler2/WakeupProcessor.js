@@ -8,22 +8,20 @@ import { schedulerForThisNode } from "../.."
 import { getNodeGroup } from "../../database/dbNodeGroup"
 import { luaWakeupProcessing } from "./queuing/redis-retry"
 
-const DEFAULT_SCAN_INTERVAL = 7 * 1000 // ms
+const MIN_SCAN_INTERVAL = 5 * 1000 // ms
 
 export class WakeupProcessor {
   // Config params
-  #scanInterval // Reload config if negative
+  #wakeupProcessing // Are we doing wakeup processing here?
+  #wakeupPause
 
   constructor() {
     // console.log(`WakeupProcessor.contructor()`)
-    this.#scanInterval = -2
+    this.#wakeupProcessing = 0 // We'll check the config every 30 seconds if disabled
+    this.#wakeupPause = MIN_SCAN_INTERVAL
   }
 
   async checkConfig() {
-    if (this.#scanInterval >= 0) {
-      // Already doing s
-      return
-    }
     const nodeGroup = schedulerForThisNode.getNodeGroup()
     const group = await getNodeGroup(nodeGroup)
     // console.log(`group=`, group)
@@ -35,18 +33,19 @@ export class WakeupProcessor {
       process.exit(1)
     }
 
-    // If this node is archiving, we'll also use it fro wake Processing
-    const archiveBatchSize = Math.max(group.archiveBatchSize, 0)
-    const newScanInterval = archiveBatchSize > 0 ? DEFAULT_SCAN_INTERVAL : -1
+    const newWakeupProcessing = group.wakeupProcessing
+    const newWakeupPause = Math.max(group.wakeupPause, MIN_SCAN_INTERVAL)
 
-    if (newScanInterval != this.#scanInterval) {
-      this.#scanInterval = archiveBatchSize > 0 ? DEFAULT_SCAN_INTERVAL : -1
-      // console.log(`this.#scanInterval=`, this.#scanInterval)
-      if (this.#scanInterval < 1) {
-        console.log(` ✖ `.red + ` wakeup daemon`)
+    // Display a nice message if something has changed
+    if (this.#wakeupProcessing !== newWakeupProcessing || this.#wakeupPause !== newWakeupPause) {
+      this.#wakeupProcessing = newWakeupProcessing
+      this.#wakeupPause = newWakeupPause
+      if (this.#wakeupProcessing) {
+        console.log(` ✔ `.brightGreen + ` wakeup processing`)
+        console.log(`      interval (ms):`, this.#wakeupPause)
       } else {
-        console.log(` ✔ `.brightGreen + ` wakeup daemon`)
-        console.log(`      interval (ms):`, this.#scanInterval)
+        console.log(` ✖ `.red + ` wakeup processing`)
+        this.#wakeupPause = -1
       }
     }
   }
@@ -64,8 +63,8 @@ export class WakeupProcessor {
 
       // Are we archiving from this node?
       await this.checkConfig()
-      if (this.#scanInterval < 1) {
-        // We aren't archiving from this node, but maybe that will change.
+      if (!this.#wakeupProcessing) {
+        // We aren't doing wakeup processing from this node, but maybe that will change.
         setTimeout(scanLoop, 30 * 1000).unref()
         return
       }
@@ -76,11 +75,11 @@ export class WakeupProcessor {
 
       // Prepare to run it again.
       // console.log(`wait a bit then try again`)
-      setTimeout(scanLoop, this.#scanInterval).unref()
+      setTimeout(scanLoop, this.#wakeupPause).unref()
     }//- scanLoop
     
     // Initial invocation
     // unref() allows the process to shut down if required, even though the timeout is still waiting.
-    setTimeout(scanLoop, this.#scanInterval).unref()
+    setTimeout(scanLoop, 0).unref()
   }
 }

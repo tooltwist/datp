@@ -8,7 +8,7 @@ import providers from './providers-needToRemove/providers'
 import errors from 'restify-errors'
 import query from '../database/query'
 import constants from './lib/constants'
-import apiVersions from '../extras/apiVersions'
+import apiVersions, { silentlyDefineRoutes } from '../extras/apiVersions'
 const { defineRoute, LOGIN_IGNORED } = apiVersions
 
 import { MONITOR_URL_PREFIX } from './lib/constants'
@@ -19,7 +19,9 @@ export default {
 }
 
 async function init(server) {
-  // console.log(`proviserAndServiceRoutes.init()`)
+  // console.log(`providerAndServiceRoutes.init()`)
+
+  silentlyDefineRoutes(true)
 
   defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/metadata/domains', [
     { versions: '1.0 - 1.0', auth: LOGIN_IGNORED, noTenant: true, handler: async (req, res, next) => {
@@ -210,4 +212,7 @@ async function init(server) {
   //   next()
   // })//
 
-}
+
+  
+  silentlyDefineRoutes(false)
+}//- init

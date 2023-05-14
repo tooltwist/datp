@@ -10,7 +10,7 @@ import Schema from '../CONVERSION/formservice/schema-parser/Schema'
 import FieldProperties from '../CONVERSION/formservice/schema-parser/field_properties'
 import formsAndFields from '../CONVERSION/lib/formsAndFields'
 import { FORMSERVICE_URL_PREFIX } from '../CONVERSION/lib/constants'
-import apiVersions from '../extras/apiVersions'
+import apiVersions, { silentlyDefineRoutes } from '../extras/apiVersions'
 const { defineRoute, LOGIN_IGNORED } = apiVersions
 
 export default {
@@ -19,8 +19,8 @@ export default {
 
 async function init(server) {
   // console.log(`routes/formservice_yarp:init()`)
+  silentlyDefineRoutes(true)
 
-  // Return all currencies
   defineRoute(server, 'get', false, FORMSERVICE_URL_PREFIX, '/view/:viewName', [
     { versions: '1.0 - 1.0', auth: LOGIN_IGNORED, noTenant: true, handler: async (req, res, next) => {
       console.log(`-------------------------------------`)
@@ -313,4 +313,7 @@ async function init(server) {
       return next()
     }}
   ])//- /formservice/mapping/:mappingId/:fieldname/:source
+
+  silentlyDefineRoutes(false)
+
 }//- init

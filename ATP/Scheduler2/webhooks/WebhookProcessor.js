@@ -21,6 +21,7 @@ const WEBHOOK_HAVE_RESULT = 'haveResult'
 
 export class WebhookProcessor {
   // Config params
+  #webhookProcessing // Are we doing this here?
   #requiredWorkers // Reload config if negative
   #webhookPause
   #webhookPauseBusy // When all workers are in use
@@ -35,6 +36,7 @@ export class WebhookProcessor {
   constructor() {
     // console.log(`WebhookProcessor.contructor()`)
     // Config
+    this.#webhookProcessing = 0
     this.#requiredWorkers = -1
 
     // The workers
@@ -43,9 +45,6 @@ export class WebhookProcessor {
   }
 
   async checkConfig() {
-    if (this.#requiredWorkers >= 0) {
-      return
-    }
     const nodeGroup = schedulerForThisNode.getNodeGroup()
     const group = await getNodeGroup(nodeGroup)
     // console.log(`this.#nodeGroup=`, this.#nodeGroup)
@@ -56,30 +55,42 @@ export class WebhookProcessor {
       console.log(`This error is too dangerous to contine. Shutting down now.`)
       process.exit(1)
     }
-    this.#requiredWorkers = group.webhookWorkers
-    this.#webhookPause = group.webhookPause
-    this.#webhookPauseBusy = group.webhookPauseBusy
-    this.#webhookPauseIdle = group.webhookPauseIdle
-
+    const newWebhookProcessing = group.webhookProcessing
+    const newRequiredWorkers = group.webhookWorkers
+    const newWebhookPause = group.webhookPause
+    const newWebhookPauseBusy = group.webhookPauseBusy
+    const newWebhookPauseIdle = group.webhookPauseIdle
     if (this.#requiredWorkers < 0) {
       this.#requiredWorkers = 0
     }
-    if (this.#requiredWorkers < 1) {
-      console.log(` ✖ `.red + `webhook daemon`)
-    } else {
-      console.log(` ✔ `.brightGreen + `webhook daemon`)
-      // console.log(`WebhookProcessor:`)
-      console.log(`        workers:`, this.#requiredWorkers)
-      console.log(`          pause:`, this.#webhookPause)
-      console.log(`      pauseIdle:`, this.#webhookPauseIdle)
-      console.log(`      pauseBusy:`, this.#webhookPauseBusy)
+
+    if (
+      this.#webhookProcessing !== newWebhookProcessing ||
+      this.#requiredWorkers !== newRequiredWorkers ||
+      this.#webhookPause !== newWebhookPause ||
+      this.#webhookPauseBusy !== newWebhookPauseBusy ||
+      this.#webhookPauseIdle !== newWebhookPauseIdle
+    ) {
+      this.#webhookProcessing = newWebhookProcessing
+      this.#requiredWorkers = newRequiredWorkers
+      this.#webhookPause = newWebhookPause
+      this.#webhookPauseBusy = newWebhookPauseBusy
+      this.#webhookPauseIdle = newWebhookPauseIdle
+      if (this.#webhookProcessing && this.#requiredWorkers > 0) {
+        console.log(` ✔ `.brightGreen + `webhook processing`)
+        // console.log(`WebhookProcessor:`)
+        console.log(`        workers:`, this.#requiredWorkers)
+        console.log(`          pause:`, this.#webhookPause)
+        console.log(`      pauseBusy:`, this.#webhookPauseBusy)
+        console.log(`      pauseIdle:`, this.#webhookPauseIdle)
+      } else {
+        console.log(` ✖ `.red + `webhook processing`)
+      }
     }
   }
 
   async start() {
     // console.log(`WebhookProcessor.start()`)
-
-    const lua = new RedisLua()
     await RedisLua._checkLoaded()
 
     const loop = async () => {
@@ -225,26 +236,3 @@ export class WebhookProcessor {
   }
 
 }
-
-
-// async function dummy(i, txId) {
-//   const delay = 500 + Math.floor(Math.random() * 5000)
-//   console.log(`Try webhook ${txId}  (delay ${delay})`.brightBlue)
-//   // console.log(`delay=`, delay)
-//   await pause(delay)
-//   // console.log(`END ${i}`)
-
-//   const ok = (Math.random() < 0.9)
-//   if (ok) {
-//     console.log(``)
-//     console.log(`+------------------------------------------------------------------------------------+`.cyan)
-//     console.log(`|  WEBHOOK SUCCESS  ${txId}`.cyan)
-//     console.log(`+------------------------------------------------------------------------------------+`.cyan)
-//     console.log(``)
-//     console.log(``)
-//   } else {
-//     console.log(`Webhook failed  ${txId}`)
-//   }
-//   const result = ok ? 'success' : 'failed'
-//   return { result, comment: 'yarp' }
-// }

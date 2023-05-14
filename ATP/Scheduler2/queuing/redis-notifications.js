@@ -12,7 +12,7 @@ import { CHANNEL_NOTIFY, DELAY_BEFORE_ARCHIVING, EXTERNALID_UNIQUENESS_PERIOD, K
  * @param {*} callback 
  */
 export async function luaListenToNotifications(callback) {
-  console.log(`----- luaListenToNotifications()`)
+  // console.log(`----- luaListenToNotifications()`)
   const connection = await RedisLua.adminConnection()
   try {
     connection.subscribe(CHANNEL_NOTIFY, (err, count) => {

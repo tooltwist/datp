@@ -8,7 +8,7 @@ import errors from 'restify-errors'
 import constants from '../lib/constants'
 import countries from '../lookup/countries'
 import { LOOKUP_URL_PREFIX } from '../lib/constants'
-import apiVersions from '../../extras/apiVersions'
+import apiVersions, { silentlyDefineRoutes } from '../../extras/apiVersions'
 const { defineRoute, LOGIN_IGNORED } = apiVersions
 
 
@@ -20,7 +20,8 @@ export default {
 async function init(server) {
   // console.log(`routes/countries:init()`)
 
-  // Return all currencies
+  silentlyDefineRoutes(true)
+
   defineRoute(server, 'get', false, LOOKUP_URL_PREFIX, '/countries', [
     { versions: '1.0 - 1.0', auth: LOGIN_IGNORED, noTenant: true, handler: async (req, res, next) => {
       // server.get(`${constants.URL_PREFIX}/countries`, async function (req, res, next) {
@@ -62,5 +63,8 @@ async function init(server) {
   //   res.send(countries)
   //   next()
   // })//- /gateway/countries/:providerCode
+
+  
+  silentlyDefineRoutes(false)
 
 }

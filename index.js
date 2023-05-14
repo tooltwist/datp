@@ -4,7 +4,7 @@
  * All rights reserved. No warranty, explicit or implicit, provided. In no
  * event shall the author or owner be liable for any claim or damages.
  */
-import { serveMondatWebapp, startDatpServer } from './restify/startServer'
+import { hostMondatWebapp, startDatpServer } from './restify/startServer'
 import step from './ATP/Step'
 import stepInstance from './ATP/StepInstance'
 import stepTypeRegister from './ATP/StepTypeRegister'
@@ -92,8 +92,12 @@ export async function goLive(server) {
 
   // Perhaps serve up MONDAT
   if (serveMondat) {
-    await serveMondatWebapp(server)
+    await hostMondatWebapp(server)
   }
+
+  // Give our various processors time to write their
+  // messages before we pass control back to the app code.
+  await pause(50)
 }
 
 /**

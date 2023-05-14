@@ -12,7 +12,7 @@ const VERBOSE = 0
 
 /**
  *
- * @param {Object} group { name, description, hostMondatApi, serveMondatWebapp, defaultWorkers, delayWhenBusy, delayWhenEmpty, loopDelay, idleModeTime }
+ * @param {Object} group { name, description, serveMondatApi, hostMondatWebapp, defaultWorkers, delayWhenBusy, delayWhenEmpty, loopDelay, idleModeTime }
  * @returns
  */
 export async function saveNodeGroup(group) {
@@ -22,8 +22,8 @@ export async function saveNodeGroup(group) {
 
   const mapping = {
     description: 'description',
-    hostMondatApi: 'host_mondat',
-    serveMondatWebapp: 'serve_mondat_api',
+    serveMondatApi: 'host_mondat_webapp',
+    hostMondatWebapp: 'serve_mondat_api',
     eventloopWorkers: 'eventloop_workers',
     eventloopPause: 'eventloop_pause',
     eventloopPauseBusy: 'eventloop_pause_busy',
@@ -109,8 +109,8 @@ export async function saveNodeGroup(group) {
 export async function getNodeGroups() {
   const sql = `SELECT node_group AS nodeGroup,
     description,
-    host_mondat AS hostMondatApi,
-    serve_mondat_api AS serveMondatWebapp,
+    host_mondat_webapp AS hostMondatWebapp,
+    serve_mondat_api AS serveMondatApi,
     eventloop_workers AS eventloopWorkers,
     eventloop_pause AS eventloopPause,
     eventloop_pause_busy AS eventloopPauseBusy,
@@ -145,8 +145,8 @@ export async function getNodeGroups() {
 export async function getNodeGroup(nodeGroup) {
   const sql = `SELECT node_group AS nodeGroup,
     description,
-    host_mondat AS hostMondatApi,
-    serve_mondat_api AS serveMondatWebapp,
+    host_mondat_webapp AS hostMondatWebapp,
+    serve_mondat_api AS serveMondatApi,
     eventloop_workers AS eventloopWorkers,
     eventloop_pause AS eventloopPause,
     eventloop_pause_busy AS eventloopPauseBusy,

@@ -5,7 +5,7 @@
  * event shall the author or owner be liable for any claim or damages.
  */
 import { MONITOR_URL_PREFIX } from '../CONVERSION/lib/constants';
-import { defineRoute, LOGIN_IGNORED } from '../extras/apiVersions'
+import { defineRoute, LOGIN_IGNORED, silentlyDefineRoutes } from '../extras/apiVersions'
 // import { getMidiValuesV1 } from '../mondat/midi';
 import { mondatRoute_activeNodesV1 } from '../mondat/nodes'
 import { mondatRoute_nodeGroupsV1 } from '../mondat/nodeGroups'
@@ -42,6 +42,7 @@ import { mondatRoute_manuallySetSwitchV1, mondatRoute_manuallyWakeV1, mondatRout
 
 async function registerRoutes(server) {
 
+  silentlyDefineRoutes(true)
   // Get a list of pipeline types (previously called transaction types)
   defineRoute(server, 'get', false, MONITOR_URL_PREFIX, '/pipelineTypes', [
     { versions: '1.0 - 1.0', handler: mondatRoute_getPipelinesTypesV1, auth: LOGIN_IGNORED, noTenant: true }
@@ -204,6 +205,7 @@ async function registerRoutes(server) {
   defineRoute(server, 'put', false, MONITOR_URL_PREFIX, '/nodeGroup/:nodeGroup/setNumWorkers', [
     { versions: '1.0 - 1.0', handler: mondatRoute_setEventloopWorkersV1, auth: LOGIN_IGNORED, noTenant: true }
   ])
+  silentlyDefineRoutes(false)
 
 }
 

@@ -8,17 +8,19 @@ import errors from 'restify-errors'
 import currencies from '../lookup/currencies'
 import providers from '../providers-needToRemove/providers'
 import { LOOKUP_URL_PREFIX } from '../lib/constants'
-import apiVersions from '../../extras/apiVersions'
+import apiVersions, { silentlyDefineRoutes } from '../../extras/apiVersions'
 const { defineRoute, LOGIN_IGNORED } = apiVersions
 
 
 
 export default {
-  init,
+   init,
 }
 
 async function init(server) {
   // console.log(`countries/lookups:init()`)
+
+  silentlyDefineRoutes(true)
 
   // Return all currencies
   defineRoute(server, 'get', false, LOOKUP_URL_PREFIX, '/currencies', [
@@ -66,4 +68,5 @@ async function init(server) {
     }}
   ])//- /gateway/currency/:currencyCode
 
+  silentlyDefineRoutes(false)
 }

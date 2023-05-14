@@ -1,6 +1,6 @@
 {
   "name": "@tooltwist/datp",
-  "version": "3.0.7",
+  "version": "3.0.8",
   "description": "Distributed Asynchronous Transaction Pipelines",
   "main": "index.js",
   "license": "ISC",

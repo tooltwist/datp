@@ -17,6 +17,7 @@ const IDLE_EMPTY_BATCHES = 10 // We switch to idle mode after this many empty ba
 
 export class ArchiveProcessor {
   // Config params
+  #archiveProcessing // Are we doing this in this node?
   #batchSize // Reload config if negative
   #archivePause
   #archivePauseIdle
@@ -27,14 +28,12 @@ export class ArchiveProcessor {
   constructor() {
     // console.log(`ArchiveProcessor.contructor()`)
     // Config
+    this.#archiveProcessing = 0
     this.#batchSize = -1 // Load config
     this.#emptyBatchCount = 0
   }
 
   async checkConfig() {
-    if (this.#batchSize >= 0) {
-      return
-    }
     const nodeGroup = schedulerForThisNode.getNodeGroup()
     const group = await getNodeGroup(nodeGroup)
     if (!group) {
@@ -44,25 +43,41 @@ export class ArchiveProcessor {
       process.exit(1)
     }
     // console.log(`group=`, group)
-    this.#batchSize = Math.max(group.archiveBatchSize, 0)
-    this.#archivePause = Math.max(group.archivePause, 0)
-    this.#archivePauseIdle = Math.max(group.archivePauseIdle, 1000)
+    const newArchiveProcessing = group.archiveProcessing
+    const newBatchSize = Math.max(group.archiveBatchSize, 0)
+    const newArchivePause = Math.max(group.archivePause, 0)
+    const newArchivePauseIdle = Math.max(group.archivePauseIdle, 1000)
 
-    if (this.#batchSize < 1) {
-      console.log(` ✖ `.red + `archive daemon`)
-    } else {
-      console.log(` ✔ `.brightGreen + `archive daemon`)
-      // console.log(`ArchiveProcessor:`)
-      console.log(`          batchSize:`, this.#batchSize)
-      console.log(`         pause (ms):`, this.#archivePause)
-      console.log(`          idle (ms):`, this.#archivePauseIdle)
+    // Display a nice message if something has changed
+    if (
+      this.#archiveProcessing !== newArchiveProcessing ||
+      this.#batchSize !== newBatchSize ||
+      this.#archivePause !== newArchivePause ||
+      this.#archivePauseIdle !== newArchivePauseIdle
+    ) {
+      this.#archiveProcessing = newArchiveProcessing
+      this.#batchSize = newBatchSize
+      this.#archivePause = newArchivePause
+      this.#archivePauseIdle = newArchivePauseIdle
+      if (this.#archiveProcessing) {
+        if (this.#batchSize > 0) {
+          console.log(` ✔ `.brightGreen + `archive processing`)
+          // console.log(`ArchiveProcessor:`)
+          console.log(`          batchSize:`, this.#batchSize)
+          console.log(`         pause (ms):`, this.#archivePause)
+          console.log(`          idle (ms):`, this.#archivePauseIdle)
+        } else {
+          console.log(` ✖ `.red + `archive processing (because batch size is zero)`)
+        }
+      } else {
+        console.log(` ✖ `.red + `archive processing`)
+      }
     }
   }
 
   async start() {
     // console.log(`ArchiveProcessor.start()`)
 
-    const lua = new RedisLua()
     await RedisLua._checkLoaded()
     const nodeId = schedulerForThisNode.getNodeId()
 
@@ -80,8 +95,8 @@ export class ArchiveProcessor {
 
       // Are we archiving from this node?
       await this.checkConfig()
-      if (this.#batchSize < 1) {
-        // We aren't archiving from this node, but maybe that will change.
+      if (!this.#archiveProcessing) {
+        // We aren't archiving from this node now, but maybe that will change.
         setTimeout(persistLoop, 30 * 1000).unref()
         return
       }

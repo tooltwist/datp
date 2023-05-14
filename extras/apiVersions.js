@@ -23,7 +23,7 @@ export const LOGIN_MANDATORY = true
 export const LOGIN_IGNORED = 'ignore'
 
 const VERBOSE = 0
-
+let showDefineRouteMessage = true
 
 export function showVersions() {
   console.log(``)
@@ -158,7 +158,9 @@ export function defineRoute(server, operation, tenantInUrl, prefix, path, handle
     op4 = ' ' + op4
   }
   // console.log(`Registering ${op4} ${prefix}/:apiVersion/${tenantBit}${path}`)
-  console.log(`  ${op4} ${prefix}/:apiVersion/${tenantBit}${path}`)
+  if (showDefineRouteMessage) {
+    console.log(`  ${op4} ${prefix}/:apiVersion/${tenantBit}${path}`)
+  }
 
   // Now register the route
   switch (operation) {
@@ -182,6 +184,10 @@ export function defineRoute(server, operation, tenantInUrl, prefix, path, handle
     default:
       console.log(`Unknown operation ${operation} for route ${prefix}/:apiVersion/${tenantBit}${path}`)
   }
+}
+
+export function silentlyDefineRoutes(hideMessages=false) {
+  showDefineRouteMessage = !hideMessages
 }
 
 

@@ -14,6 +14,8 @@ import DatabaseLogbook from '../database/DatabaseLogbook';
 import NullLogbook from '../database/NullLogbook';
 import DatadogLogbook from '../database/DatadogLogbook';
 import ConsoleLogbook from '../database/ConsoleLogbook';
+import { getNodeGroup } from '../database/dbNodeGroup';
+import pause from '../lib/pause';
 
 const restify = require('restify');
 
@@ -62,28 +64,22 @@ export async function startDatpServer(options) {
   dbLogbook.registerHandler('datadog', new DatadogLogbook())
   dbLogbook.registerHandler('console', new ConsoleLogbook())
 
-  await DATP.run()
-  await DATP.routesForRestify(server)
-  // await DATP.registerAsMaster(server)
-
-  // If this is a master node, provide routes for MONDAT to call
-  const nodeGroup = await juice.string('datp.nodeGroup', "master") // Checked elsewhere
-  const serveMondatApi = await juice.boolean('datp.serveMondatApi', false) // Checked elsewhere
-  if (nodeGroup === 'master' || serveMondatApi) {
-    mondat.registerRoutes(server)
-    // await DATP.monitorMidi()
-  }
-
   /*
   *  Display a nice message.
   */
   const JUICE_CONFIG = process.env['JUICE_CONFIG']
+  const nodeGroup = await juice.string('datp.nodeGroup', "master") // Checked elsewhere
   console.log(`JUICE_CONFIG=`, JUICE_CONFIG)
   console.log();
   console.log(figlet.textSync(nodeGroup, {
     horizontalLayout: 'fitted'
   }));
   console.log();
+
+  await DATP.run()
+  await DATP.routesForRestify(server)
+  // await DATP.registerAsMaster(server)
+
 
   /*
   *  Start the server.
@@ -94,10 +90,20 @@ export async function startDatpServer(options) {
   server.keepAliveTimeout = await juice.integer('datp.keepAliveTimeout', 65000)
   server.headersTimeout = await juice.integer('datp.headersTimeout', 66000)
 
+  // If required, provide routes for MONDAT to call
+  const group = await getNodeGroup(nodeGroup)
+  // console.log(`group=`, group)
+  if (group.serveMondatApi) {
+    mondat.registerRoutes(server)
+    // await DATP.monitorMidi()
+    console.log(` ✔ `.brightGreen + `hosting the API for MONDAT`)
+  } else {
+    console.log(` ✖ `.red + `not hosting the API for MONDAT`)
+  }
   return server
 }
 
-export async function serveMondatWebapp(server) {
+export async function hostMondatWebapp(server) {
   const port = await juice.int('datp.port', 8080)
   console.log(`Hosting Mondat application at http://0.0.0.0:${port}/mondat`)
   const staticFilesDir = `${__dirname}/../../MONDAT/dist`
