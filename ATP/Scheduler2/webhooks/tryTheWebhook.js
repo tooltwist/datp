@@ -48,7 +48,8 @@ export function requiresWebhookProgressReports(metadata) {
 }
 
 export async function sendStatusByWebhook(owner, txId, webhookUrl, eventType) {
-  // console.log(`sendStatusByWebhook(${owner}, ${txId}, webhookUrl=${webhookUrl}, eventType=${eventType})`)
+  console.log(`sendStatusByWebhook(${owner}, ${txId}, webhookUrl=${webhookUrl}, eventType=${eventType})`)
+  console.log(`NOT SUPPORTED, just writes to the database!`) //ZZZZZZ
 
   // Save this webhook in the database
   const eventTime = new Date()

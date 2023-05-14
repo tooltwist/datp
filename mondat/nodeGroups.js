@@ -13,7 +13,7 @@ export async function mondatRoute_nodeGroupsV1(req, res, next) {
 
     // Get the groups from the database
     const groups = await getNodeGroups()
-    // console.log(`groups=`, groups)
+    console.log(`groups=`, groups)
 
     // Index them by nodeGroup name
     const index =  { }

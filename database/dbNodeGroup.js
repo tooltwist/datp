@@ -12,7 +12,7 @@ const VERBOSE = 0
 
 /**
  *
- * @param {Object} group { name, description, hostMondat, serveMondatWebapp, defaultWorkers, delayWhenBusy, delayWhenEmpty, loopDelay, idleModeTime }
+ * @param {Object} group { name, description, hostMondatApi, serveMondatWebapp, defaultWorkers, delayWhenBusy, delayWhenEmpty, loopDelay, idleModeTime }
  * @returns
  */
 export async function saveNodeGroup(group) {
@@ -22,7 +22,7 @@ export async function saveNodeGroup(group) {
 
   const mapping = {
     description: 'description',
-    hostMondat: 'host_mondat',
+    hostMondatApi: 'host_mondat',
     serveMondatWebapp: 'serve_mondat_api',
     eventloopWorkers: 'eventloop_workers',
     eventloopPause: 'eventloop_pause',
@@ -109,19 +109,23 @@ export async function saveNodeGroup(group) {
 export async function getNodeGroups() {
   const sql = `SELECT node_group AS nodeGroup,
     description,
-    host_mondat AS hostMondat,
+    host_mondat AS hostMondatApi,
     serve_mondat_api AS serveMondatWebapp,
     eventloop_workers AS eventloopWorkers,
     eventloop_pause AS eventloopPause,
     eventloop_pause_busy AS eventloopPauseBusy,
     eventloop_pause_idle AS eventloopPauseIdle,
+    webhook_processing AS webhookProcessing,
     webhook_workers AS webhookWorkers,
     webhook_pause AS webhookPause,
     webhook_pause_busy AS webhookPauseBusy,
     webhook_pause_idle AS webhookPauseIdle,
+    archive_processing AS archiveProcessing,
     archive_batch_size AS archiveBatchSize,
     archive_pause AS archivePause,
     archive_pause_idle AS archivePauseIdle,
+    wakeup_processing AS wakeupProcessing,
+    wakeup_pause AS wakeupPause,
     sloth_mode_delay AS delayToEnterSlothMode,
     debug_scheduler AS debugScheduler,
     debug_workers AS debugWorkers,
@@ -141,19 +145,23 @@ export async function getNodeGroups() {
 export async function getNodeGroup(nodeGroup) {
   const sql = `SELECT node_group AS nodeGroup,
     description,
-    host_mondat AS hostMondat,
+    host_mondat AS hostMondatApi,
     serve_mondat_api AS serveMondatWebapp,
     eventloop_workers AS eventloopWorkers,
     eventloop_pause AS eventloopPause,
     eventloop_pause_busy AS eventloopPauseBusy,
     eventloop_pause_idle AS eventloopPauseIdle,
+    webhook_processing AS webhookProcessing,
     webhook_workers AS webhookWorkers,
     webhook_pause AS webhookPause,
     webhook_pause_busy AS webhookPauseBusy,
     webhook_pause_idle AS webhookPauseIdle,
+    archive_processing AS archiveProcessing,
     archive_batch_size AS archiveBatchSize,
     archive_pause AS archivePause,
     archive_pause_idle AS archivePauseIdle,
+    wakeup_processing AS wakeupProcessing,
+    wakeup_pause AS wakeupPause,
     sloth_mode_delay AS delayToEnterSlothMode,
     debug_scheduler AS debugScheduler,
     debug_workers AS debugWorkers,

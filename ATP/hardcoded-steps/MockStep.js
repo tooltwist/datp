@@ -7,6 +7,7 @@
 import Step from "../Step"
 import StepTypes from '../StepTypeRegister'
 import query from '../../database/query'
+import pause from "../../lib/pause"
 
 const VERBOSE = 1
 
@@ -33,12 +34,10 @@ class MockStep extends Step {
     const reply = await query(`SELECT * from map_service`)
     // console.log(`++++++++++++++++++++++++++++++++++++++++++ reply=`, reply)
 
-
-    // setTimeout(() => {
-      data.said = 'nothing'
-      const note = this.msg
-      instance.succeedeed(note, data)
-    // }, 1000)
+    await pause(1000)
+    data.said = 'nothing'
+    const note = this.msg
+    return await instance.succeeded(note, data)
   }//- invoke
 
   // async getNote() {

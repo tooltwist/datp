@@ -84,7 +84,7 @@ export const KEYSPACE_PROCESSING = 'processingZ'
 export const KEYSPACE_STATE = 'stateH:'
 
 export const KEYSPACE_EXTERNALID = 'externalId:'
-export const EXTERNALID_UNIQUENESS_PERIOD = 6 * 60 * 60 // An externalId may nto be reused for this many seconds
+export const EXTERNALID_UNIQUENESS_PERIOD = 6 * 60 * 60 // An externalId may not be reused for this many seconds
 
 
 /**

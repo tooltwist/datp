@@ -47,7 +47,7 @@ class DemoStep extends Step {
     //...
 
     // Time to complete the step and send a result
-    instance.succeedeed(note, null)
+    return await instance.succeeded(note, null)
   }
 }
 

@@ -4,6 +4,7 @@
  * All rights reserved. No warranty, explicit or implicit, provided. In no
  * event shall the author or owner be liable for any claim or damages.
  */
+import pause from "../../lib/pause"
 import Step from "../Step"
 import StepTypes from '../StepTypeRegister'
 
@@ -20,11 +21,10 @@ class SaySomething extends Step {
     instance.trace(`"${this.msg}"`)
     const data = instance.getDataAsObject()
 
-    setTimeout(() => {
-      data.said = this.msg
-      const note = `Said "${this.msg}"`
-      instance.succeedeed(note, data)
-    }, 1000)
+    await pause(1000)
+    data.said = this.msg
+    const note = `Said "${this.msg}"`
+    return await instance.succeeded(note, data)
   }
 
   // async getNote() {

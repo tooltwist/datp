@@ -17,7 +17,7 @@ test.serial('Get node groups', async t => {
   const first = groups[0]
   t.is(first.nodeGroup, 'master')
   t.is(typeof(first.description), 'string')
-  t.is(typeof(first.hostMondat), 'number')
+  t.is(typeof(first.hostMondatApi), 'number')
   t.is(typeof(first.serveMondatWebapp), 'number')
   t.is(typeof(first.eventloopWorkers), 'number')
   t.is(typeof(first.eventloopPauseBusy), 'number')
@@ -42,7 +42,7 @@ test.serial('Get master node group', async t => {
   const group = await getNodeGroup('master')
   t.is(group.nodeGroup, 'master')
   t.is(typeof(group.description), 'string')
-  t.is(typeof(group.hostMondat), 'number')
+  t.is(typeof(group.hostMondatApi), 'number')
   t.is(typeof(group.serveMondatWebapp), 'number')
   t.is(typeof(group.eventloopWorkers), 'number')
   t.is(typeof(group.eventloopPauseBusy), 'number')
@@ -74,7 +74,7 @@ test.serial('Insert/update/delete node group', async t => {
   let newGroup = {
     nodeGroup,
     description: DESCRIPTION_1,
-    hostMondat: DEFAULT_1,
+    hostMondatApi: DEFAULT_1,
     serveMondatWebapp: DEFAULT_1,
     eventloopWorkers: DEFAULT_1,
     eventloopPauseBusy: DEFAULT_1,
@@ -97,7 +97,7 @@ test.serial('Insert/update/delete node group', async t => {
 
 
   let group = await getNodeGroup(nodeGroup)
-  t.is(group.hostMondat, DEFAULT_1)
+  t.is(group.hostMondatApi, DEFAULT_1)
   t.is(group.serveMondatWebapp, DEFAULT_1)
   t.is(group.eventloopWorkers, DEFAULT_1)
   t.is(group.eventloopPauseBusy, DEFAULT_1)
@@ -120,7 +120,7 @@ test.serial('Insert/update/delete node group', async t => {
   let updatedGroup = {
     nodeGroup,
     description: DESCRIPTION_2,
-    hostMondat: DEFAULT_2,
+    hostMondatApi: DEFAULT_2,
     serveMondatWebapp: DEFAULT_2,
     eventloopWorkers: DEFAULT_2,
     eventloopPauseBusy: DEFAULT_2,
@@ -143,7 +143,7 @@ test.serial('Insert/update/delete node group', async t => {
 
   // Check the update
   group = await getNodeGroup(nodeGroup)
-  t.is(group.hostMondat, DEFAULT_2)
+  t.is(group.hostMondatApi, DEFAULT_2)
   t.is(group.serveMondatWebapp, DEFAULT_2)
   t.is(group.eventloopWorkers, DEFAULT_2)
   t.is(group.eventloopPauseBusy, DEFAULT_2)

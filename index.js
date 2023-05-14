@@ -375,10 +375,12 @@ export default {
   restifyMasterServer,
   restifySlaveServer,
   goLive,
+  schedulerForThisNode,
 
   // These are here for convenience for external applications.
   Step,
   StepTypes,
+  StepInstance,
   RouterStep,
   ConversionHandler,
   FormsAndFields,

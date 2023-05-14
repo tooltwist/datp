@@ -634,6 +634,7 @@ export default class StepInstance {
       // If this transaction requires progress reports via webhooks, start that now.
       if (requiresWebhookProgressReports(this.#metadata)) {
         if (VERBOSE) console.log(`Sending progress report by webhook`)
+        //ZZZZ This MUST use the LUA script
         await sendStatusByWebhook(tx.getOwner(), tx.getTxId(), this.#metadata.webhook, WEBHOOK_EVENT_PROGRESS)
       }
     }

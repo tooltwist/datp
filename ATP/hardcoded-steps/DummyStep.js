@@ -4,6 +4,7 @@
  * All rights reserved. No warranty, explicit or implicit, provided. In no
  * event shall the author or owner be liable for any claim or damages.
  */
+import pause from "../../lib/pause"
 import Step from "../Step"
 import StepTypes from '../StepTypeRegister'
 
@@ -24,17 +25,12 @@ class DummyStep extends Step {
 
     const data = instance.getDataAsObject()
 
-
-    setTimeout(() => {
-      data.said = 'nothing'
-      const note = this.msg
-      instance.succeedeed(note, data)
-    }, 1000)
+    await pause(1000)
+    data.said = 'nothing'
+    const note = this.msg
+    return instance.succeeded(note, data)
   }//- invoke
 
-  // async getNote() {
-  //   return 'NoNoye'
-  // }
 }//- class Dummy
 
 async function register() {

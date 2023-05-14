@@ -37,9 +37,9 @@ async function register() {
 async function defaultDefinition() {
   return {
     returnError: false,
-    note: 'Not supported',
+    note: 'Fixed message',
     reply: {
-      message: 'Operation not supported'
+      message: 'This is a fixed message'
     },
   }
 }
